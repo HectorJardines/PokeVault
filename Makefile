@@ -94,8 +94,11 @@ FPU = -mfpu=fpv4-sp-d16
 # float-abi
 FLOAT-ABI = -mfloat-abi=hard
 
+# short enums
+ENUMS = -fshort-enums
+
 # mcu
-MCU = $(CPU) -mthumb $(FPU) $(FLOAT-ABI)
+MCU = $(CPU) -mthumb $(FPU) $(FLOAT-ABI) $(ENUMS)
 
 # macros for gcc
 # AS defines
