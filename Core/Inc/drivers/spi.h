@@ -9,8 +9,7 @@
 #define _SPI_H
 
 #include "./io.h"
-#include "Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_spi.h"
-
+#include "Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_spi.h"
 
 /***********
  * ENUMS
@@ -36,5 +35,21 @@ typedef enum {
  * @param spi_dev specifies the device whose dedicated SPI peripheral will be configured
  */
 void spi_init(spi_device_e spi_dev);
+
+/**
+ * @brief HAL_SPITransmit wrapper for mfrc522 transmission
+ * 
+ * @param data data buffer to be transmitted
+ * @param len length of data buffer in bytes
+ */
+uint8_t spi_transmit_mfrc(uint8_t *data, uint32_t len);
+
+/**
+ * @brief HAL_SPIReceive wrapper for mfrc522 reception
+ * 
+ * @param data data buffer to store received bytes
+ * @param len length of data buffer in bytes
+ */
+uint8_t spi_receive_mfrc(uint8_t *data, uint32_t len);
 
 #endif
