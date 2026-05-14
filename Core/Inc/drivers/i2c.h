@@ -31,4 +31,22 @@ typedef enum {
  */
 void i2c_init(i2c_device_e i2c_dev);
 
+/**
+ * @brief Wrapper for HAL i2c transmit, blocking call
+ * 
+ * @param dev_addr device I2C address
+ * @param send_data data buffer to send
+ * @param data_len length of data buffer
+ */
+uint8_t i2c_transmit(uint8_t dev_addr, uint8_t *send_data, uint32_t data_len);
+
+/**
+ * @brief Wrapper for HAL i2c receive, blocking call
+ * 
+ * @param dev_addr device I2C address
+ * @param send_data data buffer to receive bytes into
+ * @param data_len length of data buffer
+ */
+uint8_t i2c_receive(uint8_t dev_addr, uint8_t *rcv_data, uint32_t data_len);
+
 #endif
