@@ -9,7 +9,7 @@
 #define _SPI_H
 
 #include "./io.h"
-#include "Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_spi.h"
+#include "../../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_spi.h"
 
 /***********
  * ENUMS

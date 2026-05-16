@@ -10,8 +10,10 @@
  ***********************/
 static uint8_t aht20_power_on(void);
 static uint8_t aht20_start_measurement(aht20_sensor_e sensor);
-static uint8_t read_measurement(aht20_sensor_e sensor);
+static uint8_t aht20_read_measurement(aht20_sensor_e sensor, aht20_sensor_measurements_t *measurements);
 static void aht20_reset(aht20_sensor_e sensor);
+static uint8_t aht20_get_status(uint8_t status_msk);
+static void process_sensor_measurements(aht20_data_t *data, uint8_t *measurement_buf);
 
 static aht20_t device = {.transmit = i2c_transmit, .receive = i2c_receive};
 
@@ -19,7 +21,7 @@ static aht20_t device = {.transmit = i2c_transmit, .receive = i2c_receive};
  * PUBLIC APIs
  ********************/
 uint8_t intialized = 0;
-void aht20_init(void) {
+uint8_t aht20_init(void) {
     uint8_t status = 0;
     i2c_init(I2C_DEVICE_AHT20);
     status = aht20_power_on();
@@ -93,7 +95,7 @@ static uint8_t aht20_power_on(void) {
  */
 static uint8_t aht20_read_measurement(aht20_sensor_e sensor, aht20_sensor_measurements_t *measurements) {
     uint8_t rslt = 0;
-    aht20_data_t *sensor_measurement;
+    aht20_data_t *sensor_measurement = NULL;
     uint8_t measurement_data[MEASUREMENT_DATA_LEN];
     switch (sensor) {
         case AHT20_UNIT0:
@@ -109,7 +111,7 @@ static uint8_t aht20_read_measurement(aht20_sensor_e sensor, aht20_sensor_measur
             break;
     }
     
-    rslt = device.receive(AHT20_DEV_ADDR, &measurement_data, MEASUREMENT_DATA_LEN);
+    rslt = device.receive(AHT20_DEV_ADDR, measurement_data, MEASUREMENT_DATA_LEN);
     if (measurement_data[0] & AHT20_BUSY_Msk) // first byte is AHT20 STATE WORD
         return 1;
     process_sensor_measurements(sensor_measurement, &measurement_data[1]);

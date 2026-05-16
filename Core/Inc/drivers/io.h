@@ -1,6 +1,7 @@
 #ifndef _IO_H
 #define _IO_H
 
+#include "stm32f4xx.h"
 #include "../../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_gpio.h"
 #include <stdbool.h>
 #include <stdint.h>
@@ -142,9 +143,9 @@ typedef enum
   IO_UNUSED_42 = IO_C10,
   IO_UNUSED_43 = IO_C11,
   IO_UNUSED_44 = IO_C12,
-  IO_UNUSED_45 = IO_C13,
-  IO_UNUSED_46 = IO_C14,
-  IO_UNUSED_47 = IO_C15,
+  IO_IR_EMIT_UNIT1 = IO_C13,
+  IO_IR_EMIT_UNIT2 = IO_C14,
+  IO_IR_EMIT_UNIT3 = IO_C15,
 } io_e;
 
 typedef enum

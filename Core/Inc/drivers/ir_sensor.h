@@ -5,7 +5,8 @@
 #ifndef _IR_SENSOR_H
 #define _IR_SENSOR_H
 
-#include "Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_adc.h"
+#include "./io.h"
+#include <stdint.h>
 
 /*******************
  *  ENUMS/STRUCTS
@@ -14,6 +15,12 @@ typedef enum {
     IR_LINE_BROKEN, // LINE BROKEN, UNIT CLOSED
     IR_LINE_CONNECTED // LINE CONNECTED, UNIT OPEN
 } ir_line_status_e;
+
+typedef enum {
+    IR_OK,
+    IR_BSY,
+    IR_ERR
+} ir_status_e;
 
 typedef enum {
     IR_LINE_UNIT1,
@@ -45,7 +52,7 @@ void ir_init(void);
  * 
  * @param lines struct that holds line status values
  */
-void ir_check_lines(ir_lines_t *lines);
+ir_status_e ir_check_lines(ir_lines_t *lines);
 
 /**
  * @brief Enables the ir line for the specified unit

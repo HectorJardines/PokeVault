@@ -62,7 +62,7 @@ typedef enum {
 /**
  * @brief Performs hte AHT20 power on sequence and confirms operation
  */
-void aht20_init(void);
+uint8_t aht20_init(void);
 
 /**
  * @brief Retrieve sensor values for temperature and humidity
@@ -72,6 +72,6 @@ void aht20_init(void);
  * @param data aht20_data_t pointer to which retrieved data will be stored
  * @return 0 on success; 1 else
  */
-uint8_t aht20_read_data(aht20_data_t *data);
+uint8_t aht20_read_data(aht20_sensor_e sensor, aht20_sensor_measurements_t *data);
 
 #endif

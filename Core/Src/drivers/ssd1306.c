@@ -49,8 +49,8 @@ struct ssd1306_oled_disp_t {
 // 1024 BYTES FOR OUR USE CASE, FIGURE OUT WHY THIS WORKS...
 static uint8_t oled_display_buf[DISPLAY_HEIGHT * ((DISPLAY_WIDTH + 7) >> DIV_8)];
 static uint8_t data_buf[LEN_DATA_CTL_AND_DATA]; // copy data buf here to include data ctl byte
-static struct ssd1306_oled_disp_t display = {.i2c_init = i2c_init, .i2c_rx = i2c_receive, .i2c_tx = i2c_transmit_poll, 
-    .i2c_tx_dma = i2c_transmit_DMA, .gddr_buf = oled_display_buf, .width = DISPLAY_WIDTH, .height = DISPLAY_HEIGHT, 
+static struct ssd1306_oled_disp_t display = {.i2c_init = i2c_init, .i2c_rx = i2c_receive, .i2c_tx = i2c_transmit, 
+    .i2c_tx_dma = i2c_transmit, .gddr_buf = oled_display_buf, .width = DISPLAY_WIDTH, .height = DISPLAY_HEIGHT, 
     .orientation = ORIENT_HORIZONTAL_NORMAL, .cursor_x = 0, .cursor_y = 0};
 
 static uint8_t set_addressing_scheme(uint8_t hori_or_vert);

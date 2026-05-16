@@ -1,2 +1,5 @@
 ## VSCODE FILES
 .vscode/*
+
+## BUILD FILES
+build/*

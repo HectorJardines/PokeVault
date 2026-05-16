@@ -121,14 +121,14 @@ typedef struct {
 /**
  * @brief Intializes and configures the MFRC522 device
  */
-void mfrc522_init(mfrc_reader_t *dev);
+void mfrc522_init(void);
 
 /**
  * @brief Performs keycard RFID authentication
  * 
  * @return 0 if authentication fails; 1 else
  */
-uint8_t mfrc522_auth(uint8_t *id);
+uint8_t mfrc522_auth(uint8_t auth_type, uint8_t picc_block_addr, uint8_t *sector_key, uint8_t *serial_num);
 
 /**
  * @brief Compares the keycard id with stored ID

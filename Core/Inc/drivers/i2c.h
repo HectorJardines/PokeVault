@@ -6,7 +6,7 @@
 #define _I2C_H
 
 #include "./io.h"
-#include "Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_i2c.h"
+#include "../../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_i2c.h"
 
 /***************
  *   ENUMS
@@ -15,6 +15,13 @@ typedef enum {
     I2C_DEVICE_SSD1306,
     I2C_DEVICE_AHT20
 }i2c_device_e;
+
+typedef enum {
+    I2C_OK,
+    I2C_BUSY_IN_TX,
+    I2C_BUSY_IN_RX,
+    I2C_ERR
+} i2c_status_e;
 
 /***************
  * PUBLIC APIs

@@ -1,5 +1,6 @@
 #include "../Inc/drivers/mfrc522.h"
 #include "../Inc/drivers/io.h"
+#include "../Inc/drivers/spi.h"
 
 #define MFRC522_CS_LOW  (GPIOA->BSRR |= 0)
 #define MFRC522_CS_HIGH (GPIOA->BSRR |= 0)
@@ -41,14 +42,15 @@ static uint8_t read_mfrc_register(uint8_t reg, uint8_t *data, uint32_t len);
 static uint8_t mfrc_reset(void);
 static uint8_t mfrc_antenna_on(void);
 static uint8_t mfrc_antenna_off(void);
-static uint8_t mfrc_anticollision(void);
+static uint8_t mfrc_anticollision(uint8_t *uid);
 static uint8_t mfrc_send_to_picc(uint8_t command, uint8_t *send_data, uint8_t send_len, uint8_t *rcv_data, uint16_t *rcv_len);
 static uint8_t write_pcd_cmd(uint8_t pcd_cmd);
 static uint8_t mfrc_calculate_crc(uint8_t *checksum_data, uint8_t data_len, uint8_t *checksum);
 static uint8_t mfrc_select_picc(uint8_t *uid);
-static uint8_t mfrc_halt(uid);
+static uint8_t mfrc_halt(void);
+static uint8_t mfrc_request(uint8_t request_type, uint8_t *picc_type);
 
-static mfrc_reader_t mfrc522;
+static mfrc_reader_t mfrc522 = {.spi_init = spi_init, .spi_tx = spi_transmit_mfrc, .spi_rx = spi_receive_mfrc};
 
 /**************************
  *      PUBLIC APIs
@@ -118,8 +120,6 @@ uint8_t mfrc_compare(uint8_t *id, uint8_t *comp_id) {
 uint8_t mfrc522_auth(uint8_t auth_type, uint8_t picc_block_addr, uint8_t *sector_key, uint8_t *serial_num) {
     mfrc_status_e status = MFRC_OK;
     uint8_t buffer[MF_AUTH_PAYLOAD_LEN];
-    uint16_t rcv_len_bits;
-    uint8_t auth_failure_msk = 0x11; // masks TimerIRq and IdleIRq bits of ComIrqReg
 
     // intialize timer to auto mode, use idleIRq/timerIRq as termination criteria if no card read
     set_bitmask_on_reg(MFRC_TMODER, 0x80); // timer auto starts at end of transmission
@@ -188,12 +188,12 @@ static uint8_t mfrc_picc_read(uint8_t picc_block_addr, uint8_t *rcv_data) {
 static uint8_t mfrc_picc_write(uint8_t picc_block_addr, uint8_t *send_data) {
     mfrc_status_e status = MFRC_OK;
     uint8_t buffer[PICC_DB_PAYLOAD_LEN];
-    uint8_t rcv_len_bits;
+    uint16_t rcv_len_bits;
 
     buffer[0] = PICC_WRITE;
     buffer[1] = picc_block_addr;
     mfrc_calculate_crc(buffer, 2, &buffer[2]); // calculate and store checksum
-    status = mfrc_send_to_picc(PCD_CMD_TRANSCEIVE, buffer, 4, &buffer, &rcv_len_bits); // picc only sends back ACK
+    status = mfrc_send_to_picc(PCD_CMD_TRANSCEIVE, buffer, 4, buffer, &rcv_len_bits); // picc only sends back ACK
     if (status != MFRC_OK || rcv_len_bits != PICC_NUM_ACK_BITS || (buffer[0] & 0x0F) != PICC_ACK)
         return MFRC_ERR;
 
@@ -232,7 +232,7 @@ static uint8_t mfrc_select_picc(uint8_t *uid) {
     // calculate checksum over buffer contents to transmit as per ISO-IEC 14443
     mfrc_calculate_crc(tx_buf, 7, &tx_buf[7]);
 
-    status = mfrc_send_to_picc(PCD_CMD_TRANSCEIVE, uid, 9, &uid, &rx_len);
+    status = mfrc_send_to_picc(PCD_CMD_TRANSCEIVE, uid, 9, uid, &rx_len);
 
     return status;
 }
@@ -316,7 +316,7 @@ static uint8_t mfrc_anticollision(uint8_t *uid) {
     uid[1] = 0x20; // indicates to nearby PICCs that no part of UID will be sent, just send full UID
     mfrc_status_e status = mfrc_send_to_picc(PCD_CMD_TRANSCEIVE, uid, 2, uid, &uid_len); // sent PICC anticolll command and retrieve UID
 
-    if (status = MFRC_OK) { // verify that UID is expected
+    if (status == MFRC_OK) { // verify that UID is expected
         for (uint8_t i = 0; i < PICC_UID_LEN_BYTES; i++)
             uid_check ^= uid[i];
         if (uid_check != uid[PICC_UID_LEN_BYTES - 1])
@@ -383,7 +383,7 @@ static uint8_t mfrc_send_to_picc(uint8_t command, uint8_t *send_data, uint8_t se
     switch (command) {
         uint8_t irq_en = 0x00;
         uint8_t wait_irq = 0x00;
-        uint8_t retries = 2000;
+        uint16_t retries = 2000;
 
         case PCD_CMD_MF_AUTH:
             irq_en = 0x12; // enable idle irq and error irq
@@ -446,7 +446,7 @@ static uint8_t mfrc_send_to_picc(uint8_t command, uint8_t *send_data, uint8_t se
                         num_bytes = MFRC_MAX_FIFO_LEN;
 
                     // read data from card to rcv_buf
-                    read_mfrc_register(MFRC_FIFO_DR, &rcv_data, num_bytes);
+                    read_mfrc_register(MFRC_FIFO_DR, rcv_data, num_bytes);
 
                 }
             }
@@ -480,7 +480,7 @@ static uint8_t set_bitmask_on_reg(uint8_t reg, uint8_t reg_msk) {
         return 1;
     // mask specified bits
     curr_reg_sttg |= reg_msk;
-    rslt = write_mfrc_register(reg, curr_reg_sttg, SINGLE_REG_WRITE);
+    rslt = write_mfrc_register(reg, &curr_reg_sttg, SINGLE_REG_WRITE);
     if (rslt)
         return 1;
 }
@@ -495,9 +495,8 @@ static uint8_t clear_bitmask_on_reg(uint8_t reg, uint8_t reg_msk) {
         return 1;
     // mask specified bits
     curr_reg_sttg &= ~reg_msk;
-    rslt = write_mfrc_register(reg, curr_reg_sttg, SINGLE_REG_WRITE);
-    if (rslt)
-        return 1;
+    rslt = write_mfrc_register(reg, &curr_reg_sttg, SINGLE_REG_WRITE);
+    return rslt;
 }
 
 static uint8_t write_mfrc_register(uint8_t reg, uint8_t *data, uint32_t len) {
@@ -507,9 +506,8 @@ static uint8_t write_mfrc_register(uint8_t reg, uint8_t *data, uint32_t len) {
     uint8_t rslt = mfrc522.spi_tx(&reg, 1);
     // send data
     rslt |= mfrc522.spi_tx(data, len);
-    if (rslt)
-        return 1;
     MFRC522_CS_HIGH;
+    return rslt;
 }
 
 static uint8_t read_mfrc_register(uint8_t reg, uint8_t *data, uint32_t len) {
@@ -519,8 +517,7 @@ static uint8_t read_mfrc_register(uint8_t reg, uint8_t *data, uint32_t len) {
     uint8_t rslt = mfrc522.spi_tx(&reg, 1);
     // read bytes from register
     rslt |= mfrc522.spi_rx(data, len);
-    if (rslt)
-        return 1;
     MFRC522_CS_HIGH;
+    return rslt;
 }
 

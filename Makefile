@@ -39,6 +39,25 @@ C_SOURCES =  \
 Core/Src/main.c \
 Core/Src/stm32f4xx_it.c \
 Core/Src/stm32f4xx_hal_msp.c \
+Core/Src/system_stm32f4xx.c \
+Core/Src/app/alerts.c \
+Core/Src/app/keycard.c \
+Core/Src/app/rendering.c \
+Core/Src/app/security.c \
+Core/Src/common/ssd1306_fonts.c \
+Core/Src/drivers/adc.c \
+Core/Src/drivers/aht20.c \
+Core/Src/drivers/bmi160.c \
+Core/Src/drivers/i2c.c \
+Core/Src/drivers/io.c \
+Core/Src/drivers/ir_sensor.c \
+Core/Src/drivers/mfrc522.c \
+Core/Src/drivers/pir_sensor.c \
+Core/Src/drivers/rtc.c \
+Core/Src/drivers/spi.c \
+Core/Src/drivers/ssd1306.c \
+Core/Src/drivers/w5500.c \
+Core/Src/app/vault_main.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc_ex.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_flash.c \
@@ -52,7 +71,8 @@ Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_pwr_ex.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_cortex.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_exti.c \
-Core/Src/system_stm32f4xx.c \
+Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_spi.c \
+Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_i2c.c \
 
 # ASM sources
 ASM_SOURCES =  \
@@ -119,8 +139,10 @@ C_INCLUDES =  \
 -IDrivers/STM32F4xx_HAL_Driver/Inc \
 -IDrivers/STM32F4xx_HAL_Driver/Inc/Legacy \
 -IDrivers/CMSIS/Device/ST/STM32F4xx/Include \
--IDrivers/CMSIS/Include
-
+-IDrivers/CMSIS/Include \
+-ICore/Inc/app \
+-ICore/Inc/common \
+-ICore/Inc/drivers \
 
 # compile gcc flags
 ASFLAGS = $(MCU) $(AS_DEFS) $(AS_INCLUDES) $(OPT) -Wall -fdata-sections -ffunction-sections
