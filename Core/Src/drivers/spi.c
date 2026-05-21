@@ -7,25 +7,47 @@
  *************************/
 SPI_HandleTypeDef h_spi1;
 
-static void spi_configure(void);
+static void spi_configure_mfrc(void);
 
 /********************
  * USER APIs
  ********************/
 
+
 void spi_init(spi_device_e spi_dev) {
     if (spi_dev == SPI_DEVICE_MFRC522) {
         RCC->APB2ENR |= (RCC_APB2ENR_SPI1EN); // enable peripheral clock
-        spi_configure();
+        spi_configure_mfrc();
     }
 }
 
-uint8_t spi_transmit_mfrc(uint8_t *data, uint32_t len) {
-    return HAL_SPI_Transmit(&h_spi1, data, len, SPI_TX_RX_TIMEOUT_MS);
+
+int8_t spi_transmit_mfrc(uint8_t data) {
+    uint8_t stat = HAL_SPI_Transmit(&h_spi1, &data, 1, SPI_TX_RX_TIMEOUT_MS);
+    if (stat == HAL_OK)
+        stat = data;
+    else
+        stat = -1;
+    return stat;
 }
 
-uint8_t spi_receive_mfrc(uint8_t *data, uint32_t len) {
-    return HAL_SPI_Receive(&h_spi1, data, len, SPI_TX_RX_TIMEOUT_MS);
+
+int8_t spi_receive_mfrc(void) {
+    uint8_t data = 0x00;
+    uint8_t stat = HAL_SPI_Receive(&h_spi1, &data, 1, SPI_TX_RX_TIMEOUT_MS);
+    if (stat == HAL_OK)
+        stat = data;
+    else
+        stat = -1;
+    return stat;
+}
+
+
+uint8_t TM_SPI_Send(SPI_TypeDef *spix, uint8_t byte) {
+    while(((spix)->SR & (SPI_SR_TXE | SPI_SR_RXNE)) == 0 || spix->SR & SPI_SR_BSY);
+    spix->DR = byte;
+    while(((spix)->SR & (SPI_SR_TXE | SPI_SR_RXNE)) == 0 || spix->SR & SPI_SR_BSY);
+    return (uint8_t)spix->DR;
 }
 
 
@@ -47,7 +69,7 @@ static void spi_configure_mfrc(void) {
     h_spi1.Init.Mode = SPI_MODE_MASTER;
     h_spi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
 
-    // Configure SPI mode 0 (sample on rising edge)
+    // Configure SPI mode 0 (sample on rising first edge)
     h_spi1.Init.CLKPhase = SPI_PHASE_1EDGE; // sample on first edge
     h_spi1.Init.CLKPolarity = SPI_POLARITY_LOW; // SCK IDLE LOW
 
@@ -58,8 +80,11 @@ static void spi_configure_mfrc(void) {
 
     // software chip select
     h_spi1.Init.NSS = SPI_NSS_SOFT;
-    h_spi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16; // 75MHz apb2 peripheral clock / 16 = 4.6MHz
+    h_spi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32; // 75MHz apb2 peripheral clock / 16 = 4.6MHz
     h_spi1.State = HAL_SPI_STATE_READY; // NOT USING MSP INIT FUNCTIONS
 
+    h_spi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+
     HAL_SPI_Init(&h_spi1);
+    __HAL_SPI_ENABLE(&h_spi1);
 }

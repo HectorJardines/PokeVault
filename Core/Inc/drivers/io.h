@@ -24,6 +24,7 @@
 
 #define IO_PORT_CNT           3U
 #define IO_PIN_CNT_PER_PORT   16U
+#define IO_BSRR_BR_OFFSET       (16U)
 
 #define PRx_SET     1U
 #define NO_PRx_SET  23U
@@ -106,8 +107,8 @@ typedef enum
   IO_UNUSED_7 = IO_A7,
   IO_UNUSED_8 = IO_A8,
   IO_UNUSED_9 = IO_A9,
-  IO_UNUSED_10 = IO_A10,
-  IO_UNUSED_11 = IO_A11,
+  IO_SPI_CS = IO_A10,
+  IO_IR_EMIT_UNIT3 = IO_A11,
   IO_UNUSED_12 = IO_A12,
   IO_UNUSED_13 = IO_A13,
   IO_UNUSED_14 = IO_A14,
@@ -145,7 +146,7 @@ typedef enum
   IO_UNUSED_44 = IO_C12,
   IO_IR_EMIT_UNIT1 = IO_C13,
   IO_IR_EMIT_UNIT2 = IO_C14,
-  IO_IR_EMIT_UNIT3 = IO_C15,
+  IO_UNUSED_47 = IO_C15,
 } io_e;
 
 typedef enum
