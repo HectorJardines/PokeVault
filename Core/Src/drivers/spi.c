@@ -22,24 +22,13 @@ void spi_init(spi_device_e spi_dev) {
 }
 
 
-int8_t spi_transmit_mfrc(uint8_t data) {
-    uint8_t stat = HAL_SPI_Transmit(&h_spi1, &data, 1, SPI_TX_RX_TIMEOUT_MS);
-    if (stat == HAL_OK)
-        stat = data;
-    else
-        stat = -1;
-    return stat;
+uint8_t spi_transmit(uint8_t *data, uint32_t len) {
+    return HAL_SPI_Transmit(&h_spi1, data, len, SPI_TX_RX_TIMEOUT_MS);
 }
 
 
-int8_t spi_receive_mfrc(void) {
-    uint8_t data = 0x00;
-    uint8_t stat = HAL_SPI_Receive(&h_spi1, &data, 1, SPI_TX_RX_TIMEOUT_MS);
-    if (stat == HAL_OK)
-        stat = data;
-    else
-        stat = -1;
-    return stat;
+uint8_t spi_receive(uint8_t *data, uint32_t len) {
+    return HAL_SPI_Receive(&h_spi1, data, len, SPI_TX_RX_TIMEOUT_MS);
 }
 
 

@@ -42,9 +42,7 @@ void spi_init(spi_device_e spi_dev);
  * @param data data buffer to be transmitted
  * @param len length of data buffer in bytes
  */
-int8_t spi_transmit_mfrc(uint8_t data);
-
-uint8_t TM_SPI_Send(SPI_TypeDef *spix, uint8_t byte);
+uint8_t spi_transmit(uint8_t *data, uint32_t len);
 
 /**
  * @brief HAL_SPIReceive wrapper for mfrc522 reception
@@ -52,6 +50,14 @@ uint8_t TM_SPI_Send(SPI_TypeDef *spix, uint8_t byte);
  * @param data data buffer to store received bytes
  * @param len length of data buffer in bytes
  */
-int8_t spi_receive_mfrc(void);
+uint8_t spi_receive(uint8_t *data, uint32_t len);
+
+
+/**
+ * @brief Sends a single byte on the specified SPI peripheral
+ * 
+ * @param spix spi peripheral 
+ */
+uint8_t TM_SPI_Send(SPI_TypeDef *spix, uint8_t byte);
 
 #endif

@@ -72,6 +72,6 @@ keycard_status_e keycard_register(keycard_index_e keycard_entry);
  * 
  * @param uid 4-byte serial num associated with keycard to remove
  */
-keycard_status_e keycard_forget(uint8_t *uid);
+keycard_status_e keycard_forget(void);
 
 #endif

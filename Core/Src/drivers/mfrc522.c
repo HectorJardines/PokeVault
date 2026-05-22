@@ -45,8 +45,6 @@ static uint8_t mfrc_send_to_picc(uint8_t command, uint8_t *send_data, uint8_t se
 static uint8_t write_pcd_cmd(uint8_t pcd_cmd);
 static uint8_t mfrc_calculate_crc(uint8_t *checksum_data, uint8_t data_len, uint8_t *checksum);
 
-static mfrc_reader_t mfrc522 = {.spi_init = spi_init, .spi_tx = spi_transmit_mfrc, .spi_rx = spi_receive_mfrc};
-
 /**************************
  *      PUBLIC APIs
  **************************/
@@ -56,7 +54,7 @@ static mfrc_reader_t mfrc522 = {.spi_init = spi_init, .spi_tx = spi_transmit_mfr
  */
 void mfrc522_init(void) {
     // intialize spi peripheral
-    mfrc522.spi_init(SPI_DEVICE_MFRC522);
+    spi_init(SPI_DEVICE_MFRC522);
     // reset mfrc522
     mfrc_reset();
 
@@ -363,8 +361,6 @@ static uint8_t mfrc_calculate_crc(uint8_t *checksum_data, uint8_t data_len, uint
 }
 
 static uint8_t mfrc_antenna_on(void) {
-    // uint8_t curr_reg = 0;
-    uint8_t test = 0x00;
     uint8_t curr_reg = read_mfrc_register(MFRC_TX_CTLR);
     uint8_t rslt = 0;
     if (!(curr_reg & 0x03)) {
@@ -399,11 +395,10 @@ static uint8_t mfrc_reset(void) {
  * @param rcv_len number of bits read from the PICC
  */
 static uint8_t mfrc_send_to_picc(uint8_t command, uint8_t *send_data, uint8_t send_len, uint8_t *rcv_data, uint16_t *rcv_len) {
-    uint8_t rslt = 0, status = MFRC_ERR;
+    mfrc_status_e status = MFRC_ERR;
     uint8_t irq_en = 0x00;
     uint8_t wait_irq = 0x00;
     uint16_t retries = 2000;
-    uint8_t test = 0x00;
     switch (command) {
         case PCD_CMD_MF_AUTH:
             irq_en = 0x12; // enable idle irq and error irq
@@ -483,13 +478,6 @@ static uint8_t mfrc_send_to_picc(uint8_t command, uint8_t *send_data, uint8_t se
  * @brief Write PCD command to command register
  */
 static uint8_t write_pcd_cmd(uint8_t pcd_cmd) {
-    // // clear cmd bits
-    // uint8_t rslt = clear_bitmask_on_reg(MFRC_CMD_REG, 0x0F); // clears lower 4 bits of cmd reg
-    // if (rslt)
-    //     return 1;
-    // // set command bits
-    // rslt = set_bitmask_on_reg(MFRC_CMD_REG, pcd_cmd); // each cmd is just a 4 bit mask of lower 4 bits
-    // return rslt;
     write_mfrc_register(MFRC_CMD_REG, pcd_cmd);
     return 0;
 }

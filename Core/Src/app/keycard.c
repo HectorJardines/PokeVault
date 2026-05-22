@@ -58,7 +58,7 @@ static void unscramble_key(uint8_t *sec_key);
  * @param uid the UID to verify
  * @return 0 if UID unknown; 1 else
  */
-static uint8_t search_uid(uint8_t *uid);
+static uint8_t search_uid(uint8_t *uid, uint8_t *idx);
 
 
 
@@ -241,9 +241,10 @@ static uint8_t search_uid(uint8_t *uid, uint8_t *idx) {
     uint8_t match = 0;
     for (uint8_t i = 0; i < NUM_OF_ALLOWED_TAGS; ++i) {
         match = mfrc_compare(uid, registered_keys[i]);
-        if (match)
+        if (match) {
             *idx = i;
             break;
+        }
     }
     return match;
 }
