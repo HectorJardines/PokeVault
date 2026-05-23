@@ -59,6 +59,7 @@ Core/Src/drivers/ssd1306.c \
 Core/Src/drivers/w5500.c \
 Core/Src/app/vault_main.c \
 Core/Src/test_hardware.c \
+Core/Src/common/log.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc_ex.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_flash.c \

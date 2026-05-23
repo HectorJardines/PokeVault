@@ -1,10 +1,20 @@
 #include "../Inc/drivers/io.h"
 #include "../Inc/app/keycard.h"
 #include "../Inc/main.h"
+#include "../Inc/common/log.h"
 
 static void test_setup(void) {
     SystemClock_Config();
     IO_Init();
+}
+
+static void test_logging(void) {
+    log_init();
+
+    while(1) {
+        log_debug("Hello...", 1);
+        HAL_Delay(500);
+    }
 }
 
 static void test_keycard(void) {
@@ -39,7 +49,7 @@ static void test_keycard(void) {
 
 int main(void) {
     test_setup();
-    test_keycard();
+    test_logging();
     return 0;
 }
 
