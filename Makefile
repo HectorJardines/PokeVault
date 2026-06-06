@@ -60,6 +60,7 @@ Core/Src/drivers/w5500.c \
 Core/Src/app/vault_main.c \
 Core/Src/test_hardware.c \
 Core/Src/common/log.c \
+Core/Src/app/display.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc_ex.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_flash.c \
@@ -76,6 +77,16 @@ Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_exti.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_spi.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_i2c.c \
 
+# 3. Define a safe, native recursive wildcard macro
+# This searches infinitely down through any folder tree structure
+rwildcard = $(foreach d,$(wildcard $(1)*),$(call rwildcard,$(d)/,$(2)) $(filter $(subst *,%,$(2)),$(d)))
+
+# 4. Grab EVERY single C file inside LVGL recursively
+C_SOURCES += $(call rwildcard,Drivers/lvgl-master/src/,*.c)
+C_SOURCES += $(call rwildcard, Core/src/ui/,*.c)
+
+# 5. Force Unix slash compliance for Make safety
+C_SOURCES_CLEAN = $(subst \,/,$(C_SOURCES))
 # ASM sources
 ASM_SOURCES =  \
 startup_stm32f411xe.s
@@ -143,6 +154,8 @@ C_INCLUDES =  \
 -IDrivers/w5500_eth/DNS \
 -IDrivers/w5500_eth/MQTT \
 -IDrivers/w5500_eth/W5500 \
+-IDrivers/lvgl-master \
+-IDrivers/lvgl-master/src/widgets \
 -IDrivers/STM32F4xx_HAL_Driver/Inc \
 -IDrivers/STM32F4xx_HAL_Driver/Inc/Legacy \
 -IDrivers/CMSIS/Device/ST/STM32F4xx/Include \
@@ -150,6 +163,10 @@ C_INCLUDES =  \
 -ICore/Inc/app \
 -ICore/Inc/common \
 -ICore/Inc/drivers \
+-ICore/Src/ui \
+
+INC_DIRS = $(sort $(dir $(C_SOURCES_CLEAN)))
+C_INCLUDES += $(addprefix -I, $(INC_DIRS))
 
 # compile gcc flags
 ASFLAGS = $(MCU) $(AS_DEFS) $(AS_INCLUDES) $(OPT) -Wall -fdata-sections -ffunction-sections
@@ -157,7 +174,7 @@ ASFLAGS = $(MCU) $(AS_DEFS) $(AS_INCLUDES) $(OPT) -Wall -fdata-sections -ffuncti
 CFLAGS += $(MCU) $(C_DEFS) $(C_INCLUDES) $(OPT) -Wall -fdata-sections -ffunction-sections
 
 ifeq ($(DEBUG), 1)
-CFLAGS += -g -gdwarf-2
+CFLAGS += -g -gdwarf-2 -DLV_CONF_INCLUDE_SIMPLE
 endif
 
 
@@ -183,35 +200,70 @@ all: $(BUILD_DIR)/$(TARGET).elf $(BUILD_DIR)/$(TARGET).hex $(BUILD_DIR)/$(TARGET
 #######################################
 # build the application
 #######################################
-# list of objects
-OBJECTS = $(addprefix $(BUILD_DIR)/,$(notdir $(C_SOURCES:.c=.o)))
-vpath %.c $(sort $(dir $(C_SOURCES)))
-# list of ASM program objects
-OBJECTS += $(addprefix $(BUILD_DIR)/,$(notdir $(ASM_SOURCES:.s=.o)))
-vpath %.s $(sort $(dir $(ASM_SOURCES)))
-OBJECTS += $(addprefix $(BUILD_DIR)/,$(notdir $(ASMM_SOURCES:.S=.o)))
-vpath %.S $(sort $(dir $(ASMM_SOURCES)))
+# 3. Formulate standard relative object file trees inside the build directory
+OBJECTS = $(addprefix $(BUILD_DIR)/,$(C_SOURCES_CLEAN:.c=.o))
+OBJECTS += $(addprefix $(BUILD_DIR)/,$(ASM_SOURCES:.s=.o))
+OBJECTS += $(addprefix $(BUILD_DIR)/,$(ASMM_SOURCES:.S=.o))
 
-$(BUILD_DIR)/%.o: %.c Makefile | $(BUILD_DIR) 
+# 4. Compilation Rule for C Files
+$(BUILD_DIR)/%.o: %.c Makefile
+	@if not exist "$(dir $@)" mkdir "$(subst /,\,$(dir $@))"
 	$(CC) -c $(CFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/$(notdir $(<:.c=.lst)) $< -o $@
 
-$(BUILD_DIR)/%.o: %.s Makefile | $(BUILD_DIR)
-	$(AS) -c $(CFLAGS) $< -o $@
-$(BUILD_DIR)/%.o: %.S Makefile | $(BUILD_DIR)
+# 5. Compilation Rules for Assembler Files
+$(BUILD_DIR)/%.o: %.s Makefile
+	@if not exist "$(dir $@)" mkdir "$(subst /,\,$(dir $@))"
 	$(AS) -c $(CFLAGS) $< -o $@
 
+$(BUILD_DIR)/%.o: %.S Makefile
+	@if not exist "$(dir $@)" mkdir "$(subst /,\,$(dir $@))"
+	$(AS) -c $(CFLAGS) $< -o $@
+
+# 6. Linking phase using the response file bypass
+# 6. Linking phase using an iterative Windows-safe response file loop
 $(BUILD_DIR)/$(TARGET).elf: $(OBJECTS) Makefile
-	$(CC) $(OBJECTS) $(LDFLAGS) -o $@
+	@echo Generating linker response file...
+	@if exist "$(BUILD_DIR)\object_list.txt" del "$(BUILD_DIR)\object_list.txt"
+	@for %%i in ($(OBJECTS)) do @echo %%i >> $(BUILD_DIR)/object_list.txt
+	@echo Linking application...
+	$(CC) @$(BUILD_DIR)/object_list.txt $(LDFLAGS) -o $@
 	$(SZ) $@
 
-$(BUILD_DIR)/%.hex: $(BUILD_DIR)/%.elf | $(BUILD_DIR)
+$(BUILD_DIR)/%.hex: $(BUILD_DIR)/%.elf
 	$(HEX) $< $@
 	
-$(BUILD_DIR)/%.bin: $(BUILD_DIR)/%.elf | $(BUILD_DIR)
-	$(BIN) $< $@	
+$(BUILD_DIR)/%.bin: $(BUILD_DIR)/%.elf
+	$(BIN) $< $@
+
+# # list of objects
+# OBJECTS = $(addprefix $(BUILD_DIR)/,$(notdir $(C_SOURCES:.c=.o)))
+# vpath %.c $(sort $(dir $(C_SOURCES)))
+# # list of ASM program objects
+# OBJECTS += $(addprefix $(BUILD_DIR)/,$(notdir $(ASM_SOURCES:.s=.o)))
+# vpath %.s $(sort $(dir $(ASM_SOURCES)))
+# OBJECTS += $(addprefix $(BUILD_DIR)/,$(notdir $(ASMM_SOURCES:.S=.o)))
+# vpath %.S $(sort $(dir $(ASMM_SOURCES)))
+
+# $(BUILD_DIR)/%.o: %.c Makefile | $(BUILD_DIR) 
+# 	$(CC) -c $(CFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/$(notdir $(<:.c=.lst)) $< -o $@
+
+# $(BUILD_DIR)/%.o: %.s Makefile | $(BUILD_DIR)
+# 	$(AS) -c $(CFLAGS) $< -o $@
+# $(BUILD_DIR)/%.o: %.S Makefile | $(BUILD_DIR)
+# 	$(AS) -c $(CFLAGS) $< -o $@
+
+# $(BUILD_DIR)/$(TARGET).elf: $(OBJECTS) Makefile
+# 	$(CC) $(OBJECTS) $(LDFLAGS) -o $@
+# 	$(SZ) $@
+
+# $(BUILD_DIR)/%.hex: $(BUILD_DIR)/%.elf | $(BUILD_DIR)
+# 	$(HEX) $< $@
 	
-$(BUILD_DIR):
-	mkdir $@		
+# $(BUILD_DIR)/%.bin: $(BUILD_DIR)/%.elf | $(BUILD_DIR)
+# 	$(BIN) $< $@	
+	
+# $(BUILD_DIR):
+# 	mkdir $@		
 
 #######################################
 # clean up

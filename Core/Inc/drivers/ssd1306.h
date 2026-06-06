@@ -126,7 +126,7 @@ uint8_t ssd1306_display(void);
  * 
  * @param bitmap data buffer corresponding to the bitmap to be displayed
  */
-void ssd1306_display_bitmap(uint8_t *bitmap);
+void ssd1306_set_pixels(uint8_t *pixel_map, uint8_t start_x, uint8_t start_y, uint8_t end_x, uint8_t end_y);
 
 /**
  * @brief Set cursor postions to which char will be written

@@ -3,3 +3,9 @@
 
 ## BUILD FILES
 build/*
+
+## LVGL FILES
+Drivers/lvgl-master/**
+
+## W5500 API FILES
+Drivers/w5500_eth/**

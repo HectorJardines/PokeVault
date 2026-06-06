@@ -2,6 +2,11 @@
 #include "../Inc/app/keycard.h"
 #include "../Inc/main.h"
 #include "../Inc/common/log.h"
+#include "../Inc/drivers/aht20.h"
+#include "../../Drivers/lvgl-master/lvgl.h"
+#include "../Inc/drivers/ssd1306.h"
+#include "../Inc/app/display.h"
+#include "./ui/ui.h"
 
 static void test_setup(void) {
     SystemClock_Config();
@@ -13,6 +18,18 @@ static void test_logging(void) {
 
     while(1) {
         log_debug("Hello...", 1);
+        HAL_Delay(500);
+    }
+}
+
+static void test_temp_readings(void) {
+    aht20_init();
+    log_init();
+    aht20_sensor_measurements_t measurements;
+    while (1) {
+        aht20_read_data(AHT20_UNIT0, &measurements);
+        log_debug("UNIT 0 TEMP READING: ", measurements.UNIT0_DATA.temp);
+        log_debug("UNIT 1 HUM READING: ", measurements.UNIT0_DATA.humidity);
         HAL_Delay(500);
     }
 }
@@ -47,9 +64,36 @@ static void test_keycard(void) {
     }
 }
 
+
+static void test_ssd1306(void) {
+    ssd1306_init();
+
+    while(1) {
+
+        ssd1306_draw_pixel(64, 32, COLOR_WHITE);
+        ssd1306_display();
+        HAL_Delay(500);
+        ssd1306_draw_pixel(64, 32, COLOR_BLACK);
+        ssd1306_display();
+        HAL_Delay(500);
+    }
+}
+
+static void test_lvgl(void) {
+    log_init();
+    display_init();
+    ui_init();
+
+    while(1) {
+        uint32_t time_till_next = lv_timer_handler();
+        lv_sleep_ms(time_till_next);
+    }
+}
+
+
 int main(void) {
     test_setup();
-    test_logging();
+    test_lvgl();
     return 0;
 }
 
