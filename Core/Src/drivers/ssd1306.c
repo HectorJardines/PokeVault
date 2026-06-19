@@ -2,6 +2,7 @@
 #include "../Inc/drivers/i2c.h"
 #include "../Inc/common/log.h"
 #include "../Inc/common/defines.h"
+
 #include <string.h>
 
 #define SSD1306_OK  (0U)
@@ -49,7 +50,7 @@ struct ssd1306_oled_disp_t {
 static uint8_t oled_display_buf[DISPLAY_HEIGHT * ((DISPLAY_WIDTH + 7) >> DIV_8)];
 static uint8_t data_buf[LEN_DATA_CTL_AND_DATA]; // copy data buf here to include data ctl byte
 static struct ssd1306_oled_disp_t display = {.i2c_rx = i2c_receive, .i2c_tx = i2c_transmit, 
-    .i2c_tx_dma = i2c_transmit, .gddr_buf = oled_display_buf, .width = DISPLAY_WIDTH, .height = DISPLAY_HEIGHT, 
+    .i2c_tx_dma = i2c_transmit_dma, .gddr_buf = oled_display_buf, .width = DISPLAY_WIDTH, .height = DISPLAY_HEIGHT, 
     .orientation = ORIENT_HORIZONTAL_NORMAL, .cursor_x = 0, .cursor_y = 0};
 
 static uint8_t set_addressing_scheme(void);
@@ -75,6 +76,10 @@ void ssd1306_init(void) {
     ssd1306_pwr_on();
     ssd1306_clear_display();
     initialized = true;
+}
+
+void ssd1306_install_flush_cb(void (*flush_cplt_cb)(DMA_HandleTypeDef* h_dma)) {
+    i2c_set_dma_tx_cplt_cb(flush_cplt_cb);
 }
 
 /**
@@ -160,11 +165,10 @@ uint8_t ssd1306_write_string(char *str, Font_t font, ssd1306_color_e color) {
  * @brief writes all bytes in display.gddr_buf into ssd1306 RAM
  */
 uint8_t ssd1306_display(void) {
-    uint8_t res = set_addressing_scheme();
-
+    // uint8_t res = set_addressing_scheme();
     uint16_t count = display.width * ((display.height + 7) >> DIV_8);
     uint8_t *display_data = display.gddr_buf;
-    res |= send_multi_byte_data(display_data, count);
+    uint8_t res = send_multi_byte_data(display_data, count);
 
     return res;
 }
@@ -185,7 +189,7 @@ void ssd1306_set_pixels(uint8_t *pixel_map, uint8_t start_x, uint8_t start_y, ui
             uint8_t curr_x = (start_x + x);
 
             uint16_t gddr_buf_idx = (curr_y * display.width) + curr_x;
-            display.gddr_buf[gddr_buf_idx] = pixel_map[(x * height + (pg * pages)) / 8];
+            display.gddr_buf[gddr_buf_idx] = pixel_map[(x * height + (pg * 8)) / 8];
         }
     }
 }
@@ -288,7 +292,7 @@ static int8_t send_multi_byte_data(uint8_t *data, uint32_t len) {
     data_buf[0] = SSD1306_CTL_BYTE_DATA;
     memcpy(&data_buf[1], data, len);
     // while (retry-- && res == I2C_BUSY_IN_TX)
-    res = display.i2c_tx(SSD1306_DEV_ADDR, data_buf, LEN_DATA_CTL_AND_DATA);
+    res = display.i2c_tx_dma(SSD1306_DEV_ADDR, data_buf, LEN_DATA_CTL_AND_DATA);
     return res;
 }
 

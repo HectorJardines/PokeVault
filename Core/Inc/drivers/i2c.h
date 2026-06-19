@@ -56,4 +56,26 @@ uint8_t i2c_transmit(uint8_t dev_addr, uint8_t *send_data, uint32_t data_len);
  */
 uint8_t i2c_receive(uint8_t dev_addr, uint8_t *rcv_data, uint32_t data_len);
 
+/**
+ * @brief Non-blocking DMA transmit wrapper
+ * 
+ * @note Should likely change this to utilize double buffering
+ * 
+ * @param dev_addr device I2C address
+ * @param send_data data buffer to receive bytes into
+ * @param data_len length of data buffer
+ */
+uint8_t i2c_transmit_dma(uint8_t dev_addr, uint8_t *data, uint16_t data_len);
+
+/**
+ * @brief registers the i2c tx complete cb used with DMA tx
+ * 
+ * This API will be used to register the cb function that will call
+ * the LVGL flush ready API to notify LVGL that the transmission of 
+ * display buffer has finished
+ * 
+ * @param tx_cmplt_cb pointer to callback function
+ */
+void i2c_set_dma_tx_cplt_cb(void(*tx_cmplt_cb)(DMA_HandleTypeDef * hdma));
+
 #endif

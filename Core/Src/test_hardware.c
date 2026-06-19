@@ -7,6 +7,7 @@
 #include "../Inc/drivers/ssd1306.h"
 #include "../Inc/app/display.h"
 #include "./ui/ui.h"
+#include <stdio.h>
 
 static void test_setup(void) {
     SystemClock_Config();
@@ -89,11 +90,39 @@ static void test_lvgl(void) {
         lv_sleep_ms(time_till_next);
     }
 }
+static lv_subject_t seconds;
+static void test_lvgl_update_temp(void) {
+    display_init();
+    ui_init();
+
+	uint32_t sec_elapsed = 0;
+	uint16_t ms_per_sec = 1000;
+    volatile uint32_t time_till_next = 0;
+    volatile uint32_t dis_start_tick = HAL_GetTick(); 
+    volatile uint32_t tim_start_tick = HAL_GetTick();
+	uint8_t temp_buf[4];
+
+    while(1) {
+		if (HAL_GetTick() - dis_start_tick >= time_till_next) {
+			time_till_next = lv_timer_handler();
+            if (time_till_next == LV_NO_TIMER_READY)
+                time_till_next = LV_DEF_REFR_PERIOD;
+			dis_start_tick = HAL_GetTick();
+		}
+
+		if(HAL_GetTick() - tim_start_tick >= (ms_per_sec)) {
+			sec_elapsed++;
+			snprintf(temp_buf, 4, "%d", sec_elapsed);
+			lv_label_set_text_static(objects.label_temp_val, temp_buf);
+            tim_start_tick = HAL_GetTick();
+		}
+    }
+}
 
 
 int main(void) {
     test_setup();
-    test_lvgl();
+    test_lvgl_update_temp();
     return 0;
 }
 

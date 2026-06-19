@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include "../Inc/common/ssd1306_fonts.h"
+#include "stm32f4xx.h"
 
 /**
  * SSD1306 FUNDAMENTAL COMMAND BYTES
@@ -90,6 +91,13 @@ typedef enum {
  * @return void
  */
 void ssd1306_init(void);
+
+/**
+ * @brief Registers a display buffer flush complete callback function
+ * 
+ * @param flush_cplt_cb pointer to the flush callback
+ */
+void ssd1306_install_flush_cb(void (*flush_cplt_cb)(DMA_HandleTypeDef* h_dma));
 
 /**
  * @brief Stores a single pixel in ssd1306 GDDRAM
