@@ -37,7 +37,7 @@ void display_init(void) {
     lv_display_set_color_format(display, LV_COLOR_FORMAT_I1);
 
     // horizontally tiled display buffer configuration + flush callbacks
-    lv_display_set_buffers(display, htiled_buf, NULL, HTILE_BUF_SIZE, LV_DISP_RENDER_MODE_PARTIAL);
+    lv_display_set_buffers(display, htiled_buf, NULL, HTILE_BUF_SIZE, LV_DISPLAY_RENDER_MODE_PARTIAL);
     lv_display_set_flush_cb(display, lvgl_flush_cb);
     lv_display_add_event_cb(display, lv_round_area_dimensions_cb, LV_EVENT_INVALIDATE_AREA, display);
 }

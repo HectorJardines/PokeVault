@@ -1,20 +1,20 @@
 #ifndef EEZ_LVGL_UI_IMAGES_H
 #define EEZ_LVGL_UI_IMAGES_H
 
-#include "../../../Drivers/lvgl-master/lvgl.h"
+#include "lvgl.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-extern const lv_img_dsc_t img_lock_locked;
-extern const lv_img_dsc_t img_lock_unlocked;
+extern const lv_image_dsc_t img_lock_locked;
+extern const lv_image_dsc_t img_lock_unlocked;
 
 #ifndef EXT_IMG_DESC_T
 #define EXT_IMG_DESC_T
 typedef struct _ext_img_desc_t {
     const char *name;
-    const lv_img_dsc_t *img_dsc;
+    const lv_image_dsc_t *img_dsc;
 } ext_img_desc_t;
 #endif
 

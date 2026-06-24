@@ -140,7 +140,9 @@ AS_DEFS =
 # C defines
 C_DEFS =  \
 -DUSE_HAL_DRIVER \
--DSTM32F411xE
+-DSTM32F411xE \
+-DLV_DISABLE_API_MAPPING \
+-DLV_CONF_INCLUDE_SIMPLE
 
 
 # AS includes
@@ -148,14 +150,14 @@ AS_INCLUDES =
 
 # C includes
 C_INCLUDES =  \
+-IDrivers/lvgl-master/ \
+-IDrivers/lvgl-master/src/ \
 -ICore/Inc \
 -IDrivers/w5500_eth/ \
 -IDrivers/w5500_eth/DHCP \
 -IDrivers/w5500_eth/DNS \
 -IDrivers/w5500_eth/MQTT \
 -IDrivers/w5500_eth/W5500 \
--IDrivers/lvgl-master \
--IDrivers/lvgl-master/src/widgets \
 -IDrivers/STM32F4xx_HAL_Driver/Inc \
 -IDrivers/STM32F4xx_HAL_Driver/Inc/Legacy \
 -IDrivers/CMSIS/Device/ST/STM32F4xx/Include \
@@ -166,7 +168,8 @@ C_INCLUDES =  \
 -ICore/Src/ui \
 
 INC_DIRS = $(sort $(dir $(C_SOURCES_CLEAN)))
-C_INCLUDES += $(addprefix -I, $(INC_DIRS))
+INC_DIRS_FILTERED = $(filter-out Drivers/lvgl-master/src/%, $(INC_DIRS))
+C_INCLUDES += $(addprefix -I, $(INC_DIRS_FILTERED))
 
 # compile gcc flags
 ASFLAGS = $(MCU) $(AS_DEFS) $(AS_INCLUDES) $(OPT) -Wall -fdata-sections -ffunction-sections
@@ -174,7 +177,7 @@ ASFLAGS = $(MCU) $(AS_DEFS) $(AS_INCLUDES) $(OPT) -Wall -fdata-sections -ffuncti
 CFLAGS += $(MCU) $(C_DEFS) $(C_INCLUDES) $(OPT) -Wall -fdata-sections -ffunction-sections
 
 ifeq ($(DEBUG), 1)
-CFLAGS += -g -gdwarf-2 -DLV_CONF_INCLUDE_SIMPLE
+CFLAGS += -g -gdwarf-2 -fdata-sections -ffunction-sections
 endif
 
 
