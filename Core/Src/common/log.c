@@ -1,5 +1,7 @@
 #include "../../Inc/common/log.h"
 #include "../../Inc/common/defines.h"
+#include "../../../Drivers/printf/printf.h"
+#include <stdio.h>
 
 #define USARTx              (USART2)
 #define USART_BAUDRATE      (115200)
@@ -145,40 +147,18 @@ static uint8_t usart_transmit(uint8_t *data, uint32_t len) {
     return status;
 }
 
-static void log_create_tx_buf(uint8_t *dst_buf, uint8_t *str, uint32_t num, uint32_t len) {
-    uint8_t num_as_bytes[MAX_DIGITS];
-    for (uint32_t i = 0; i < len; ++i)
-        *(dst_buf + i) = *(str + i);
-    dst_buf[len] = ':';
-    num_to_bytes(num_as_bytes, (uint8_t)num);
-    for (uint8_t i = 0; i < MAX_DIGITS; ++i) {
-        dst_buf[(len + 1) + i] = num_as_bytes[i]; // extract 8 MSB at a time
-        num = num << 8; // shift next 8 bits to 8 MSB
-    }
-    dst_buf[len + 4] = '\r';
-    dst_buf[len + 5] = '\n';
+/**
+ * OVERWRITE PRINTF UNDERLYING FUNCTIONS, CALLS TO PRINTF SHOULD INCLUDE \r\n
+ */
+int __io_putchar(int ch) {
+    usart_transmit(&ch, 1);
+    return ch;
 }
 
-static uint32_t str_len(uint8_t *str) {
-    uint32_t len = 0;
-    if (str != NULL) {
-        while (*str != '\0') {
-            len++;
-            str++;
-        }
+int _write(int file, char *ptr, int len) {
+    for (int i = 0; i < len; ++i) {
+        __io_putchar(*ptr++);
     }
     return len;
 }
 
-/**
- * @brief convert uint8_t value into buf of ascii bytes
- * 
- * uint8_t max number we can rep is 256 we can just do some modulo 
- * arithmetic to extract each num
- */
-static void num_to_bytes(uint8_t *num_buf, uint8_t num) {
-    for (int8_t i = MAX_DIGITS - 1; i >= 0; --i) {
-        num_buf[i] = (num % 10) + 48;
-        num = num / 10;
-    }
-}

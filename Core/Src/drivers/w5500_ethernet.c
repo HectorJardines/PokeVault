@@ -1,14 +1,15 @@
 #include "./spi.h"
-#include "../../Inc/drivers/w5500.h"
-#include "../../../Drivers/w5500_eth/wizchip_conf.h"
+#include "../../Inc/drivers/w5500_ethernet.h"
+#include "../../../Drivers/w5500_eth/W5500/w5500.h"
 #include "../../../Drivers/w5500_eth/DHCP/dhcp.h"
 #include "../../../Drivers/w5500_eth/DNS/dns.h"
+#include <stdio.h>
 
 #define DHCP_DISABLED   (0U)
 #define DHCP_ENABLED    (1U)
 #define IP_UNASSIGNED   (0U)
 #define IP_ASSIGNED     (1U)
-#define DHCP_BUFFER_LEN_BYTES   (512U)
+#define DHCP_BUFFER_LEN_BYTES   (548U)
 #define DHCP_SOCKET (7U)
 #define DNS_SOCKET  (6U)
 
@@ -50,6 +51,7 @@ static uint8_t dns_buffer[MAX_DNS_BUF_SIZE];
 /**
  * @brief
  */
+static uint8_t initialized = 0;
 uint8_t w5500_init(void) {
     w5500_status_e status = W5500_OK;
     uint8_t w5500_mem_size[2][8] = {{2,2,2,2,2,2,2,2}, {2,2,2,2,2,2,2,2}};
@@ -113,7 +115,29 @@ uint8_t w5500_init(void) {
     HAL_Delay(500);
     DNS_init(DNS_SOCKET, dns_buffer);
     // TODO: log all NET INFO HERE
+    printf("IP: %d.%d.%d.%d\r\n", net_info.ip[0],  net_info.ip[1],  net_info.ip[2],  net_info.ip[3]);
+    printf("GATEWAY: %d.%d.%d.%d\r\n", net_info.gw[0],  net_info.gw[1],  net_info.gw[2],  net_info.gw[3]);
+    printf("DNS: %d.%d.%d.%d\r\n", net_info.dns[0],  net_info.dns[1],  net_info.dns[2],  net_info.dns[3]);
+    printf("SUBNET: %d.%d.%d.%d\r\n", net_info.sn[0],  net_info.sn[1],  net_info.sn[2],  net_info.sn[3]);
+
+    if (status == W5500_OK)
+        initialized = 1;
     return status;
+}
+
+/**
+ * @brief Resolves host IP from host domain name
+ * 
+ * @param hostname
+ * @param host_ip
+ * 
+ * @return -1 on error; 1 on success
+ */
+int8_t w5500_resolve_hostname(unsigned char *hostname, uint8_t *host_ip) {
+    int8_t ret = -1;
+    if (initialized)
+        ret = DNS_run(net_info.dns, hostname, host_ip);
+    return ret;
 }
 
 
@@ -122,11 +146,11 @@ uint8_t w5500_init(void) {
  ***********************/
 
 static void w5500_cs_low(void) {
-    io_set_out(IO_SPI_CS_W5500, LOW);
+    io_set_out(IO_SPI_CS_MFRC, LOW);
 }
 
 static void w5500_cs_high(void) {
-    io_set_out(IO_SPI_CS_W5500, HIGH);
+    io_set_out(IO_SPI_CS_MFRC, HIGH);
 }
 
 static uint8_t w5500_spi_read_byte(void) {

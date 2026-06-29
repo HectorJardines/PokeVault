@@ -56,7 +56,7 @@ Core/Src/drivers/pir_sensor.c \
 Core/Src/drivers/rtc.c \
 Core/Src/drivers/spi.c \
 Core/Src/drivers/ssd1306.c \
-Core/Src/drivers/w5500.c \
+Core/Src/drivers/w5500_ethernet.c \
 Core/Src/app/vault_main.c \
 Core/Src/test_hardware.c \
 Core/Src/common/log.c \
@@ -84,6 +84,9 @@ rwildcard = $(foreach d,$(wildcard $(1)*),$(call rwildcard,$(d)/,$(2)) $(filter 
 # 4. Grab EVERY single C file inside LVGL recursively
 C_SOURCES += $(call rwildcard,Drivers/lvgl-master/src/,*.c)
 C_SOURCES += $(call rwildcard, Core/src/ui/,*.c)
+C_SOURCES += $(call rwildcard, Drivers/w5500_eth/,*.c)
+# C_SOURCES += $(call rwildcard, Drivers/w5500_eth/DNS/,*.c)
+# C_SOURCES += $(call rwildcard, Drivers/w5500_eth/W5500/,*.c)
 
 # 5. Force Unix slash compliance for Make safety
 C_SOURCES_CLEAN = $(subst \,/,$(C_SOURCES))
@@ -142,7 +145,8 @@ C_DEFS =  \
 -DUSE_HAL_DRIVER \
 -DSTM32F411xE \
 -DLV_DISABLE_API_MAPPING \
--DLV_CONF_INCLUDE_SIMPLE
+-DLV_CONF_INCLUDE_SIMPLE \
+-DMBEDTLS_CONFIG_FILE=\"SSLConfig.h\"
 
 
 # AS includes

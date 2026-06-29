@@ -55,7 +55,7 @@ extern "C" {
     @details If you want to display debug & processing message, Define _DHCP_DEBUG_
     @note    If defined, it depends on <stdio.h>
 */
-#if 0
+#if 1
 // 20231023 taylor
 #define _DHCP_DEBUG_
 #endif

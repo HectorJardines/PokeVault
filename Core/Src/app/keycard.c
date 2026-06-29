@@ -100,7 +100,7 @@ keycard_status_e keycard_quick_scan(void) {
     status = mfrc_request(PICC_WUPA, card_buf);
     if (status == MFRC_OK) {
         // 2. perform anticollision loop to retrieve UID
-        HAL_Delay(10);
+        HAL_Delay(1);
         status = mfrc_anticollision(card_buf);
         if (status == MFRC_OK) {
             for (uint8_t i = 0; i < UID_LEN_BYTES; ++i)
@@ -132,9 +132,6 @@ keycard_status_e keycard_register(keycard_index_e keycard_entry) {
         HAL_Delay(1);
         mfrc_stat = mfrc522_auth(PICC_AUTH_A, SECTOR_TRAIL_BLOCK, default_sec_key, card_uid);
         if (mfrc_stat == MFRC_OK) {
-            io_set_out(IO_IR_EMIT_UNIT2, LOW);
-            io_set_out(IO_IR_EMIT_UNIT3, HIGH);
-            HAL_Delay(500);
             scramble_key(card_buf, card_uid);
             card_buf[6] = ACCESS_BYTE_6;
             card_buf[7] = ACCESS_BYTE_7;
@@ -150,9 +147,6 @@ keycard_status_e keycard_register(keycard_index_e keycard_entry) {
                 card_stat = KEYCARD_REGISTERED;
                 for (uint8_t i = 0; i < UID_LEN_BYTES; ++i)
                     registered_keys[keycard_entry][i] = card_uid[i];
-                io_set_out(IO_IR_EMIT_UNIT3, LOW);
-                io_set_out(IO_IR_EMIT_UNIT2, HIGH);
-                HAL_Delay(500);
             }
             TM_MFRC522_Crypto_Off();
         }
@@ -164,10 +158,6 @@ keycard_status_e keycard_register(keycard_index_e keycard_entry) {
 
     if (mfrc_stat != MFRC_OK) {
         card_stat = KEYCARD_ERR;
-        io_set_out(IO_TEST_LED, LOW);
-        io_set_out(IO_IR_EMIT_UNIT1, LOW);
-        io_set_out(IO_IR_EMIT_UNIT2, LOW);
-        io_set_out(IO_IR_EMIT_UNIT3, LOW);
     }
 
     return card_stat;
@@ -200,6 +190,7 @@ keycard_status_e keycard_forget(void) {
             card_buf[8] = ACCESS_BYTE_8;
             for (uint8_t i = 0; i < SEC_KEY_LEN + 1; ++i)
                 card_buf[i + 9] = DEFAULT_SEC_KEY;
+            HAL_Delay(1);
             mfrc_stat = mfrc_picc_write(SECTOR_TRAIL_BLOCK, card_buf);
             if (mfrc_stat == MFRC_OK) {
                 for (uint8_t i = 0; i < UID_LEN_BYTES; ++i)
@@ -254,20 +245,14 @@ static mfrc_status_e keycard_scan_and_select(uint8_t *card_buf, uint8_t *card_ui
 
     mfrc_stat = mfrc_request(PICC_WUPA, card_buf);
     if (mfrc_stat == MFRC_OK) {
-        io_set_out(IO_TEST_LED, HIGH);
-        HAL_Delay(500);
-        HAL_Delay(10);
         // 2. perform anticollision loop to retrieve id
-        HAL_Delay(10);
+        HAL_Delay(1);
         mfrc_stat = mfrc_anticollision(card_buf);
         if (mfrc_stat == MFRC_OK) {
-            io_set_out(IO_TEST_LED, LOW);
-            io_set_out(IO_IR_EMIT_UNIT1, HIGH);
-            HAL_Delay(500);
             for (uint8_t i = 0; i < UID_LEN_BYTES; ++i)
                 card_uid[i] = card_buf[i];
             // 3. select tag
-            HAL_Delay(10);
+            HAL_Delay(1);
             mfrc_stat = mfrc_select_picc(card_buf);
         }
     }

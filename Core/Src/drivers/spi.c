@@ -15,10 +15,10 @@ static void spi_configure_mfrc(void);
 
 
 void spi_init(spi_device_e spi_dev) {
-    if (spi_dev == SPI_DEVICE_MFRC522) {
-        RCC->APB2ENR |= (RCC_APB2ENR_SPI1EN); // enable peripheral clock
-        spi_configure_mfrc();
-    }
+    // if (spi_dev == SPI_DEVICE_MFRC522) {
+    RCC->APB2ENR |= (RCC_APB2ENR_SPI1EN); // enable peripheral clock
+    spi_configure_mfrc();
+    // }
 }
 
 

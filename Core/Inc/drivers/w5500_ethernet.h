@@ -1,5 +1,5 @@
-#ifndef _W5500_H
-#define _W5500_H
+#ifndef _W5500_DRIVER_H
+#define _W5500_DRIVER_H
 
 #include "./log.h"
 
@@ -17,6 +17,12 @@ typedef enum {
  * 
  */
 uint8_t w5500_init(void);
+
+
+/**
+ * @brief Resolves host IP from hostname via DNS query
+ */
+int8_t w5500_resolve_hostname(unsigned char *hostname, uint8_t *host_ip);
 
 #endif
 
