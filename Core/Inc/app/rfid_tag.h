@@ -52,7 +52,7 @@ typedef enum {
 keycard_status_e keycard_init(void); 
 
 /**
- * @brief
+ * @brief 
  */
 keycard_status_e keycard_quick_scan(void);
 

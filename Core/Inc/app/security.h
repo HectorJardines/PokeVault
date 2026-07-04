@@ -7,7 +7,7 @@
 #define _SECURITY_H
 
 #include "../drivers/ir_sensor.h"
-#include "./keycard.h"
+#include "./rfid_tag.h"
 
 /******************
  * ENUMS/STRUCTS
@@ -23,6 +23,8 @@ typedef enum {
 /*****************
  * USER APIs
  *****************/
+
+
 /**
  * @brief Initializes the security module and necessary submodules
  * 
@@ -30,6 +32,8 @@ typedef enum {
  * make up the systems security mechanisms.
  */
 uint8_t security_init(void);
+
+
 
 /**
  * @brief Retrieves the current security state
@@ -42,10 +46,14 @@ uint8_t security_init(void);
  */
 security_state_e security_check_state(void);
 
+
+
 /**
  * @brief Updates the current security state based on the current readings
  */
 void security_update_state(security_state_e sec_state);
+
+
 
 /**
  * @brief Alternative method to disarm defenses for testing purposes

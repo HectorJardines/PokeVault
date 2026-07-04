@@ -1,0 +1,15 @@
+# MSG STRUCT OPTIONS
+msg.type                int_size:IS_8
+msg.node_id             int_size:IS_8
+
+
+# ALERT STRUCT OPTIONS
+alert.type              int_size:IS_8
+
+
+# TRANSACTION STRUCT OPTIONS
+transaction.type        int_size:IS_8
+
+
+# EVENT STRUCT OPTIONS
+event.type              int_size:IS_8

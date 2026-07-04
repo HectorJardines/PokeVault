@@ -9,4 +9,7 @@
 #define DIV_4       (2U)
 #define DIV_8       (3U)
 
+#define FALSE   (0U)
+#define TRUE    (!FALSE)
+
 #endif

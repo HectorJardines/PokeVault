@@ -41,10 +41,12 @@ Core/Src/stm32f4xx_it.c \
 Core/Src/stm32f4xx_hal_msp.c \
 Core/Src/system_stm32f4xx.c \
 Core/Src/app/alerts.c \
-Core/Src/app/keycard.c \
-Core/Src/app/rendering.c \
+Core/Src/app/rfid_tag.c \
+Core/Src/app/message.c \
 Core/Src/app/security.c \
 Core/Src/common/ssd1306_fonts.c \
+Core/Src/common/ring_buffer.c \
+Core/Src/drivers/rs485_cobs.c \
 Core/Src/drivers/adc.c \
 Core/Src/drivers/aht20.c \
 Core/Src/drivers/bmi160.c \
@@ -76,6 +78,7 @@ Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_exti.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_spi.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_i2c.c \
+Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_uart.c \
 
 # 3. Define a safe, native recursive wildcard macro
 # This searches infinitely down through any folder tree structure
@@ -85,7 +88,7 @@ rwildcard = $(foreach d,$(wildcard $(1)*),$(call rwildcard,$(d)/,$(2)) $(filter 
 C_SOURCES += $(call rwildcard,Drivers/lvgl-master/src/,*.c)
 C_SOURCES += $(call rwildcard, Core/src/ui/,*.c)
 C_SOURCES += $(call rwildcard, Drivers/w5500_eth/,*.c)
-# C_SOURCES += $(call rwildcard, Drivers/w5500_eth/DNS/,*.c)
+C_SOURCES += $(call rwildcard, Drivers/nanopb/,*.c)
 # C_SOURCES += $(call rwildcard, Drivers/w5500_eth/W5500/,*.c)
 
 # 5. Force Unix slash compliance for Make safety
@@ -181,7 +184,7 @@ ASFLAGS = $(MCU) $(AS_DEFS) $(AS_INCLUDES) $(OPT) -Wall -fdata-sections -ffuncti
 CFLAGS += $(MCU) $(C_DEFS) $(C_INCLUDES) $(OPT) -Wall -fdata-sections -ffunction-sections
 
 ifeq ($(DEBUG), 1)
-CFLAGS += -g -gdwarf-2 -fdata-sections -ffunction-sections
+CFLAGS += -g -gdwarf-2 -fdata-sections -ffunction-sections -g3
 endif
 
 
