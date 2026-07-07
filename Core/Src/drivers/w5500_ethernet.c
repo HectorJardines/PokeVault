@@ -1,6 +1,5 @@
 #include "./spi.h"
 #include "../../Inc/drivers/w5500_ethernet.h"
-#include "../../../Drivers/w5500_eth/W5500/w5500.h"
 #include "../../../Drivers/w5500_eth/DHCP/dhcp.h"
 #include "../../../Drivers/w5500_eth/DNS/dns.h"
 #include <stdio.h>
@@ -12,6 +11,8 @@
 #define DHCP_BUFFER_LEN_BYTES   (548U)
 #define DHCP_SOCKET (7U)
 #define DNS_SOCKET  (6U)
+#define TX_SOCK_SZ  (2U)
+#define RX_SOCK_SZ  (2U)
 
 #define USE_DHCP 1
 wiz_NetInfo net_info = {
@@ -39,7 +40,6 @@ static void w5500_spi_burst_write(uint8_t *data, uint16_t len);
 static void w5500_dhcp_ip_set(void);
 static void w5500_dhcp_ip_not_set(void);
 
-
 static volatile uint8_t dhcp_ip_assigned = IP_UNASSIGNED;
 static uint8_t dhcp_buffer[DHCP_BUFFER_LEN_BYTES];
 static uint8_t dns_buffer[MAX_DNS_BUF_SIZE];
@@ -53,8 +53,7 @@ static uint8_t dns_buffer[MAX_DNS_BUF_SIZE];
  */
 static uint8_t initialized = 0;
 uint8_t w5500_init(void) {
-    w5500_status_e status = W5500_OK;
-    uint8_t w5500_mem_size[2][8] = {{2,2,2,2,2,2,2,2}, {2,2,2,2,2,2,2,2}};
+    spi_init(SPI_DEVICE_W5500);
 
     // register chip select callback functions
     reg_wizchip_cs_cbfunc(w5500_cs_low, w5500_cs_high);
@@ -65,6 +64,14 @@ uint8_t w5500_init(void) {
 
     // reset wizchip
     ctlwizchip(CW_RESET_WIZCHIP, NULL);
+
+    initialized = 1;
+}
+
+uint8_t w5500_configure(void) {
+    w5500_status_e status = W5500_OK;
+    // used to set the TX and RX socket sizes
+    uint8_t w5500_mem_size[2][8] = {{2,2,2,2,2,2,2,2}, {2,2,2,2,2,2,2,2}};
 
     // Initialize chip
     if (ctlwizchip(CW_INIT_WIZCHIP, (void *)w5500_mem_size) == -1)
@@ -90,6 +97,7 @@ uint8_t w5500_init(void) {
 #ifdef USE_DHCP
     // register dhcp_ip_assigned callback functions
     reg_dhcp_cbfunc(w5500_dhcp_ip_set, w5500_dhcp_ip_set, w5500_dhcp_ip_not_set);
+    // set local mac address
     setSHAR(net_info.mac);
     DHCP_init(DHCP_SOCKET, dhcp_buffer);
 
@@ -98,8 +106,8 @@ uint8_t w5500_init(void) {
         DHCP_run();
     } while(retries-- && !dhcp_ip_assigned);
 
+    // use static IP if DHCP failed to assign addr
     if (!dhcp_ip_assigned) {
-        // USE static ip instead
         ctlnetwork(CN_SET_NETINFO, (void *)&net_info);
     }
     else {
@@ -131,13 +139,16 @@ uint8_t w5500_init(void) {
  * @param hostname
  * @param host_ip
  * 
- * @return -1 on error; 1 on success
+ * @return 1 on error; 0 on success
  */
-int8_t w5500_resolve_hostname(unsigned char *hostname, uint8_t *host_ip) {
-    int8_t ret = -1;
+uint8_t w5500_resolve_hostname(unsigned char *hostname, uint8_t *host_ip) {
+    int8_t ret = 1;
     if (initialized)
-        ret = DNS_run(net_info.dns, hostname, host_ip);
-    return ret;
+        ret = DNS_run(net_info.dns, hostname, host_ip);    
+    if (ret <= 0)
+        ret = 0;
+
+    return !ret;
 }
 
 
@@ -146,11 +157,11 @@ int8_t w5500_resolve_hostname(unsigned char *hostname, uint8_t *host_ip) {
  ***********************/
 
 static void w5500_cs_low(void) {
-    io_set_out(IO_SPI_CS_MFRC, LOW);
+    io_set_out(IO_SPI_CS_W5500, LOW);
 }
 
 static void w5500_cs_high(void) {
-    io_set_out(IO_SPI_CS_MFRC, HIGH);
+    io_set_out(IO_SPI_CS_W5500, HIGH);
 }
 
 static uint8_t w5500_spi_read_byte(void) {

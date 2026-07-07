@@ -13,3 +13,4 @@ Drivers/printf/**
 ## OTHERS
 Core/Src/test_hardware.c
 generator/*
+Core/Src/common/private.c

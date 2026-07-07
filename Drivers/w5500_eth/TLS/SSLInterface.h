@@ -30,7 +30,7 @@
 
 #define DEBUG_BUFFER_SIZE	1024
 
-/*
+/**
  * Call Back function registration
  */
 #define SSLSendCB 				WIZnetSend
@@ -44,7 +44,7 @@ typedef struct{
 	mbedtls_x509_crt* cacert;
 }wiz_tls_context;
 
-/*
+
 typedef enum wiz_tls_ret_e {
     WIZ_TLS_RET_OK = 0,
     WIZ_TLS_RET_INIT_ERROR = 1,
@@ -54,8 +54,8 @@ typedef enum wiz_tls_ret_e {
     WIZ_TLS_RET_WANT_WRITE = 5,
     WIZ_TLS_RET_READ_ERROR = 6,
     WIZ_TLS_RET_WRITE_ERROR = 7,
-} wiz_tls_ret_t;
-*/
+} wiz_tls_ret_e;
+
 
 /*
  * name: WIZnetRecv
@@ -101,9 +101,9 @@ void wiz_tls_deinit(wiz_tls_context* tlsContext);
 
 unsigned int wiz_tls_connect(wiz_tls_context* tlsContext, unsigned short port, uint8_t * addr);
 
-unsigned int wiz_tls_read(wiz_tls_context* SSLContext, unsigned char* readbuf, unsigned int len);
+int wiz_tls_read(wiz_tls_context* SSLContext, unsigned char* readbuf, unsigned int len);
 
-unsigned int wiz_tls_write(wiz_tls_context* SSLContext, unsigned char* writebuf, unsigned int len);
+int wiz_tls_write(wiz_tls_context* SSLContext, unsigned char* writebuf, unsigned int len);
 
 unsigned int wiz_tls_x509_verify(wiz_tls_context* SSLContext);
 

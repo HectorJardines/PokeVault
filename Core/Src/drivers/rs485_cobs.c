@@ -131,6 +131,7 @@ static uint8_t transmit_begin(void) {
     memset((void *)&active_tx_buf, 0, sizeof(active_tx_buf));
     ring_buffer_pop(&frame_rb, (void *)&active_tx_buf);
     uint8_t status = HAL_UART_Transmit_DMA(&huart1, active_tx_buf.buf, active_tx_buf.len);
+    __HAL_DMA_DISABLE_IT(huart1.hdmatx, DMA_IT_HT);
     if (status == TX_OK)
         tx_ongoing = TRUE;
     return status;
@@ -288,10 +289,10 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart) {
             memset((void *)&active_tx_buf, 0, sizeof(serial_t));
             ring_buffer_pop(&frame_rb, (void *)&active_tx_buf);
             HAL_UART_Transmit_DMA(&huart1, active_tx_buf.buf, active_tx_buf.len);
+            __HAL_DMA_DISABLE_IT(huart1.hdmatx, DMA_IT_HT);
         }
         else {
             tx_ongoing = FALSE;
-            // __HAL_DMA_DISABLE_IT(&dma_tx, DMA_IT_TC);
         }
     }
 }

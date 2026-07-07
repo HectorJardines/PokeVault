@@ -46,6 +46,7 @@ Core/Src/app/message.c \
 Core/Src/app/security.c \
 Core/Src/common/ssd1306_fonts.c \
 Core/Src/common/ring_buffer.c \
+Core/Src/common/private.c \
 Core/Src/drivers/rs485_cobs.c \
 Core/Src/drivers/adc.c \
 Core/Src/drivers/aht20.c \
@@ -63,6 +64,7 @@ Core/Src/app/vault_main.c \
 Core/Src/test_hardware.c \
 Core/Src/common/log.c \
 Core/Src/app/display.c \
+Core/Src/app/client.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc_ex.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_flash.c \

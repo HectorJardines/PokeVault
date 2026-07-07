@@ -18,7 +18,8 @@
 #include "mbedtls/error.h"
 
 #define CERTIFICATE	self_signed_certificate
-#define W5500_TLS_SOCK_NUM	0
+#define W5500_TLS_SOCK_NUM	(0U)
+#define W5500_TLS_PORT_NUM	(0U)
 
 const char sslHostName[] = "api.telegram.org";
 unsigned char tempBuf[DEBUG_BUFFER_SIZE] = {0,};
@@ -33,7 +34,7 @@ int WIZnetRecv(void *ctx, unsigned char *buf, unsigned int len )
 	ret = recv(*((int *)ctx),buf,len);
 	printf("Port:[%d]/Recv(%d)[%d]: \r\n",*((int *)ctx) ,len, (unsigned int)ret);
 	string_print_Hex(buf, len);
-    //return (recv(*((int *)ctx),buf,len));
+
 	return ret;
 }
 
@@ -135,7 +136,9 @@ unsigned int wiz_tls_init(wiz_tls_context* tlsContext, int* socket_fd)
 #endif
 	mbedtls_ssl_set_bio(tlsContext->ssl, socket_fd, SSLSendCB, SSLRecvCB, SSLRecvTimeOutCB);		 //set client's socket send and receive functions
 
-	return 1;
+	if (ret < 0)
+		ret = 1;
+	return ret;
 }
 
 /*Free the memory for ssl context*/
@@ -165,16 +168,30 @@ unsigned int wiz_tls_connect(wiz_tls_context* tlsContext, unsigned short port, u
     memset(tempBuf,0,1024);
 
 	/*socket open*/
-    printf("socket open port : %d \r\n",0);
-	ret = socket(W5500_TLS_SOCK_NUM, Sn_MR_TCP, 0, 0x00);
+#if defined(MBEDTLS_DEBUG_C)
+    printf("socket open port : %d \r\n", W5500_TLS_PORT_NUM);
+#endif
+
+	ret = socket(W5500_TLS_SOCK_NUM, Sn_MR_TCP, W5500_TLS_PORT_NUM, 0x00);
+
+#if defined(MBEDTLS_DEBUG_C)
 	printf("socket[%d] \r\n", ret);
+#endif
+
 	if(ret != W5500_TLS_SOCK_NUM)
 		return ret;
 
 	/*Connect to the target*/
+#if defined(MBEDTLS_DEBUG_C)
 	printf("server ip : %d.%d.%d.%d port : %d \r\n", addr[0], addr[1], addr[2], addr[3], port);
+#endif
+
 	ret = connect(W5500_TLS_SOCK_NUM, addr, port);
+
+#if defined(MBEDTLS_DEBUG_C)
 	printf("init connect[%d] \r\n", ret);
+#endif
+
 	if(ret != SOCK_OK)
 		return ret;
 
@@ -190,7 +207,7 @@ unsigned int wiz_tls_connect(wiz_tls_context* tlsContext, unsigned short port, u
             mbedtls_strerror( ret, (char *) tempBuf, DEBUG_BUFFER_SIZE );
             printf( " failed\r\n  ! mbedtls_ssl_handshake returned %d: %s\r\n", ret, tempBuf );
 #endif
-            return( -1 );
+            return( 1 );
         }
     }
 
@@ -202,12 +219,12 @@ unsigned int wiz_tls_connect(wiz_tls_context* tlsContext, unsigned short port, u
     return( 0 );
 }
 
-unsigned int wiz_tls_read(wiz_tls_context* tlsContext, unsigned char* readbuf, unsigned int len)
+int wiz_tls_read(wiz_tls_context* tlsContext, unsigned char* readbuf, unsigned int len)
 {
 	return mbedtls_ssl_read( tlsContext->ssl, readbuf, len );
 }
 
-unsigned int wiz_tls_write(wiz_tls_context* tlsContext, unsigned char* writebuf, unsigned int len)
+int wiz_tls_write(wiz_tls_context* tlsContext, unsigned char* writebuf, unsigned int len)
 {
 	return mbedtls_ssl_write( tlsContext->ssl, writebuf, len );
 }
