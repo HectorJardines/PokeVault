@@ -145,8 +145,8 @@ typedef enum
   IO_UNUSED_43 = IO_C11,
   IO_UNUSED_44 = IO_C12,
   IO_IR_EMIT_UNIT1 = IO_C13,
-  IO_IR_EMIT_UNIT2 = IO_C14,
-  IO_IR_EMIT_UNIT3 = IO_C15,
+  IO_INT_ANYM = IO_C14,
+  IO_INT_DTAP = IO_C15,
 } io_e;
 
 typedef enum

@@ -3,6 +3,7 @@
 #include "common/ring_buffer.h"
 #include "../../../Drivers/nanopb/pb_encode.h"
 #include "../../../Drivers/nanopb/pb_decode.h"
+#include <stdio.h>
 
 #define CRC16_LEN  (2U)
 #define NUM_OVERHEAD_BYTES (2U)
@@ -22,7 +23,6 @@ static void rs485_msg_consumed_cb(void);
 
 
 static uint8_t serialize_buf[DRIVERS_NANOPB_MESSAGES_PB_H_MAX_SIZE + CRC16_LEN];
-STATIC_RING_BUFFER(msg_rb, MAX_MSG_CNT, msg);
 static volatile uint8_t msg_cnt = 0;
 /************
  * APIs

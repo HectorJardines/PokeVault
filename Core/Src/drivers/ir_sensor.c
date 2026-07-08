@@ -2,7 +2,7 @@
 #include  "../Inc/drivers/adc.h"
 #include "../Inc/common/defines.h"
 
-#define NO_OF_IR_SENSORS    (3U)
+#define NO_OF_IR_SENSORS    (1U)
 #define NO_OF_SMPL_PER_SENS (3U)
 #define SENS_SAMPLE_OFFSET  (3U) // subsequent samples are offset by 3
 
@@ -15,7 +15,7 @@
 static void ir_process_samples(ir_lines_t *lines, uint16_t *samples);
 
 static uint16_t ir_samples[NO_OF_IR_SENSORS * NO_OF_SMPL_PER_SENS];
-static io_e ir_emitters[NO_OF_IR_SENSORS] = {IO_IR_EMIT_UNIT1, IO_IR_EMIT_UNIT2, IO_IR_EMIT_UNIT3};
+static io_e ir_emitters[NO_OF_IR_SENSORS] = {IO_IR_EMIT_UNIT1};
 
 /***********************
  * PUBLIC APIs

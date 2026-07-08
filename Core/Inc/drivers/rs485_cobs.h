@@ -49,6 +49,7 @@ uint8_t rs485_receive(uint8_t *encoded_buf, uint32_t *length);
 
 
 void register_msg_ready_cb(void(*ready_cb)(void));
+void register_msg_consumed_cb(void(*consumed_cb)(void));
 
 
  #endif /* _RS_COBS_H */

@@ -11,5 +11,13 @@
 
 #define FALSE   (0U)
 #define TRUE    (!FALSE)
+#define SET     (TRUE)
+#define CLR     (FALSE)
+
+#define INITIALIZED (1U)
+#define UNITIALIZED (0U)
+
+#define STATUS_OK   (0U)
+#define STATUS_ERR  (1U)
 
 #endif

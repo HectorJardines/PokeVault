@@ -59,6 +59,7 @@ Core/Src/drivers/pir_sensor.c \
 Core/Src/drivers/rtc.c \
 Core/Src/drivers/spi.c \
 Core/Src/drivers/ssd1306.c \
+Core/Src/drivers/movement_detect.c \
 Core/Src/drivers/w5500_ethernet.c \
 Core/Src/app/vault_main.c \
 Core/Src/test_hardware.c \
@@ -91,6 +92,7 @@ C_SOURCES += $(call rwildcard,Drivers/lvgl-master/src/,*.c)
 C_SOURCES += $(call rwildcard, Core/src/ui/,*.c)
 C_SOURCES += $(call rwildcard, Drivers/w5500_eth/,*.c)
 C_SOURCES += $(call rwildcard, Drivers/nanopb/,*.c)
+C_SOURCES += $(call rwildcard, Drivers/bmi160/,*.c)
 # C_SOURCES += $(call rwildcard, Drivers/w5500_eth/W5500/,*.c)
 
 # 5. Force Unix slash compliance for Make safety
