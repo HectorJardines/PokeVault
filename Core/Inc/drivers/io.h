@@ -114,8 +114,8 @@ typedef enum
   IO_UNUSED_14 = IO_A14,
   IO_UNUSED_15 = IO_A15,
 
-  IO_UNUSED_16 = IO_B0,
-  IO_UNUSED_17 = IO_B1,
+  IO_IR_RCV = IO_B0,
+  IO_PIR_RCV = IO_B1,
   IO_UNUSED_18 = IO_B2,
   IO_SPI1_SCK = IO_B3,
   IO_SPI1_MISO = IO_B4,
@@ -144,7 +144,7 @@ typedef enum
   IO_UNUSED_42 = IO_C10,
   IO_UNUSED_43 = IO_C11,
   IO_UNUSED_44 = IO_C12,
-  IO_IR_EMIT_UNIT1 = IO_C13,
+  IO_IR_EMIT = IO_C13,
   IO_INT_ANYM = IO_C14,
   IO_INT_DTAP = IO_C15,
 } io_e;
@@ -237,8 +237,8 @@ typedef struct
 	io_speed_e PIN_SPEED;               /*<! PIN SPEED OPTIONS FROM @io_speed_e >*/
 	io_optype_e PIN_OPTYPE;             /*<! PIN OUTPUT TYPE OPTIONS FROM @io_optype_e >*/
 	io_resistance_e PIN_RESISTANCE;     /*<! PIN RESISTOR OPTIONS FROM @io_resistance_e >*/
-    io_mode_alt_fun PIN_ALT_FUN_MODE;
-    io_output_e PIN_OUT;
+  io_mode_alt_fun PIN_ALT_FUN_MODE;
+  io_output_e PIN_OUT;
 }io_config_t;
 
 typedef struct
@@ -360,6 +360,17 @@ bool io_config_compare(const io_config_t *config_1, const io_config_t *config_2)
  * @param level
  */
 void io_set_out(io_e io, io_output_e level);
+
+
+/**
+ * @brief Retrieves the current IO level of the specified pin
+ * 
+ * 
+ * @param[in] io io pin to be checked
+ */
+uint8_t io_get_out(io_e io);
+
+
 /******************************************
 *   IO Config Struct enums (for vl53l0x)
 *******************************************/

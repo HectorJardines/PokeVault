@@ -66,6 +66,10 @@ Core/Src/test_hardware.c \
 Core/Src/common/log.c \
 Core/Src/app/display.c \
 Core/Src/app/client.c \
+Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_rcc.c \
+Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_rtc.c \
+Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_pwr.c \
+Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_exti.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc_ex.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_flash.c \
