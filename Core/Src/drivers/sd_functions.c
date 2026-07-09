@@ -24,20 +24,17 @@
 #include "ff.h"
 #include "ffconf.h"
 
+#define DRIVE_NO	(0U)
+
+#ifdef SD_FUNC_DEBUG
+#define printf	printf
+#else
+int dummy_printf(const char *__fmt__, ...) {}
+#define printf dummy_printf
+#endif
+
 char sd_path[4];
 FATFS fs;
-
-//int sd_format(void) {
-//	// Pre-mount required for legacy FatFS
-//	f_mount(&fs, sd_path, 0);
-//
-//	FRESULT res;
-//	res = f_mkfs(sd_path, 1, 0);
-//	if (res != FR_OK) {
-//		printf("Format failed: f_mkfs returned %d\r\n", res);
-//	}
-//		return res;
-//}
 
 int sd_get_space_kb(void) {
 	FATFS *pfs;
@@ -64,7 +61,7 @@ int sd_mount(void) {
 	}
 
 	printf("Initializing disk...\r\n");
-	DSTATUS stat = disk_initialize(0);
+	DSTATUS stat = disk_initialize(DRIVE_NO);
 	if (stat != 0) {
 		printf("disk_initialize failed: 0x%02X\n", stat);
 		printf("FR_NOT_READY\tTry Hard Reset or Check Connection/Power\r\n");
@@ -74,7 +71,7 @@ int sd_mount(void) {
 	}
 
 	printf("Attempting mount at %s...\r\n", sd_path);
-	res = f_mount(&fs, sd_path, 1);
+	res = f_mount(&fs, sd_path, 1); // OPT = 1 MOUNT DRIVE IMMEDIATELY
 	if (res == FR_OK)
 	{
 		printf("SD card mounted successfully at %s\r\n", sd_path);
@@ -85,31 +82,6 @@ int sd_mount(void) {
 		return FR_OK;
 	}
 
-	/* Many users were having issues with f_mkfs, so I have disabled it
-	 * You need to format SD card in FAT FileSysytem before inserting it
-	 */
-//	 Handle no filesystem by creating one
-//	if (res == FR_NO_FILESYSTEM)
-//	{
-//		printf("No filesystem found on SD card. Attempting format...\r\nThis will create 32MB Partition (Most Probably)\r\n");
-//		printf("If you need the full sized SD card, use the computer to format into FAT32\r\n");
-//		sd_format();
-//
-//		printf("Retrying mount after format...\r\n");
-//		res = f_mount(&fs, sd_path, 1);
-//		if (res == FR_OK) {
-//			printf("SD card formatted and mounted successfully.\r\n");
-//			printf("Card Type: %s\r\n", sd_is_sdhc() ? "SDHC/SDXC" : "SDSC");
-//
-//			// Report capacity after format
-//			sd_get_space_kb();
-//		}
-//		else {
-//			printf("Mount failed even after format: %d\r\n", res);
-//		}
-//		return res;
-//	}
-
 	// Any other mount error
 	printf("Mount failed with code: %d\r\n", res);
 	return res;
@@ -117,7 +89,7 @@ int sd_mount(void) {
 
 
 int sd_unmount(void) {
-	FRESULT res = f_mount(NULL, sd_path, 1);
+	FRESULT res = f_mount(NULL, sd_path, 1); // OPT = 1: UNMOUNT IMMEDIATELY
 	printf("SD card unmounted: %s\r\n", (res == FR_OK) ? "OK" : "Failed");
 	return res;
 }

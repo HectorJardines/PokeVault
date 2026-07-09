@@ -15,10 +15,8 @@ static void spi_configure_mfrc(void);
 
 
 void spi_init(spi_device_e spi_dev) {
-    // if (spi_dev == SPI_DEVICE_MFRC522) {
     RCC->APB2ENR |= (RCC_APB2ENR_SPI1EN); // enable peripheral clock
     spi_configure_mfrc();
-    // }
 }
 
 
@@ -32,11 +30,23 @@ uint8_t spi_receive(uint8_t *data, uint32_t len) {
 }
 
 
-uint8_t TM_SPI_Send(SPI_TypeDef *spix, uint8_t byte) {
-    while(((spix)->SR & (SPI_SR_TXE | SPI_SR_RXNE)) == 0 || spix->SR & SPI_SR_BSY);
-    spix->DR = byte;
-    while(((spix)->SR & (SPI_SR_TXE | SPI_SR_RXNE)) == 0 || spix->SR & SPI_SR_BSY);
-    return (uint8_t)spix->DR;
+uint8_t spi_write_byte(uint8_t byte) {
+    int8_t retry = 50;
+    uint8_t byte_read = 0x00;
+    while(((h_spi1.Instance)->SR & (SPI_SR_TXE | SPI_SR_RXNE)) == 0 || h_spi1.Instance->SR & SPI_SR_BSY
+            && retry--);
+
+    if (retry >= 0) {
+        retry = 50;
+        h_spi1.Instance->DR = byte;
+        while(((h_spi1.Instance)->SR & (SPI_SR_TXE | SPI_SR_RXNE)) == 0 || h_spi1.Instance->SR & SPI_SR_BSY
+                && retry--);
+        
+        if (retry >= 0)
+            byte_read = (uint8_t)h_spi1.Instance->DR;
+    }
+
+    return byte_read;
 }
 
 

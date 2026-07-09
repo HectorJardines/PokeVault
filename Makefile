@@ -61,6 +61,9 @@ Core/Src/drivers/spi.c \
 Core/Src/drivers/ssd1306.c \
 Core/Src/drivers/movement_detect.c \
 Core/Src/drivers/w5500_ethernet.c \
+Core/Src/drivers/sd_diskio_spi.c \
+Core/Src/drivers/sd_functions.c \
+Core/Src/sd_spi.c \
 Core/Src/app/vault_main.c \
 Core/Src/test_hardware.c \
 Core/Src/common/log.c \

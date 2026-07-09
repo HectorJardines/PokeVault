@@ -56,8 +56,10 @@ uint8_t spi_receive(uint8_t *data, uint32_t len);
 /**
  * @brief Sends a single byte on the specified SPI peripheral
  * 
- * @param spix spi peripheral 
+ * Blocking call writes a single byte to the SPI DR register
+ * 
+ * @param[in] byte single byte to write to DR 
  */
-uint8_t TM_SPI_Send(SPI_TypeDef *spix, uint8_t byte);
+uint8_t spi_write_byte(uint8_t byte);
 
 #endif

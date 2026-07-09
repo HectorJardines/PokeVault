@@ -14,7 +14,8 @@
  ******************************************************************************/
 
 #include "sd_spi.h"
-#include "main.h"
+#include "spi.h"
+#include "io.h"
 #include <string.h>
 #include <stdio.h>
 
@@ -28,8 +29,8 @@
 extern SPI_HandleTypeDef hspi1;
 #define SD_SPI_HANDLE hspi1
 
-#define SD_CS_LOW()     HAL_GPIO_WritePin(CS_GPIO_Port, CS_Pin, GPIO_PIN_RESET)
-#define SD_CS_HIGH()    HAL_GPIO_WritePin(CS_GPIO_Port, CS_Pin, GPIO_PIN_SET)
+#define SD_CS_LOW()     io_set_out(IO_SPI_CS_W5500, IO_OUT_HIGH)
+#define SD_CS_HIGH()    io_set_out(IO_SPI_CS_W5500, IO_OUT_LOW)
 
 /***************************************************************
  * 🚫 DO NOT MODIFY BELOW THIS LINE
@@ -50,13 +51,12 @@ void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef *hspi) {
 #endif
 
 static void SD_TransmitByte(uint8_t data) {
-    HAL_SPI_Transmit(&SD_SPI_HANDLE, &data, 1, HAL_MAX_DELAY);
+    spi_write_byte(data);
 }
 
 static uint8_t SD_ReceiveByte(void) {
-    uint8_t dummy = 0xFF, data = 0;
-    HAL_SPI_TransmitReceive(&SD_SPI_HANDLE, &dummy, &data, 1, HAL_MAX_DELAY);
-    return data;
+    uint8_t dummy = 0xFF;
+    return spi_write_byte(dummy);
 }
 
 static void SD_TransmitBuffer(const uint8_t *buffer, uint16_t len) {

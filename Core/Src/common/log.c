@@ -1,25 +1,37 @@
 #include "../../Inc/common/log.h"
 #include "../../Inc/common/defines.h"
 #include "../../../Drivers/printf/printf.h"
+#include "../Inc/drivers/rtc.h"
+#include "spi.h"
 #include <stdio.h>
+#include <string.h>
 
-#define USARTx              (USART2)
-#define USART_BAUDRATE      (115200)
-#define MAX_BUF_LEN         (64) // 64 bytes max tx len 
-#define TX_BUF_LEN(str_len) ((str_len) + 3 + 3) // string len + 4 bytes for num + 3 bytes for colon, carriage return, and newline
-#define MAX_DIGITS  (3U)
+
+#define MAX_MSG_CNT     (10U)
+#define MAX_LOG_BODY_LEN     (64U)
+#define MAX_FMT_MSG_LEN      (256U)
+
+typedef struct {
+    uint8_t log_type;
+    uint8_t len;
+    uint8_t msg[MAX_LOG_BODY_LEN];
+} log_t;
 
 /***********************
  * STATIC DECLARATIONS
  ***********************/
-static void usart_init(void);
-static uint8_t usart_transmit(uint8_t *data, uint32_t len);
-static uint32_t str_len(uint8_t *str);
-static void num_to_bytes(uint8_t *num_buf, uint8_t num);
-static void log_create_tx_buf(uint8_t *dst_buf, uint8_t *str, uint32_t num, uint32_t len);
+/**
+ * @brief Formats message with timestamp and type
+ * 
+ * 
+ * @param[out] fmt_msg
+ * @param[in] msg_body
+ * @param[in] type
+ */
+static void create_log_msg(char *fmt_msg, const char *msg_body, log_level_e type);
 
-
-static log_level_e log_level = LOG_LEVEL_ALL;
+STATIC_RING_BUFFER(log_queue, MAX_MSG_CNT, log_t);
+static log_t active_log;
 /*******************
  * USER APIs
  *******************/
@@ -30,66 +42,88 @@ static log_level_e log_level = LOG_LEVEL_ALL;
  * 
  */
 void log_init(void) {
-    usart_init();
-}
-
-/**
- * @brief Sends a log debug message over serial
- * 
- * 
- * 
- * @param debug_str debug message string
- * @param num optional number sent with message
- */
-uint8_t log_debug(uint8_t *debug_str, uint32_t num) {
-    log_status_e status = LOG_ERR;
-    if (log_level == LOG_LEVEL_ALL || log_level == LOG_LEVEL_DEBUG) {
-        uint32_t len = str_len(debug_str);
-        uint8_t buffer[MAX_BUF_LEN];
-        log_create_tx_buf(buffer, debug_str, num, len);
-        usart_transmit(buffer, TX_BUF_LEN(len));
-    }
+    uint8_t status = 0x00;
+    spi_init(SPI_DEVICE_BMI160);
+    status = sd_mount();
     return status;
 }
 
+/**
+ * @brief Writes an event message to event log file
+ * 
+ * 
+ * 
+ * @param[in] event_msg event message string
+ */
+uint8_t log_event(const char *event_msg) {
+    memset((void *)&active_log, 0, sizeof(active_log));
+    active_log.len = strlen(event_msg);
+    memcpy((void *)active_log.msg, event_msg, active_log.len);
+    active_log.log_type = LOG_EVENT;
+    
+    // pops off any log that is taking too long to TX so we don't block
+    ring_buffer_push(&log_queue, (void *)&active_log);
+
+    return STATUS_OK;
+}
+
 
 /**
- * @brief Sends a log warning message over serial
+ * @brief Writes a transaction message trans log file
  * 
  * 
- * 
- * @param warn_str warning message string
- * @param num optional number
+ * @param[in] trans_msg transaction message string
  */
-uint8_t log_warn(uint8_t *warn_str, uint32_t num) {
-    log_status_e status = LOG_ERR;
-    if (log_level == LOG_LEVEL_ALL || log_level == LOG_LEVEL_WARN) {
-        uint32_t len = str_len(warn_str);
-        uint8_t buffer[MAX_BUF_LEN];
-        log_create_tx_buf(buffer, warn_str, num, len);
-        usart_transmit(buffer, TX_BUF_LEN(len));
-    }
-    return status;
+uint8_t log_transaction(const char *trans_msg) {
+    memset((void *)&active_log, 0, sizeof(active_log));
+    active_log.len = strlen(trans_msg);
+    memcpy((void *)active_log.msg, trans_msg, active_log.len);
+    active_log.log_type = LOG_TRANS;
+    
+    // pops off any log that is taking too long to TX so we don't block
+    ring_buffer_push(&log_queue, (void *)&active_log);
+
+    return STATUS_OK;
+}
+
+
+/**
+ * @brief Writes a warning message to sys log file
+ * 
+ * 
+ * 
+ * @param[in] warn_msg warning message string
+ */
+uint8_t log_warn(const char *warn_msg) {
+    memset((void *)&active_log, 0, sizeof(active_log));
+    active_log.len = strlen(warn_msg);
+    memcpy((void *)active_log.msg, warn_msg, active_log.len);
+    active_log.log_type = LOG_ERROR;
+    
+    // pops off any log that is taking too long to TX so we don't block
+    ring_buffer_push(&log_queue, (void *)&active_log);
+
+    return STATUS_OK;
 }
 
 
 /** 
- * @brief Sends a log error message over serial
+ * @brief Writes an error message to sys log file
  * 
  * 
  * 
- * @param error_str string to log
- * @param num optional number (perhaps code)
+ * @param[in] error_msg error message string
  */
-uint8_t log_error(uint8_t *error_str, uint32_t num) {
-    log_status_e status = LOG_ERR;
-    if (log_level == LOG_LEVEL_ALL || log_level == LOG_LEVEL_WARN) {
-        uint32_t len = str_len(error_str);
-        uint8_t buffer[MAX_BUF_LEN];
-        log_create_tx_buf(buffer, error_str, num, len);
-        status = usart_transmit(buffer, TX_BUF_LEN(len));
-    }
-    return status;
+uint8_t log_error(const char *err_msg) {
+    memset((void *)&active_log, 0, sizeof(active_log));
+    active_log.len = strlen(err_msg);
+    memcpy((void *)active_log.msg, err_msg, active_log.len);
+    active_log.log_type = LOG_ERR;
+    
+    // pops off any log that is taking too long to TX so we don't block
+    ring_buffer_push(&log_queue, (void *)&active_log);
+
+    return STATUS_OK;
 }
 
 
@@ -103,62 +137,58 @@ uint8_t log_error(uint8_t *error_str, uint32_t num) {
  * @param level the level of log messages perimitted
  */
 void log_set_level(log_level_e level) {
-    log_level = level;
+
 }
 
 
-/****************
- * STATIC DEFS
- ****************/
-
-static void usart_init(void) {
-    // enable peripheral clock
-    RCC->APB1ENR |= (RCC_APB1ENR_USART2EN);
-
-    // enable the peripheral
-    LL_USART_Enable(USARTx);
-    // set 8 bit word len
-    LL_USART_SetDataWidth(USARTx, LL_USART_DATAWIDTH_8B);
-    // disable HW flow control
-    LL_USART_SetHWFlowCtrl(USARTx, LL_USART_HWCONTROL_NONE);
-    // configure 115200 baudrate for USART peripheral
-    LL_USART_SetBaudRate(USARTx, APB1_CLK_RATE, LL_USART_OVERSAMPLING_8, USART_BAUDRATE);
-    // set oversampling of 8x the clock rate
-    LL_USART_SetOverSampling(USARTx, LL_USART_OVERSAMPLING_8);
-    // set no parity error checking
-    LL_USART_SetParity(USARTx, LL_USART_PARITY_NONE);
-    // set single stop bit
-    LL_USART_SetStopBitsLength(USARTx, LL_USART_STOPBITS_1);
-    // set USART peripheral transmit enable
-    LL_USART_SetTransferDirection(USARTx, LL_USART_DIRECTION_TX);
-}
-
-
-static uint8_t usart_transmit(uint8_t *data, uint32_t len) {
-    uint8_t status = 0;
-    for (uint32_t i = 0; i < len; ++i) {
-        while (!LL_USART_IsActiveFlag_TXE(USARTx));
-        LL_USART_TransmitData8(USARTx, *(data));
-        data++;
+/***********************
+ * STATIC DECLARATIONS
+ ***********************/
+static void create_log_msg(char *fmt_msg, const char *msg_body, log_level_e type) {
+    rtc_info_t timestamp;
+    const char *type_str;
+    switch (type) {
+    case LOG_ERR:
+        type_str = "ERROR";
+        break;
+    case LOG_TRANS:
+        type_str = "TRANSACTION";
+        break;
+    case LOG_EVENT:
+        type_str = "EVENT";
+        break;
+    case LOG_ALL:
+    case LOG_DISABLE:
+        break;
     }
-    // transmission complete, clear TC flag
-    while (!LL_USART_IsActiveFlag_TC(USARTx));
-    LL_USART_ClearFlag_TC(USARTx);
-    return status;
+
+    rtc_read_timestamp(&timestamp);
+    snprintf(fmt_msg, MAX_LOG_BODY_LEN, "%s:\r\n%02d:%02d:%02d - %02d:%02d:%02d\r\n%s\r\n",
+            type_str, timestamp.day, timestamp.month, timestamp.year,
+            timestamp.hours, timestamp.minutes, timestamp.seconds,
+            msg_body);
 }
 
-/**
- * OVERWRITE PRINTF UNDERLYING FUNCTIONS, CALLS TO PRINTF SHOULD INCLUDE \r\n
- */
-int __io_putchar(int ch) {
-    usart_transmit(&ch, 1);
-    return ch;
-}
 
-int _write(int file, char *ptr, int len) {
-    for (int i = 0; i < len; ++i) {
-        __io_putchar(*ptr++);
+static void log_write_to_file(void) {
+    int8_t status = STATUS_OK;
+    char formatted_msg[MAX_LOG_BODY_LEN];
+    log_t log;
+    if (!ring_buffer_empty(&log_queue)) {
+        ring_buffer_pop(&log_queue, (void *)&log);
+        create_log_msg(formatted_msg, log.msg, log.log_type);
+
+        switch (log.log_type) {
+        case LOG_ERR:
+            status = sd_append_file("logs.txt", formatted_msg);
+            break;
+        case LOG_TRANS:
+            status = sd_append_file("trans.txt", formatted_msg);
+            break;
+        case LOG_EVENT:
+            status = sd_append_file("events.txt", formatted_msg);
+            break;
+        }
     }
-    return len;
 }
 

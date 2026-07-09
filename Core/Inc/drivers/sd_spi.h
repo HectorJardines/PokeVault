@@ -16,7 +16,7 @@
 #ifndef __SD_SPI_H__
 #define __SD_SPI_H__
 
-#include "main.h"  // or your specific STM32 family header
+#include "stm32f4xx.h"
 #include <stdint.h>
 
 #define CMD0  (0)

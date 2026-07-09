@@ -2,23 +2,40 @@
 #define _LOG_H
 
 #include <stdint.h>
+#include "sd_functions.h"
+#include "ring_buffer.h"
 #include "../../../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_usart.h"
+
+#define LOG_WARN_Msk        (0x01)
+#define LOG_ERROR_Msk       (0x01 << 1)
+#define LOG_EVENT_Msk       (0x01 << 2)
+#define LOG_TRANS_Msk       (0x01 << 3)
+#define LOG_DISABLE_Msk     (0x00)
+#define LOG_ALL_Msk         (0x0F)
+
 
 /*****************
  * ENUMS
  *************/
 typedef enum {
-    LOG_LEVEL_ALL,
-    LOG_LEVEL_DISABLE,
-    LOG_LEVEL_WARN,
-    LOG_LEVEL_DEBUG,
-    LOG_LEVEL_ERROR
+    LOG_DISABLE,
+    LOG_ERROR,
+    LOG_EVENT,
+    LOG_TRANS,
+    LOG_ALL
 } log_level_e;
 
 typedef enum {
     LOG_OK,
     LOG_ERR,
 } log_status_e;
+
+
+typedef struct {
+    uint8_t log_levels;
+    struct ring_buffer log_buffer;
+} log_handle_t;
+
 
 /*****************
  * PUBLIC APIs
@@ -32,36 +49,42 @@ typedef enum {
 void log_init(void);
 
 /**
- * @brief Sends a log debug message over serial
+ * @brief Writes an event message to event log file
  * 
  * 
  * 
- * @param debug_str debug message string
- * @param num optional number sent with message
+ * @param[in] event_msg event message string
  */
-uint8_t log_debug(uint8_t *debug_str, uint32_t num);
+uint8_t log_event(const char *event_msg);
 
 
 /**
- * @brief Sends a log warning message over serial
+ * @brief Writes a transaction message trans log file
  * 
  * 
- * 
- * @param warn_str warning message string
- * @param num optional number
+ * @param[in] trans_msg transaction message string
  */
-uint8_t log_warn(uint8_t *warn_str, uint32_t num);
+uint8_t log_transaction(const char *trans_msg);
+
+
+/**
+ * @brief Writes a warning message to sys log file
+ * 
+ * 
+ * 
+ * @param[in] warn_msg warning message string
+ */
+uint8_t log_warn(const char *warn_msg);
 
 
 /** 
- * @brief Sends a log error message over serial
+ * @brief Writes an error message to sys log file
  * 
  * 
  * 
- * @param error_str string to log
- * @param num optional number (perhaps code)
+ * @param[in] error_msg error message string
  */
-uint8_t log_error(uint8_t *error_str, uint32_t num);
+uint8_t log_error(const char *err_msg);
 
 
 /**

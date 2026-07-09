@@ -30,9 +30,9 @@ Disk_drvTypeDef disk = {{0},{0},{0},0};
   * @brief  Links a compatible diskio driver/lun id and increments the number of active
   *         linked drivers.
   * @note   The number of linked drivers (volumes) is up to 10 due to FatFs limits.
-  * @param  drv: pointer to the disk IO Driver structure
-  * @param  path: pointer to the logical drive path
-  * @param  lun : only used for USB Key Disk to add multi-lun management
+  * @param[in]  drv: pointer to the disk IO Driver structure
+  * @param[out]  path: pointer to the logical drive path
+  * @param[in]  lun : only used for USB Key Disk to add multi-lun management
             else the parameter must be equal to 0
   * @retval Returns 0 in case of success, otherwise 1.
   */
@@ -61,8 +61,8 @@ uint8_t FATFS_LinkDriverEx(const Diskio_drvTypeDef *drv, char *path, uint8_t lun
   * @brief  Links a compatible diskio driver and increments the number of active
   *         linked drivers.
   * @note   The number of linked drivers (volumes) is up to 10 due to FatFs limits
-  * @param  drv: pointer to the disk IO Driver structure
-  * @param  path: pointer to the logical drive path
+  * @param[in]  drv: pointer to the disk IO Driver structure
+  * @param[out]  path: pointer to the logical drive path
   * @retval Returns 0 in case of success, otherwise 1.
   */
 uint8_t FATFS_LinkDriver(const Diskio_drvTypeDef *drv, char *path)

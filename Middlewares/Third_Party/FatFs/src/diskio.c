@@ -45,7 +45,7 @@ DSTATUS disk_status (
 
 /**
   * @brief  Initializes a Drive
-  * @param  pdrv: Physical drive number (0..)
+  * @param[in]  pdrv: Physical drive number (0..)
   * @retval DSTATUS: Operation status
   */
 DSTATUS disk_initialize (
