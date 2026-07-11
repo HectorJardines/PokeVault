@@ -12,7 +12,9 @@
 #define LOG_TRANS_Msk       (0x01 << 3)
 #define LOG_DISABLE_Msk     (0x00)
 #define LOG_ALL_Msk         (0x0F)
-
+#define MAX_MSG_CNT     (10U)
+#define MAX_LOG_BODY_LEN     (64U)
+#define MAX_FMT_MSG_LEN      (256U)
 
 /*****************
  * ENUMS

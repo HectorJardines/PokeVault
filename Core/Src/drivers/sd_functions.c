@@ -154,9 +154,8 @@ int sd_read_file(const char *filename, char *buffer, UINT bufsize, UINT *bytes_r
 }
 
 typedef struct CsvRecord {
-	char field1[32];
-	char field2[32];
-	int value;
+	uint32_t id;
+	char name[17];
 } CsvRecord;
 
 int sd_read_csv(const char *filename, CsvRecord *records, int max_records, int *record_count) {
@@ -173,19 +172,13 @@ int sd_read_csv(const char *filename, CsvRecord *records, int max_records, int *
 	printf("📄 Reading CSV: %s\r\n", filename);
 	while (f_gets(line, sizeof(line), &file) && *record_count < max_records) {
 		char *token = strtok(line, ",");
-		if (!token) continue;
-		strncpy(records[*record_count].field1, token, sizeof(records[*record_count].field1));
-
-		token = strtok(NULL, ",");
-		if (!token) continue;
-		strncpy(records[*record_count].field2, token, sizeof(records[*record_count].field2));
-
-		token = strtok(NULL, ",");
 		if (token)
 			records[*record_count].value = atoi(token);
 		else
 			records[*record_count].value = 0;
-
+		token = strtok(NULL, ",");
+		if (!token) continue;
+		strncpy(records[*record_count].field2, token, sizeof(records[*record_count].field2));
 		(*record_count)++;
 	}
 
@@ -200,6 +193,38 @@ int sd_read_csv(const char *filename, CsvRecord *records, int max_records, int *
 	}
 
 	return FR_OK;
+}
+
+int sd_write_csv(const char *filename, CsvRecord *records, int record_count) {
+	FIL file;
+	char line[128];
+	uint8_t bw = 0;
+
+	FRESULT res = f_open(&file, filename, FA_WRITE | FA_CREATE_ALWAYS);
+	if (res != FR_OK) {
+		printf("Failed to open CSV: %s (%d)", filename, res);
+		return res;
+	}
+
+	printf("📄 Writing CSV: %s\r\n", filename);
+	snprintf(line, "ITEM UID,ITEM NAME\r\n");
+	res = f_write(file, line, strlen(line), &bw);
+	if (res == FR_OK) {
+		for (int i = 0; i < record_count; ++i) {
+			if (records[i].id == 0) continue;
+			memset((void *)line, 0, sizeof(line));
+			snprintf(line, sizeof(line), "%d,%s\r\n", records[i].id, records[i].name);
+			res = f_write(file, line, strlen(line), &bw);
+			
+			if (res != FR_OK)
+				break;
+		}
+	}
+
+	if (f_close(file) != FR_OK)
+		printf("FAILED TO CLOSED FILE!\r\n");
+
+	return res;
 }
 
 int sd_delete_file(const char *filename) {

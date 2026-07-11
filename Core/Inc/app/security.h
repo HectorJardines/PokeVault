@@ -8,6 +8,7 @@
 
 #include "../drivers/ir_sensor.h"
 #include "./rfid_tag.h"
+#include "sm_common.h"
 
 /******************
  * ENUMS/STRUCTS
@@ -16,9 +17,28 @@ typedef enum {
     SECURITY_UNITIALIZED,
     SECURITY_ARMED,
     SECURITY_DISARMED,
-    SECURITY_MANUAL_OVERRIDE,
     SECURITY_BREACHED
 } security_state_e;
+
+
+typedef enum {
+    EVENT_NONE,
+    EVENT_UNIT_OPENED,
+    EVENT_UNIT_CLOSED,
+    EVENT_TAG_AUTH,
+    EVENT_REMOTE_AUTH,
+    EVENT_UNIT_MOVED,
+    EVENT_UNIT_STOPPED,
+    EVENT_PRESENCE,
+    EVENT_NO_PRESENCE
+} security_event_e;
+
+
+typedef struct {
+    common_sm_t common_sm;
+
+    security_state_e current_state;
+} security_sm_t;
 
 /*****************
  * USER APIs

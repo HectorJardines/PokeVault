@@ -6,11 +6,6 @@
 #include <stdio.h>
 #include <string.h>
 
-
-#define MAX_MSG_CNT     (10U)
-#define MAX_LOG_BODY_LEN     (64U)
-#define MAX_FMT_MSG_LEN      (256U)
-
 typedef struct {
     uint8_t log_type;
     uint8_t len;

@@ -16,7 +16,8 @@
 #ifndef __SD_FUNCTIONS_H__
 #define __SD_FUNCTIONS_H__
 
-#include "fatfs.h"
+#include "ff_gen_drv.h"
+#include "ff.h"
 #include <stdint.h>
 
 extern char sd_path[];
@@ -44,12 +45,12 @@ int sd_get_space_kb(void);
 //csv File operations
 // CSV Record structure
 typedef struct CsvRecord {
-    char field1[32];
-    char field2[32];
-    int value;
+	uint32_t id;
+	char name[17];
 } CsvRecord;
 
 // CSV reader (caller defines record array)
 int sd_read_csv(const char *filename, CsvRecord *records, int max_records, int *record_count);
+int sd_write_csv(const char *filename, CsvRecord *records, int record_count);
 
 #endif // __SD_FUNCTIONS_H__

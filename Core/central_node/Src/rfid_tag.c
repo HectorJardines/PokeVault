@@ -231,6 +231,24 @@ uint8_t tag_read_data(uint8_t *uid, uint8_t *tag_data, uint8_t sector, uint8_t b
 
 
 
+uint8_t tag_write_data(uint8_t *tag_data, uint8_t sector, uint8_t block) {
+    uint8_t status = STATUS_OK;
+    rfid_tag_t tag;
+    
+    status = tag_scan_and_select(tag.buf, tag.uid);
+    if (status == STATUS_OK) {
+        status = mfrc522_auth(PICC_AUTH_A, (sector * BLOCKS_PER_SECTOR) + SECTOR_TRAIL_BLOCK, tag.sec_key, tag.uid);
+        if (status == STATUS_OK) {
+            status = mfrc_picc_write(block, tag_data);
+            TM_MFRC522_Crypto_Off();
+        }
+    }
+
+    return status;
+}
+
+
+
 /**********************
  * STATIC DEFS
  *********************/

@@ -12,16 +12,16 @@ message msg {
 }
 
 message alert {
-    required uint32 type = 2;
+    required uint32 type = 1;
 }
 
 
 message transaction {
-    required uint32 type = 2;
-    required uint32 item_id = 3;
+    required uint32 item_id = 1;
+    required 
 }
 
 
 message event {
-    required uint32 type = 2;
+    required uint32 type = 1;
 }

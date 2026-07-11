@@ -1,8 +1,14 @@
 /**
- * @Author Hector Jardines
+ * @author Hector Jardines
  * 
  * This module handles the inventory management logic for 
- * a given storage unit.
+ * a given storage unit. The idea is going to be to pull 
+ * a csv file of item names and UIDs. User initiates an
+ * enrollment mode with the central node and selects one 
+ * of the pre-defined item names. The central node then polls
+ * each target node for an enrollment event. When one of the peer 
+ * nodes replies with an enrollment event + UID the central node 
+ * stores that UID in the CSV file and logs the transaction event.
  * 
  * 
  */
@@ -11,57 +17,47 @@
 
 #include <stdint.h>
 
+#define UID_LEN           (4U)
 #define MAX_ITEM_NAME_LEN (16U) // MAX ITEM NAME LEN IN BYTES
 
 /*********************
  * STRUCTS/ENUMS
  ********************/
-typedef enum {
-    TRANS_ITEM_REMOVE,
-    TRANS_ITEM_ADD
-} trans_type_e;
+typedef struct {
+    uint8_t item_id[UID_LEN];
+    char item_name[MAX_ITEM_NAME_LEN];
+} transaction_t;
+
+
 
 /******************
  * PUBLIC APIs
  ******************/
 
 
-/**
- * @brief Load inventory from SD card 
- * 
- * 
- * 
- */
-void inventory_init(void);
-
 
 /**
- * @brief Remove the item associated with the item_id from the storage unit
+ * @brief Initializes inventory subsystem and its dependency modules
  * 
  * 
- * 
+ * @return 0 on successful init; else 1
  */
-transaction_t inventory_remove_item(uint32_t item_id);
+uint8_t inventory_init(void);
 
-/**
- * @brief Add the item associated with the item_id to the storage unit
- * 
- * 
- * 
- */
-transaction_t inventory_add_item(uint32_t item_id);
 
 
 /**
- * @brief Flush transactions to transacton log file
+ * @brief Activates RFID reader for scanning of nearby items
  * 
- * This function should be periodically called when transactions
- * have been completed. Sends transaction info to central MCU that 
- * stores the information in a transaction log file.
+ * This function activates the RFID reader's RF field for
+ * scanning of nearby item's. I.e. it checks if a product is 
+ * present and sends message to central node if detected.
  * 
- * @return 0 on success; else 1 
+ * 
+ * @return 0 on successful detecet and write, else 1
  */
-uint8_t inventory_flush_transactions(void);
+uint8_t inventory_scan_for_item(void);
+
 
 
 #endif /* _INVENTORY_H */

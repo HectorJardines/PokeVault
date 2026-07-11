@@ -225,7 +225,7 @@ uint8_t mfrc_picc_write(uint8_t picc_block_addr, uint8_t *send_data);
  * @param picc_addr_block addres of the block to read from
  * @param rcv_data buffer into which data will be read
  */
-uint8_t mfrc_picc_read(uint8_t picc_block_addr, uint8_t *rcv_data);
+uint16_t mfrc_picc_read(uint8_t picc_block_addr, uint8_t *rcv_data);
 
 #endif
 

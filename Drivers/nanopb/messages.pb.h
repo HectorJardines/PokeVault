@@ -15,7 +15,7 @@ typedef struct _alert {
 } alert;
 
 typedef struct _transaction {
-    uint8_t type;
+    char item_name[16];
     uint32_t item_id;
 } transaction;
 

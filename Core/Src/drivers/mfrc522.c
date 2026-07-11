@@ -266,8 +266,10 @@ uint8_t mfrc_halt(void) {
  * 
  * @param picc_addr_block addres of the block to read from
  * @param rcv_data buffer into which data will be read
+ * 
+ * @return non-negative number of bits read on successful read; else 1
  */
-uint8_t mfrc_picc_read(uint8_t picc_block_addr, uint8_t *rcv_data) {
+uint16_t mfrc_picc_read(uint8_t picc_block_addr, uint8_t *rcv_data) {
     mfrc_status_e status = MFRC_OK;
     uint8_t buffer[4];
     uint16_t rcv_len;
@@ -280,6 +282,9 @@ uint8_t mfrc_picc_read(uint8_t picc_block_addr, uint8_t *rcv_data) {
     status = mfrc_send_to_picc(PCD_CMD_TRANSCEIVE, buffer, 4, rcv_data, &rcv_len);
     if (status != MFRC_OK || rcv_len != (PICC_DATA_BLOCK_LEN + PICC_CRC_LEN))
         status = MFRC_ERR;
+    else
+        status = rcv_len;
+
     return status;
 }
 
@@ -288,6 +293,8 @@ uint8_t mfrc_picc_read(uint8_t picc_block_addr, uint8_t *rcv_data) {
  * 
  * @param picc_block_addr address of the block to write to
  * @param send_data buffer of data to write to block
+ * 
+ * @param 
  */
 uint8_t mfrc_picc_write(uint8_t picc_block_addr, uint8_t *send_data) {
     mfrc_status_e status = MFRC_OK;
