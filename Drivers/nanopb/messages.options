@@ -1,6 +1,9 @@
+# MSG ARRAY OPTIONS
+msg_array.msgs max_count:5
+
 # MSG STRUCT OPTIONS
-msg.type                int_size:IS_8
-msg.node_id             int_size:IS_8
+msg.is_end                  int_size:IS_8
+msg.node_id                 int_size:IS_8
 
 
 # ALERT STRUCT OPTIONS
@@ -8,7 +11,7 @@ alert.type              int_size:IS_8
 
 
 # TRANSACTION STRUCT OPTIONS
-transaction.type        int_size:IS_8
+transaction.item_name max_length:16
 
 
 # EVENT STRUCT OPTIONS

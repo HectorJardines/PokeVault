@@ -19,59 +19,15 @@ typedef struct {
  ************************/
 static uint8_t default_sec_key[SEC_KEY_LEN] = {DEFAULT_SEC_KEY, DEFAULT_SEC_KEY, DEFAULT_SEC_KEY, DEFAULT_SEC_KEY, DEFAULT_SEC_KEY, DEFAULT_SEC_KEY};
 
-static uint8_t registered_keys[NUM_OF_ALLOWED_TAGS][UID_LEN_BYTES] = {
-    [TAG_ENTRY1] = {0x00,0x00,0x00,0x00,0x00}, 
-    [TAG_ENTRY2] = {0x00,0x00,0x00,0x00,0x00}
-};
-static uint8_t xor_cipher[SEC_KEY_LEN][UID_LEN_BYTES] = {
-    // SEC_KEY_BYTE1
-    {0x12, 0x36, 0x77, 0x89},
-    //SEC_KEY_BYTE2
-    {0x67, 0x89, 0x43, 0x32},
-    // SEC_KEY_BYTE3
-    {0x51, 0x99, 0xAB, 0xBD},
-    //SEC_KEY_BYTE4
-    {0x4D, 0xF3, 0x7C, 0xEF},
-    // SEC_KEY_BYTE5
-    {0x04, 0x29, 0xA7, 0xBF},
-    //SEC_KEY_BYTE6
-    {0x14, 0xE9, 0xAA, 0xCB},
-};
-
-
 /**
- * @brief Utilizes a XOR cipher to set the SECTOR KEY
+ * @brief Scan tag and set its state to active mode
  * 
- * Applies a XOR cipher to the card's UID and utilizes this as the 
- * card's new type A sector key.
+ * This function is called to scan a nearby PICC and set it 
+ * into the active mode. In the active mode the PICC is able
+ * to receive read, write, and authorization commands.
  * 
- * @param sec_key sector key that is being scrambled
- * @param uid the UID of the associated card
- */
-static void scramble_key(uint8_t *sec_key, uint8_t *uid);
-
-/**
- * @brief Applies the XOR cipher to scrambled key to obtain original key
- * 
- * @param sec_key the sector key to unscramble
- */
-static void unscramble_key(uint8_t *sec_key);
-
-/**
- * @brief Checks if UID is known or not
- * 
- * Compares the specified UID against all stored UIDs, if any are a match, 
- * return card authorized. else rejected
- * 
- * @param uid the UID to verify
- * @return 0 if UID unknown; 1 else
- */
-static uint8_t search_uid(uint8_t *uid, uint8_t *idx);
-
-
-
-/**
- * @brief
+ * @param[in] card_buf
+ * @param[out] card_uid
  */
 static mfrc_status_e tag_scan_and_select(uint8_t *card_buf, uint8_t *card_uid);
 
@@ -84,49 +40,14 @@ static mfrc_status_e tag_scan_and_select(uint8_t *card_buf, uint8_t *card_uid);
  */
 tag_status_e tag_init(void) {
     mfrc522_init();
-    return TAG_OK;
-}
-
-
-/**
- * @brief Quick card scan utilizes saved UIDs
- * 
- * This API is used for quick verification of a tag. Skips 
- * card selectiona and authentication and simply retrieves UID and 
- * compares again a collection of saved UIDs.
- * 
- * @return TAG_AUTHORIZED on success
- */
-tag_status_e tag_quick_scan(void) {
-    tag_status_e card_stat = TAG_REJECTED;
-    mfrc_status_e status = MFRC_ERR;
-    uint8_t card_buf[PICC_MEM_BLOCK_LEN];
-    uint8_t card_uid[UID_LEN_BYTES];
-    uint8_t dummy_idx = 0x00;
-
-    // 1. sent WAKEUP request to all nearby PICCs
-    status = mfrc_request(PICC_WUPA, card_buf);
-    if (status == MFRC_OK) {
-        // 2. perform anticollision loop to retrieve UID
-        HAL_Delay(1);
-        status = mfrc_anticollision(card_buf);
-        if (status == MFRC_OK) {
-            for (uint8_t i = 0; i < UID_LEN_BYTES; ++i)
-                card_uid[i] = card_buf[i];
-            // 3. compare retrieved UID against stored UIDs
-            uint8_t match = search_uid(card_uid, &dummy_idx);
-            if (match)
-                card_stat = TAG_AUTHORIZED; // 4. If match return authorized, else rejected
-        }
-    }
-    return card_stat;
+    return MFRC_OK;
 }
 
 
 /**
  * @brief Registers a tag and saves its serialnumber for subsequent authorization
  */
-tag_status_e tag_register(tag_index_e tag_entry) {
+tag_status_e tag_register(const char *data_buffer) {
     tag_status_e card_stat = TAG_ERR;
     mfrc_status_e mfrc_stat = MFRC_ERR;
     rfid_tag_t tag;
@@ -152,8 +73,6 @@ tag_status_e tag_register(tag_index_e tag_entry) {
             if (mfrc_stat == MFRC_OK) {
                 // 6. send halt command
                 card_stat = TAG_REGISTERED;
-                for (uint8_t i = 0; i < UID_LEN_BYTES; ++i)
-                    registered_keys[tag_entry][i] = tag.uid[i];
             }
             TM_MFRC522_Crypto_Off();
         }
@@ -165,46 +84,6 @@ tag_status_e tag_register(tag_index_e tag_entry) {
 
     if (mfrc_stat != MFRC_OK) {
         card_stat = TAG_ERR;
-    }
-
-    return card_stat;
-}
-
-
-/**
- * @brief Removes a tag from the registry to revoke access
- */
-tag_status_e tag_forget(void) {
-    tag_status_e card_stat = TAG_ERR;
-    mfrc_status_e mfrc_stat = MFRC_ERR;
-    rfid_tag_t tag;
-
-    uint8_t card_idx = -1;
-    mfrc_stat = tag_scan_and_select(tag.buf, tag.uid);
-    if (mfrc_stat == MFRC_OK && search_uid(tag.uid, &card_idx) == UID_FOUND) {
-        // 4. authenticate
-        scramble_key(tag.sec_key, tag.uid);
-        HAL_Delay(1);
-        mfrc_stat = mfrc522_auth(PICC_AUTH_A, SECTOR_TRAIL_BLOCK, tag.sec_key, tag.uid);
-        if (mfrc_stat == MFRC_OK) {
-            // 5. overwrite content in the sector trailer
-            for (uint8_t i = 0; i < SEC_KEY_LEN; ++i)
-                tag.buf[i] = DEFAULT_SEC_KEY;
-            tag.buf[6] = ACCESS_BYTE_6;
-            tag.buf[7] = ACCESS_BYTE_7;
-            tag.buf[8] = ACCESS_BYTE_8;
-            for (uint8_t i = 0; i < SEC_KEY_LEN + 1; ++i)
-                tag.buf[i + 9] = DEFAULT_SEC_KEY;
-            HAL_Delay(1);
-            mfrc_stat = mfrc_picc_write(SECTOR_TRAIL_BLOCK, tag.buf);
-            if (mfrc_stat == MFRC_OK) {
-                for (uint8_t i = 0; i < UID_LEN_BYTES; ++i)
-                    registered_keys[card_idx][i] = 0x00;
-                card_stat = TAG_REMOVED;
-            }
-            TM_MFRC522_Crypto_Off();
-        }
-        mfrc_halt();
     }
 
     return card_stat;
@@ -252,36 +131,6 @@ uint8_t tag_write_data(uint8_t *tag_data, uint8_t sector, uint8_t block) {
 /**********************
  * STATIC DEFS
  *********************/
-
-static void scramble_key(uint8_t *sec_key, uint8_t *uid) {
-    for (uint8_t i = 0; i < SEC_KEY_LEN; ++i) {
-        sec_key[i] = 0;
-        for (uint8_t j = 0; j < UID_LEN_BYTES - 1; ++j)
-            sec_key[i] += (xor_cipher[i][j] ^ uid[j]);
-    }
-}
-
-
-static void unscramble_key(uint8_t *sec_key) {
-    for (uint8_t i = 0; i < SEC_KEY_LEN; ++i) {
-        uint8_t scrambled_byte = sec_key[i];
-        sec_key[i] = 0;
-        for (uint8_t j = 0; j < UID_LEN_BYTES - 1; ++j)
-            sec_key[i] += (xor_cipher[i][j] ^ scrambled_byte); // TODO: FIX THIS WE CANT UNSCRAMBLE THE BYTE DIRECTLY
-    }
-}
-
-static uint8_t search_uid(uint8_t *uid, uint8_t *idx) {
-    uint8_t match = 0;
-    for (uint8_t i = 0; i < NUM_OF_ALLOWED_TAGS; ++i) {
-        match = mfrc_compare(uid, registered_keys[i]);
-        if (match) {
-            *idx = i;
-            break;
-        }
-    }
-    return match;
-}
 
 static mfrc_status_e tag_scan_and_select(uint8_t *card_buf, uint8_t *card_uid) {
     mfrc_status_e mfrc_stat = MFRC_ERR;

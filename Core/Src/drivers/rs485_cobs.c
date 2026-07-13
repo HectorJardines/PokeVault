@@ -310,9 +310,8 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
             }
             else {
                 frame_status = process_bytes(&rx_buf[prev_buf_pos], MAX_FRAME_LEN - prev_buf_pos, &prev_buf_pos);
-                if (frame_status != COBS_TERMINATED) {
+                if (frame_status != COBS_TERMINATED)
                     frame_status = process_bytes(&rx_buf[0], curr_buf_pos, &prev_buf_pos);
-                }
             }
         }
 

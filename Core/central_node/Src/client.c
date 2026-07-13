@@ -2,7 +2,7 @@
  * HTTPS Client implementation for Telegram Bot API
  */
 
-#include "client.h"
+#include "../Inc/client.h"
 #include "private.h"
 #include "string.h"
 #include "ring_buffer.h"

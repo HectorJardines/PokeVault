@@ -24,12 +24,10 @@ static uint8_t crc_is_equal(uint16_t crc, uint8_t *received_crc);
 static void rs485_reception_cb(void);
 static void rs485_msg_consumed_cb(void);
 
-static uint8_t process_message(msg *message);
-static uint8_t message_flush(void);
-
 
 static uint8_t serialize_buf[DRIVERS_NANOPB_MESSAGES_PB_H_MAX_SIZE + CRC16_LEN];
 static volatile uint8_t msg_cnt = 0;
+static void(*peer_rx_cplt)(void);
 STATIC_RING_BUFFER(msg_queue, MAX_MSG_CNT, msg);
 /************
  * APIs
@@ -48,40 +46,45 @@ void message_init(void) {
 }
 
 
-
 /**
- * @brief Post message to peer node message queue
+ * @brief Sends a message to all peer nodes with node ID set
  * 
- * Posted messaged are periodically flushed to the central
- * node in a msg_array protobuf when the peer node 
- * receives a CTS message from the central node.
+ * Messages sent from central node are broadcast to all peer nodes.
+ * Peer nodes compare the received NODE ID against their own and
+ * respond accordingly.
  * 
- * @param[in] message message to post
+ * @param[in] message message to send
  */
 void message_send(msg *message) {
-    ring_buffer_push(&msg_queue, (void *)message);
+    uint16_t len = 0;
+    memset((void *)serialize_buf, 0, sizeof(serialize_buf));
+    uint8_t status = serialize_struct(&message, &len);
+
+    if (len > MAX_FRAME_LEN)
+        printf("ERROR: SERIAL BUF LEN GREATER THAN MAX ENCODED BUFFER LENGTH\r\n");
+
+    if (status == 1) {
+        status = rs485_transmit(serialize_buf, len);
+    }
+    return status;
 }
 
 
 
 /**
- * @brief Retrieves message from central MCU and processes accordingly
- * 
- * Deserializes a message from the central node if any are present.
- * Compares the node ID of message receive against that of the peer node
- * and processes the message on match, or discards the message on no match
- * 
- * @param[out] message
+ * @brief Receives a message array from peer node
  * 
  * 
- * @return 0 on successful processing and reception; else 1
+ * @param[out] message array of messages sent by peer node
+ * 
+ * @return 0 on successful reception; else 1
  */
-uint8_t message_receive(msg *message) {
+uint8_t message_receive(msg_array *message) {
     uint8_t rx_frame[MAX_FRAME_LEN] = {0};
     uint32_t length = 0;
 
     uint8_t status = rs485_receive(rx_frame, &length);
-    if (status == STATUS_OK) {
+    if (status == 0) {
         uint16_t crc_check = compute_crc16(rx_frame, length - CRC16_LEN);
         if (crc_is_equal(crc_check, &rx_frame[length - CRC16_LEN])) {
             status = deserialize_msg_buf(rx_frame, length - CRC16_LEN, message);
@@ -97,11 +100,9 @@ uint8_t message_receive(msg *message) {
         printf("MSG RECEIVE FAILED\r\n");
     }
 
-    if (status == STATUS_OK)
-        status = process_message(message);
-
     return status;
 }
+
 
 
 /**
@@ -119,6 +120,15 @@ uint8_t message_available(void) {
 }
 
 
+/**
+ * @brief Registers the callback function for peer node RX cplt
+ * 
+ * 
+ * 
+ */
+void register_peer_rx_cplt_cb(void(*cb)(void)) {
+    peer_rx_cplt = cb;
+}
 
 /***********************
  *  STATIC DEFS
@@ -174,90 +184,6 @@ static uint8_t serialize_struct(msg_array* message, uint16_t *len) {
     }
     return status;
 }
-
-
-
-
-/**
- * @brief Compares NODE ID and processes/discards message
- * 
- * This function compares the NODE ID of the received message
- * against the ID of the receiving node. Discards the message 
- * if the node IDs do not match OR the received message is 
- * NOT a command. Otherwise processes the command, e.g. remote 
- * disarm/CTS
- * 
- * @param[in] message
- * 
- * @return 0 if message successfully processed; 1 if message
- * was discarded or error in processing 
- */
-static uint8_t process_message(msg *message) {
-    uint8_t status = STATUS_ERR;
-
-    if (message->node_id == NODE_ID) { // WE ONLY EXPECT COMMANDS FROM CENTRAL NODE
-        switch (message->command) {
-        case MSG_CMD_NONE:
-            break;
-        case MSG_CMD_CTS:
-            status = message_flush();
-            break;
-        case MSG_CMD_SEND_CPLT:
-        default:
-            break;
-        }
-    }
-
-    return status;
-}
-
-
-
-/**
- * @brief Sends a msg_array protobuf to the central node
- * 
- * Central node polls each peer node, sending a CTS message to 
- * the node currently being polled. When a peer node receives 
- * a CTS this function should be called to send any messages
- * buffered by message_send(). With a final done_sending message
- * appended. 
- * 
- * 
- * @note The done_sending message should be sent regardless of if 
- * the peer node has any messages buffered at the moment
- * 
- * @return 0 on success; 1 else
- * 
- */
-static uint8_t message_flush(void) {
-    msg_array arr = msg_array_init_default;
-    uint8_t i;
-
-    for (i = 0; i < MAX_MSG_PER_CTS - 1; ++i) {
-        if (ring_buffer_empty(&msg_queue))
-            break;
-
-        ring_buffer_pop(&msg_queue, (void *)&arr.msgs[i]);
-        arr.msgs_count++;
-    }
-    memset((void *)&arr.msgs[i], 0, sizeof(msg));
-    arr.msgs[i].node_id = NODE_ID;
-    arr.msgs[i].command = MSG_CMD_SEND_CPLT;
-    arr.msgs_count++;
-
-    uint16_t len = 0;
-    memset((void *)serialize_buf, 0, sizeof(serialize_buf));
-    uint8_t status = serialize_struct(&arr, &len);
-
-    if (len > MAX_FRAME_LEN)
-        printf("ERROR: SERIAL BUF LEN GREATER THAN MAX ENCODED BUFFER LENGTH\r\n");
-
-    if (status == 1) {
-        status = rs485_transmit(serialize_buf, len);
-    }
-    return status;
-}
-
 
 
 static void rs485_reception_cb(void) {

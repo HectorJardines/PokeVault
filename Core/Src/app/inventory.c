@@ -97,7 +97,9 @@ uint8_t inventory_item_update(void) {
     item_detected.payload.type_transaction.item_id = *((uint32_t *)active_transaction.item_id);
     memcpy((void *)item_detected.payload.type_transaction.item_name, (void *)active_transaction.item_name, strlen(active_transaction.item_name));
 
-    return message_send(&item_detected);
+    message_send(&item_detected);
+
+    return STATUS_OK;
 }
 
 

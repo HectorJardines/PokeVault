@@ -1,5 +1,5 @@
 #include "../Inc/inventory.h"
-#include "../Inc/alerts.h"
+// #include "../Inc/alerts.h"
 #include "../Inc/client.h"
 #include "ring_buffer.h"
 #include "sd_functions.h"
@@ -60,25 +60,25 @@ void inventory_init(void) {
  * 
  * 
  */
-uint8_t inventory_process_transaction(msg transaction_msg) {
+uint8_t inventory_process_transaction(msg *transaction_msg) {
     uint8_t status = STATUS_OK;
     
     uint8_t item_found = 0;
-    struct unit_csv_t node = node_csvs[transaction_msg.node_id];
-    transaction trans = transaction_msg.payload.type_transaction;
+    struct unit_csv_t node = node_csvs[transaction_msg->node_id];
+    transaction trans = transaction_msg->payload.type_transaction;
     for (uint8_t i = 0; i < node.num_records; ++i) {
         if (node.unit_inventory[i].id == trans.item_id) {
-            status = inventory_remove_item(i, transaction_msg.node_id);
+            status = inventory_remove_item(i, transaction_msg->node_id);
             item_found = 1;
             break;
         }
     }
     if (!item_found) {
-        status = inventory_enroll_item(trans.item_id, trans.item_name, transaction_msg.node_id);
+        status = inventory_enroll_item(trans.item_id, trans.item_name, transaction_msg->node_id);
     }
 
-    if (!status && node_csvs[transaction_msg.node_id].state == CSV_CLEAN)
-        node_csvs[transaction_msg.node_id].state == CSV_DIRTY;
+    if (!status && node_csvs[transaction_msg->node_id].state == CSV_CLEAN)
+        node_csvs[transaction_msg->node_id].state == CSV_DIRTY;
 
     return status;
 }
@@ -131,7 +131,6 @@ uint8_t inventory_enroll_item(uint32_t item_id, char *item_name, uint8_t node_id
         status = log_transaction(trans_msg);
         if (status == STATUS_OK)
             status = client_post_message(trans_msg, strlent(trans_msg));
-
 
         // append only, saves us the overhead of shifting entire array
         uint8_t record_idx = node_csvs[node_id].num_records;

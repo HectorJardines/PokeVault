@@ -18,6 +18,7 @@
 #define UNITIALIZED (0U)
 
 #define STATUS_OK   (0U)
+#define STATUS_WAIT (2U)
 #define STATUS_ERR  (1U)
 
 #define NODE_ID (0x00U)

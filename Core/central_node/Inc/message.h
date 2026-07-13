@@ -52,7 +52,7 @@ void message_init(void);
  * 
  * 
  */
-void message_send(msg *message);
+uint8_t message_send(msg *message);
 
 
 
@@ -62,8 +62,25 @@ void message_send(msg *message);
  * 
  * 
  */
-uint8_t message_receive(msg *message);
+uint8_t message_receive(msg_array *message);
 
+
+/**
+ * @brief Returns whetehr any messages are pending from peer node
+ * 
+ * 
+ * 
+ */
 uint8_t message_available(void);
+
+
+
+/**
+ * @brief Registers the callback function for peer node RX cplt
+ * 
+ * 
+ * 
+ */
+void register_peer_rx_cplt_cb(void(*cb)(void));
 
 #endif /* _DATA_TRANS_H */

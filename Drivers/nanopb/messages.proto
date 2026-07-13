@@ -1,13 +1,17 @@
 syntax = "proto2";
 
+message msg_array {
+    repeated msg msgs = 1;
+}
+
 message msg {
+    required uint32 command = 1;
     required uint32 node_id = 2;
-    required uint32 timestamp = 3;
 
     oneof payload {
-        alert type_alert = 4;
-        transaction type_transaction = 5;
-        event type_event = 6;
+        alert type_alert = 3;
+        transaction type_transaction = 4;
+        event type_event = 5;
     }
 }
 
@@ -19,7 +23,7 @@ message alert {
 
 message transaction {
     required uint32 item_id = 1;
-    required 
+    required string item_name = 2;
 }
 
 
@@ -27,3 +31,4 @@ message event {
     required uint32 type = 1;
     required uint32 value = 2;
 }
+

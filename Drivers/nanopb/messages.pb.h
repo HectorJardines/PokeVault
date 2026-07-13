@@ -16,8 +16,8 @@ typedef struct _alert {
 } alert;
 
 typedef struct _transaction {
-    char item_name[16];
     uint32_t item_id;
+    char item_name[17];
 } transaction;
 
 typedef struct _event {
@@ -26,8 +26,8 @@ typedef struct _event {
 } event;
 
 typedef struct _msg {
+    uint32_t command;
     uint8_t node_id;
-    uint32_t timestamp;
     pb_size_t which_payload;
     union _msg_payload {
         alert type_alert;
@@ -36,39 +36,55 @@ typedef struct _msg {
     } payload;
 } msg;
 
+typedef struct _msg_array {
+    pb_size_t msgs_count;
+    msg msgs[5];
+} msg_array;
+
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /* Initializer values for message structs */
+#define msg_array_init_default                   {0, {msg_init_default, msg_init_default, msg_init_default, msg_init_default, msg_init_default}}
 #define msg_init_default                         {0, 0, 0, {alert_init_default}}
-#define alert_init_default                       {0}
-#define transaction_init_default                 {0, 0}
-#define event_init_default                       {0}
+#define alert_init_default                       {0, 0}
+#define transaction_init_default                 {0, ""}
+#define event_init_default                       {0, 0}
+#define msg_array_init_zero                      {0, {msg_init_zero, msg_init_zero, msg_init_zero, msg_init_zero, msg_init_zero}}
 #define msg_init_zero                            {0, 0, 0, {alert_init_zero}}
-#define alert_init_zero                          {0}
-#define transaction_init_zero                    {0, 0}
-#define event_init_zero                          {0}
+#define alert_init_zero                          {0, 0}
+#define transaction_init_zero                    {0, ""}
+#define event_init_zero                          {0, 0}
 
 /* Field tags (for use in manual encoding/decoding) */
-#define alert_type_tag                           2
-#define transaction_type_tag                     2
-#define transaction_item_id_tag                  3
-#define event_type_tag                           2
+#define alert_type_tag                           1
+#define alert_value_tag                          2
+#define transaction_item_id_tag                  1
+#define transaction_item_name_tag                2
+#define event_type_tag                           1
+#define event_value_tag                          2
+#define msg_command_tag                          1
 #define msg_node_id_tag                          2
-#define msg_timestamp_tag                        3
-#define msg_type_alert_tag                       4
-#define msg_type_transaction_tag                 5
-#define msg_type_event_tag                       6
+#define msg_type_alert_tag                       3
+#define msg_type_transaction_tag                 4
+#define msg_type_event_tag                       5
+#define msg_array_msgs_tag                       1
 
 /* Struct field encoding specification for nanopb */
+#define msg_array_FIELDLIST(X, a) \
+X(a, STATIC,   REPEATED, MESSAGE,  msgs,              1)
+#define msg_array_CALLBACK NULL
+#define msg_array_DEFAULT NULL
+#define msg_array_msgs_MSGTYPE msg
+
 #define msg_FIELDLIST(X, a) \
+X(a, STATIC,   REQUIRED, UINT32,   command,           1) \
 X(a, STATIC,   REQUIRED, UINT32,   node_id,           2) \
-X(a, STATIC,   REQUIRED, UINT32,   timestamp,         3) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (payload,type_alert,payload.type_alert),   4) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (payload,type_transaction,payload.type_transaction),   5) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (payload,type_event,payload.type_event),   6)
+X(a, STATIC,   ONEOF,    MESSAGE,  (payload,type_alert,payload.type_alert),   3) \
+X(a, STATIC,   ONEOF,    MESSAGE,  (payload,type_transaction,payload.type_transaction),   4) \
+X(a, STATIC,   ONEOF,    MESSAGE,  (payload,type_event,payload.type_event),   5)
 #define msg_CALLBACK NULL
 #define msg_DEFAULT NULL
 #define msg_payload_type_alert_MSGTYPE alert
@@ -76,38 +92,43 @@ X(a, STATIC,   ONEOF,    MESSAGE,  (payload,type_event,payload.type_event),   6)
 #define msg_payload_type_event_MSGTYPE event
 
 #define alert_FIELDLIST(X, a) \
-X(a, STATIC,   REQUIRED, UINT32,   type,              2)
+X(a, STATIC,   REQUIRED, UINT32,   type,              1) \
+X(a, STATIC,   REQUIRED, UINT32,   value,             2)
 #define alert_CALLBACK NULL
 #define alert_DEFAULT NULL
 
 #define transaction_FIELDLIST(X, a) \
-X(a, STATIC,   REQUIRED, UINT32,   type,              2) \
-X(a, STATIC,   REQUIRED, UINT32,   item_id,           3)
+X(a, STATIC,   REQUIRED, UINT32,   item_id,           1) \
+X(a, STATIC,   REQUIRED, STRING,   item_name,         2)
 #define transaction_CALLBACK NULL
 #define transaction_DEFAULT NULL
 
 #define event_FIELDLIST(X, a) \
-X(a, STATIC,   REQUIRED, UINT32,   type,              2)
+X(a, STATIC,   REQUIRED, UINT32,   type,              1) \
+X(a, STATIC,   REQUIRED, UINT32,   value,             2)
 #define event_CALLBACK NULL
 #define event_DEFAULT NULL
 
+extern const pb_msgdesc_t msg_array_msg;
 extern const pb_msgdesc_t msg_msg;
 extern const pb_msgdesc_t alert_msg;
 extern const pb_msgdesc_t transaction_msg;
 extern const pb_msgdesc_t event_msg;
 
 /* Defines for backwards compatibility with code written before nanopb-0.4.0 */
+#define msg_array_fields &msg_array_msg
 #define msg_fields &msg_msg
 #define alert_fields &alert_msg
 #define transaction_fields &transaction_msg
 #define event_fields &event_msg
 
 /* Maximum encoded size of messages (where known) */
-#define DRIVERS_NANOPB_MESSAGES_PB_H_MAX_SIZE    msg_size
-#define alert_size                               3
-#define event_size                               3
-#define msg_size                                 20
-#define transaction_size                         9
+#define DRIVERS_NANOPB_MESSAGES_PB_H_MAX_SIZE    msg_array_size
+#define alert_size                               9
+#define event_size                               9
+#define msg_array_size                           185
+#define msg_size                                 35
+#define transaction_size                         24
 
 #ifdef __cplusplus
 } /* extern "C" */
