@@ -9,9 +9,9 @@
  * STATIC DECLARATIONS
  ***********************/
 static uint8_t aht20_power_on(void);
-static uint8_t aht20_start_measurement(aht20_sensor_e sensor);
-static uint8_t aht20_read_measurement(aht20_sensor_e sensor, aht20_sensor_measurements_t *measurements);
-static void aht20_reset(aht20_sensor_e sensor);
+static uint8_t aht20_start_measurement(void);
+static uint8_t aht20_read_measurement(aht20_data_t *measurements);
+static void aht20_reset(void);
 static uint8_t aht20_get_status(uint8_t status_msk);
 static void process_sensor_measurements(aht20_data_t *data, uint8_t *measurement_buf);
 
@@ -31,37 +31,17 @@ uint8_t aht20_init(void) {
     return status;
 }
 
-uint8_t aht20_read_data(aht20_sensor_e sensor, aht20_sensor_measurements_t *measurements) {
+uint8_t aht20_read_data(aht20_data_t *data) {
     uint8_t rslt = 0;
     // start measurement for all sensors
-    switch (sensor) {
-        case AHT20_UNIT0:
-        case AHT20_UNIT1:
-        case AHT20_UNIT2:
-            rslt |= aht20_start_measurement(sensor);
-            break;
-        case AHT20_ALL_UNITS:
-            for (uint8_t sensor_num = 0; sensor_num < NUM_SENSORS; ++sensor_num)
-                rslt |= aht20_start_measurement(STORAGE_UNIT_BASE + sensor_num);
-            break;
-    }
+    rslt |= aht20_start_measurement();
     // delay 75ms (max measurement time)
     HAL_Delay(80);
     // sanity check with status bit read
 
 
     // block until all measurements are read
-    switch (sensor) {
-        case AHT20_UNIT0:
-        case AHT20_UNIT1:
-        case AHT20_UNIT2:
-            rslt |= aht20_read_measurement(sensor, measurements);
-            break;
-        case AHT20_ALL_UNITS:
-            for (uint8_t sensor_num = 0; sensor_num < NUM_SENSORS; ++sensor_num)
-                rslt |= aht20_read_measurement(STORAGE_UNIT_BASE + sensor_num, measurements);
-            break;
-    }
+    rslt |= aht20_read_measurement(data);
 
     return rslt;
 }
@@ -79,7 +59,7 @@ uint8_t aht20_read_data(aht20_sensor_e sensor, aht20_sensor_measurements_t *meas
 static uint8_t aht20_power_on(void) {
     // delay 40ms after device power on
     HAL_Delay(20);
-    aht20_reset(AHT20_ALL_UNITS);
+    aht20_reset();
     // delay 40ms after device is reset as per datasheet
     HAL_Delay(40);
     // send initialization command
@@ -93,35 +73,21 @@ static uint8_t aht20_power_on(void) {
 /**
  * @brief Retrieves the measurement upon completion and stores the translated input in measurements struct
  */
-static uint8_t aht20_read_measurement(aht20_sensor_e sensor, aht20_sensor_measurements_t *measurements) {
+static uint8_t aht20_read_measurement(aht20_data_t *measurements) {
     uint8_t rslt = 0;
-    aht20_data_t *sensor_measurement = NULL;
     uint8_t measurement_data[MEASUREMENT_DATA_LEN];
-    switch (sensor) {
-        case AHT20_UNIT0:
-            sensor_measurement = &measurements->UNIT0_DATA;
-            break;
-        case AHT20_UNIT1:
-            sensor_measurement = &measurements->UNIT1_DATA;
-            break;
-        case AHT20_UNIT2:
-            sensor_measurement = &measurements->UNIT2_DATA;
-            break;
-        default:
-            break;
-    }
     
     rslt = device.receive(AHT20_DEV_ADDR, measurement_data, MEASUREMENT_DATA_LEN);
     if (measurement_data[0] & AHT20_BUSY_Msk) // first byte is AHT20 STATE WORD
         return 1;
-    process_sensor_measurements(sensor_measurement, &measurement_data[1]);
+    process_sensor_measurements(measurements, &measurement_data[1]);
     return rslt;
 }
 
 /**
  * @brief Starts the temp/humidity measurement, blocks until
  */
-static uint8_t aht20_start_measurement(aht20_sensor_e sensor) {
+static uint8_t aht20_start_measurement(void) {
     // start measurement
     uint8_t measurement_buf[3] = {AHT20_CMD_STRT_MEAS, AHT20_MEAS_BYTE1, AHT20_MEAS_BYTE2};
     return device.transmit(AHT20_DEV_ADDR, measurement_buf, 3);
@@ -130,7 +96,7 @@ static uint8_t aht20_start_measurement(aht20_sensor_e sensor) {
 /**
  * @brief Perform a soft reset on the AHT20 sensor
  */
-static void aht20_reset(aht20_sensor_e sensor) {
+static void aht20_reset(void) {
     uint8_t reset_cmd = AHT20_CMD_RESET;
     device.transmit(AHT20_DEV_ADDR, &reset_cmd, 1);
     HAL_Delay(20); // soft reset takes no more than 20 ms

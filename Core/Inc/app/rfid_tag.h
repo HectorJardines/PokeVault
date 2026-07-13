@@ -25,11 +25,10 @@
  * ENUMS/STRUCTS
  ********************/
 typedef enum {
-    TAG_OK,
+    TAG_AUTHORIZED,
     TAG_REGISTERED,
     TAG_EXISTS,
     TAG_REMOVED,
-    TAG_AUTHORIZED,
     TAG_REJECTED,
     TAG_ERR
 } tag_status_e;
@@ -49,7 +48,7 @@ typedef enum {
  * 
  * 
  */
-tag_status_e tag_init(void); 
+uint8_t tag_init(void); 
 
 /**
  * @brief 

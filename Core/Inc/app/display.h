@@ -12,4 +12,26 @@
  */
 void display_init(void);
 
+
+
+/**
+ * @brief Turn the display ON allowing UI interaction
+ * 
+ * 
+ * 
+ */
+void display_on(void);
+
+
+
+/**
+ * @brief Turns the display OFF disabling UI interaction
+ * 
+ * 
+ * 
+ * 
+ */
+void display_off(void);
+
+
 #endif

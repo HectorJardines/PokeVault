@@ -6,8 +6,11 @@
 
 
 #define CACHE_SIZE          (5U)
-#define ITEM_SECTOR         (0U)
-#define ITEM_NAME_BLOCK     (1U)
+#define ITEM_SECTOR         (2U)
+#define TYPE_BLOCK          (1U)
+#define NAME_BLOCK          (2U)
+#define TRAIL_BLOCK         (3U)
+
 
 /*************************
  * STATIC DECLARATION
@@ -15,6 +18,7 @@
 static uint8_t inventory_item_update(void);
 
 
+static uint8_t item_type_block[PICC_MEM_BLOCK_LEN] = {0xde, 0xad, 0xbe, 0xef, 0xca, 0xfe, 0,0,0,0,0,0,0,0,0,0};
 static transaction_t active_transaction;
 // BUFFER STORES RECENT TRANSACITONS IN CASE OF MESSAGE FAILURE
 STATIC_RING_BUFFER(transaction_cache, CACHE_SIZE, transaction_t);
@@ -53,19 +57,25 @@ uint8_t inventory_init(void) {
  */
 uint8_t inventory_scan_for_item(void) {
     memset((void *)&active_transaction, 0, sizeof(active_transaction));
+    
+    // verify tag scanned is an item tag by checking the sector block written on tag reg
     uint8_t status = tag_read_data(active_transaction.item_id, active_transaction.item_name,
-                                    ITEM_SECTOR, ITEM_NAME_BLOCK);
+                                    ITEM_SECTOR, TYPE_BLOCK);
+
     if (status == STATUS_OK) {
-        status = inventory_item_update();
+        for(uint8_t i = 0; i < PICC_MEM_BLOCK_LEN; ++i) { // compare type block read with expected type value
+            status = !(active_transaction.item_name[i] == item_type_block[i]);
+            if (status)
+                break;
+        }
+        if (status == STATUS_OK) // read actual item name
+            status = tag_read_data(active_transaction.item_id, active_transaction.item_name, ITEM_SECTOR, NAME_BLOCK); 
     }
+
     return status;
 }
 
 
-
-/******************
- * STATIC DEFS
- ********************/
 /**
  * @brief Sends the scanned item's UID to central node
  * 
@@ -78,7 +88,7 @@ uint8_t inventory_scan_for_item(void) {
  *
  * @return 0 on success; 1 else
  */
-static uint8_t inventory_item_update(void) {
+uint8_t inventory_item_update(void) {
     ring_buffer_push(&transaction_cache, (const void *)&active_transaction);
     
     msg item_detected = msg_init_default;
@@ -89,4 +99,10 @@ static uint8_t inventory_item_update(void) {
 
     return message_send(&item_detected);
 }
+
+
+/******************
+ * STATIC DEFS
+ ********************/
+
 

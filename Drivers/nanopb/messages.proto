@@ -13,6 +13,7 @@ message msg {
 
 message alert {
     required uint32 type = 1;
+    required uint32 value = 2;
 }
 
 
@@ -24,4 +25,5 @@ message transaction {
 
 message event {
     required uint32 type = 1;
+    required uint32 value = 2;
 }

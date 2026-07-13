@@ -41,20 +41,6 @@ typedef struct {
     uint32_t humidity;
 } aht20_data_t;
 
-typedef struct {
-    aht20_data_t UNIT0_DATA;
-    aht20_data_t UNIT1_DATA;
-    aht20_data_t UNIT2_DATA;
-} aht20_sensor_measurements_t;
-
-// three storage units, each with their own temp sensor
-typedef enum {
-    AHT20_UNIT0,
-    AHT20_UNIT1,
-    AHT20_UNIT2,
-    AHT20_ALL_UNITS
-} aht20_sensor_e;
-
  /*******************
  *  USER APIs
  *******************/
@@ -72,6 +58,6 @@ uint8_t aht20_init(void);
  * @param data aht20_data_t pointer to which retrieved data will be stored
  * @return 0 on success; 1 else
  */
-uint8_t aht20_read_data(aht20_sensor_e sensor, aht20_sensor_measurements_t *data);
+uint8_t aht20_read_data(aht20_data_t *data);
 
 #endif

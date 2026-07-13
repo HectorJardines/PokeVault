@@ -60,4 +60,19 @@ uint8_t inventory_scan_for_item(void);
 
 
 
+/**
+ * @brief Sends the scanned item's UID to central node
+ * 
+ * This function simply sends the item ID and item Name to the central node.
+ * This keeps the peer nodes stateless and simple. The central node 
+ * will handle the add/remove logic by checking the associated peer node's
+ * inventory CSV file for presence of the tag's UID.
+ * 
+ * @param[in] item_id enrolled item UID
+ *
+ * @return 0 on success; 1 else
+ */
+uint8_t inventory_item_update(void);
+
+
 #endif /* _INVENTORY_H */

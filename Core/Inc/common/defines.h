@@ -22,4 +22,21 @@
 
 #define NODE_ID (0x00U)
 
+typedef enum {
+    ALERT_SYS_TEMP,
+    ALERT_SYS_HUM,
+    ALERT_PRESENCE,
+    ALERT_SECURITY_BREACH,
+    ALERT_SEC_STATUS_CHANGE
+} alert_type_e;
+
+typedef enum {
+    MSG_EVENT_DISARMED,
+    MSG_EVENT_UNIT_OPEN,
+    MSG_EVENT_UNIT_CLOSE,
+    MSG_EVENT_UNIT_MOVE,
+    MSG_EVENT_PRESENCE,
+    MSG_EVENT_NO_PRESENCE
+} event_type_e;
+
 #endif

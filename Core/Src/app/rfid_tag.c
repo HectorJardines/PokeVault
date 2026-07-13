@@ -82,9 +82,9 @@ static mfrc_status_e tag_scan_and_select(uint8_t *card_buf, uint8_t *card_uid);
 /**
  * @brief Initializes the RFID keycard reader
  */
-tag_status_e tag_init(void) {
+uint8_t tag_init(void) {
     mfrc522_init();
-    return TAG_OK;
+    return MFRC_OK;
 }
 
 

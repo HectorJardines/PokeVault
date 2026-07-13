@@ -12,6 +12,7 @@
 /* Struct definitions */
 typedef struct _alert {
     uint8_t type;
+    uint32_t value;
 } alert;
 
 typedef struct _transaction {
@@ -21,6 +22,7 @@ typedef struct _transaction {
 
 typedef struct _event {
     uint8_t type;
+    uint32_t value;
 } event;
 
 typedef struct _msg {
