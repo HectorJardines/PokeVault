@@ -1,7 +1,6 @@
-#include "../Inc/drivers/ssd1306.h"
-#include "../Inc/drivers/i2c.h"
-#include "../Inc/common/log.h"
-#include "../Inc/common/defines.h"
+#include "../../Inc/drivers/ssd1306.h"
+#include "../../Inc/drivers/i2c.h"
+#include "../../Inc/common/defines.h"
 
 #include <string.h>
 

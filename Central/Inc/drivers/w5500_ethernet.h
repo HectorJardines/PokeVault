@@ -1,7 +1,7 @@
 #ifndef _W5500_DRIVER_H
 #define _W5500_DRIVER_H
 
-#include "./log.h"
+#include "../common/log.h"
 #include "../../../Drivers/w5500_eth/W5500/w5500.h"
 
 typedef enum {

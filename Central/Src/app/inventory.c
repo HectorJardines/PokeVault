@@ -1,10 +1,9 @@
-#include "../Inc/inventory.h"
-// #include "../Inc/alerts.h"
-#include "../Inc/client.h"
-#include "ring_buffer.h"
-#include "sd_functions.h"
+#include "../../Inc/app/inventory.h"
+#include "../../Inc/app/client.h"
+#include "../../../Core/Inc/common/ring_buffer.h"
+#include "../../Inc/drivers/sd_functions.h"
 #include "../../Inc/common/defines.h"
-#include "log.h"
+#include "../../Inc/common/log.h"
 
 #define MAX_TRANSACTIONS    (10U)
 #define FILE_NAME_LEN       (11U)
@@ -37,7 +36,7 @@ static char trans_msg[MAX_LOG_BODY_LEN];
  * written to a clean file.
  * 
  */
-void inventory_init(void) {
+void c_inventory_init(void) {
     uint8_t status = STATUS_OK;
     // load inventory for each unit into RAM
     char node_csv_file[FILE_NAME_LEN];
@@ -100,7 +99,7 @@ uint8_t inventory_remove_item(uint32_t item_idx, uint8_t node_id) {
             node_csvs[node_id].unit_inventory[item_idx].name, node_csvs[node_id].unit_inventory[item_idx].id);
         status = log_transaction(trans_msg);
         if (status == STATUS_OK)
-            status = client_post_message(trans_msg, strlent(trans_msg));
+            status = client_post_message(trans_msg, strlen(trans_msg));
 
         // swap item at index and last item when we "remove"
         CsvRecord temp = node_csvs[node_id].unit_inventory[node_csvs[node_id].num_records - 1];
@@ -130,7 +129,7 @@ uint8_t inventory_enroll_item(uint32_t item_id, char *item_name, uint8_t node_id
                 node_id, item_name, item_id);
         status = log_transaction(trans_msg);
         if (status == STATUS_OK)
-            status = client_post_message(trans_msg, strlent(trans_msg));
+            status = client_post_message(trans_msg, strlen(trans_msg));
 
         // append only, saves us the overhead of shifting entire array
         uint8_t record_idx = node_csvs[node_id].num_records;

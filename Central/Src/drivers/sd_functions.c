@@ -15,9 +15,9 @@
  ******************************************************************************/
 
 
-#include "fatfs.h"
-#include "sd_diskio_spi.h"
-#include "sd_spi.h"
+#include "../../Inc/drivers/sd_functions.h"
+#include "../../Inc/drivers/sd_diskio_spi.h"
+#include "../../Inc/drivers/sd_spi.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -29,7 +29,7 @@
 #ifdef SD_FUNC_DEBUG
 #define printf	printf
 #else
-int dummy_printf(const char *__fmt__, ...) {}
+int dummy_printf(const char *__fmt__, ...) { return 0; }
 #define printf dummy_printf
 #endif
 
@@ -153,10 +153,6 @@ int sd_read_file(const char *filename, char *buffer, UINT bufsize, UINT *bytes_r
 	return FR_OK;
 }
 
-typedef struct CsvRecord {
-	uint32_t id;
-	char name[17];
-} CsvRecord;
 
 int sd_read_csv(const char *filename, CsvRecord *records, int max_records, int *record_count) {
 	FIL file;
@@ -173,12 +169,12 @@ int sd_read_csv(const char *filename, CsvRecord *records, int max_records, int *
 	while (f_gets(line, sizeof(line), &file) && *record_count < max_records) {
 		char *token = strtok(line, ",");
 		if (token)
-			records[*record_count].value = atoi(token);
+			records[*record_count].id = atoi(token);
 		else
-			records[*record_count].value = 0;
+			records[*record_count].id = 0;
 		token = strtok(NULL, ",");
 		if (!token) continue;
-		strncpy(records[*record_count].field2, token, sizeof(records[*record_count].field2));
+		strncpy(records[*record_count].name, token, sizeof(records[*record_count].name));
 		(*record_count)++;
 	}
 
@@ -186,10 +182,9 @@ int sd_read_csv(const char *filename, CsvRecord *records, int max_records, int *
 
 	// Print parsed data
 	for (int i = 0; i < *record_count; i++) {
-		printf("[%d] %s | %s | %d", i,
-				records[i].field1,
-				records[i].field2,
-				records[i].value);
+		printf("[%d] %d | %s", i,
+				records[i].id,
+				records[i].name);
 	}
 
 	return FR_OK;
@@ -207,21 +202,21 @@ int sd_write_csv(const char *filename, CsvRecord *records, int record_count) {
 	}
 
 	printf("📄 Writing CSV: %s\r\n", filename);
-	snprintf(line, "ITEM UID,ITEM NAME\r\n");
-	res = f_write(file, line, strlen(line), &bw);
+	snprintf(line, sizeof(line), "ITEM UID,ITEM NAME\r\n");
+	res = f_write(&file, line, strlen(line), &bw);
 	if (res == FR_OK) {
 		for (int i = 0; i < record_count; ++i) {
 			if (records[i].id == 0) continue;
 			memset((void *)line, 0, sizeof(line));
 			snprintf(line, sizeof(line), "%d,%s\r\n", records[i].id, records[i].name);
-			res = f_write(file, line, strlen(line), &bw);
+			res = f_write(&file, line, strlen(line), &bw);
 			
 			if (res != FR_OK)
 				break;
 		}
 	}
 
-	if (f_close(file) != FR_OK)
+	if (f_close(&file) != FR_OK)
 		printf("FAILED TO CLOSED FILE!\r\n");
 
 	return res;

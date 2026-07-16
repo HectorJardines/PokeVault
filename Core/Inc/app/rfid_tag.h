@@ -7,7 +7,7 @@
 
 #include "../drivers/mfrc522.h"
 
-#define UID_LEN_BYTES       (5U) // 4 UID BYTES + 1 BCC
+#define UID_LEN_BYTES       (4U) // 4 UID BYTES + 1 BCC
 #define PICC_MEM_BLOCK_LEN  (16U)
 #define SER_NUM_LEN_BYTES   (4U)
 #define SEC_KEY_LEN         (6U)

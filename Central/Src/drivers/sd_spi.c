@@ -13,8 +13,8 @@
  *    You are free to use and modify it for learning and development.
  ******************************************************************************/
 
-#include "sd_spi.h"
-#include "spi.h"
+#include "../../Inc/drivers/sd_spi.h"
+#include "../../../Core/Inc/drivers/spi.h"
 #include "io.h"
 #include <string.h>
 #include <stdio.h>

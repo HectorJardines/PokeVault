@@ -11,7 +11,7 @@
 
 #define FALSE   (0U)
 #define TRUE    (!FALSE)
-#define SET     (TRUE)
+// #define SET     (TRUE)
 #define CLR     (FALSE)
 
 #define INITIALIZED (1U)

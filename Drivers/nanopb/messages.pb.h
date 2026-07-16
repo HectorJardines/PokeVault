@@ -48,7 +48,7 @@ extern "C" {
 
 /* Initializer values for message structs */
 #define msg_array_init_default                   {0, {msg_init_default, msg_init_default, msg_init_default, msg_init_default, msg_init_default}}
-#define msg_init_default                         {0, 0, 0, {alert_init_default}}
+#define msg_init_default                         {0, 0, msg_type_alert_tag, {alert_init_default}}
 #define alert_init_default                       {0, 0}
 #define transaction_init_default                 {0, ""}
 #define event_init_default                       {0, 0}

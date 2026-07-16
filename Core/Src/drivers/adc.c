@@ -1,5 +1,4 @@
 #include "../Inc/drivers/adc.h"
-#include "../Inc/common/log.h"
 
 #define NO_OF_SENSOR_SAMPLES    (15U) // 3 samples of each sensor, for false flags
 

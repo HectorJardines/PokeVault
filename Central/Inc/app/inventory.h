@@ -16,7 +16,7 @@
 #define _INVENTORY_H
 
 #include <stdint.h>
-#include "../Inc/message.h"
+#include "../app/central_message.h"
 
 #define MAX_ITEM_NAME_LEN   (16U) // MAX ITEM NAME LEN IN BYTES
 #define MAX_ITEMS_PER_UNIT  (20U)
@@ -58,7 +58,7 @@ typedef enum {
  * 
  * 
  */
-void inventory_init(void); 
+void c_inventory_init(void);
 
 
 uint8_t inventory_process_transaction(msg *transaction_msg);

@@ -58,4 +58,7 @@ uint8_t central_node_poll_peer(void);
 uint8_t central_node_process(void);
 
 
+void timeout_peer_poll(void);
+
+
 #endif

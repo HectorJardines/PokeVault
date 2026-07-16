@@ -1,5 +1,4 @@
 #include "../../Inc/app/display.h"
-#include "../../Inc/common/log.h"
 #include "../../../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h"
 
 #define DISPLAY_WIDTH   (128U)

@@ -3,6 +3,12 @@
 
 ## BUILD FILES
 build/*
+central/build/*
+central/Core/*
+central/Drivers/*
+central/Middlewares/*
+central/startup_stm32f411xe.d
+central/startup_stm32f411xe.o
 
 ## LVGL FILES
 Drivers/lvgl-master/**

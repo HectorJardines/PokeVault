@@ -1,4 +1,4 @@
-#include "common/ring_buffer.h"
+#include "../../Inc/common/ring_buffer.h"
 #include <string.h>
 
 #define RING_BUF_EMPTY (0U)

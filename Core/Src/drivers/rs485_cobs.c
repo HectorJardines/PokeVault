@@ -1,6 +1,6 @@
-#include "rs485_cobs.h"
-#include "common/defines.h"
-#include "common/ring_buffer.h"
+#include "../../Inc/drivers/rs485_cobs.h"
+#include "../../Inc/common/defines.h"
+#include "../../Inc/common/ring_buffer.h"
 #include <stdio.h>
 
 #include "../../../Drivers/nanopb/messages.pb.h"

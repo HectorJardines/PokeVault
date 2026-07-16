@@ -13,7 +13,7 @@
 ######################################
 # target
 ######################################
-TARGET = poke_vault
+TARGET = poke_vault_central
 
 
 ######################################
@@ -35,69 +35,64 @@ BUILD_DIR = build
 # source
 ######################################
 # C sources
-# Core/Src/app/security.c
 C_SOURCES =  \
-Core/Src/main.c \
-Core/Src/stm32f4xx_it.c \
-Core/Src/stm32f4xx_hal_msp.c \
-Core/Src/system_stm32f4xx.c \
-Core/Src/app/alerts.c \
-Core/Src/app/rfid_tag.c \
-Core/Src/app/message.c \
-Core/Src/common/ssd1306_fonts.c \
-Core/Src/common/ring_buffer.c \
-Core/Src/common/private.c \
-Core/Src/common/trace.c \
-Core/Src/drivers/rs485_cobs.c \
-Core/Src/drivers/adc.c \
-Core/Src/drivers/aht20.c \
-Core/Src/drivers/bmi160.c \
-Core/Src/drivers/i2c.c \
-Core/Src/drivers/io.c \
-Core/Src/drivers/mfrc522.c \
-Core/Src/drivers/spi.c \
-Core/Src/drivers/ssd1306.c \
-Core/Src/drivers/movement_detect.c \
-Core/Src/app/vault_main.c \
-Core/Src/test_hardware.c \
-Core/Src/app/display.c \
-Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_rcc.c \
-Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_rtc.c \
-Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_pwr.c \
-Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_exti.c \
-Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc.c \
-Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc_ex.c \
-Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_flash.c \
-Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_flash_ex.c \
-Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_flash_ramfunc.c \
-Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_gpio.c \
-Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dma_ex.c \
-Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dma.c \
-Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_pwr.c \
-Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_pwr_ex.c \
-Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_cortex.c \
-Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal.c \
-Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_exti.c \
-Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_spi.c \
-Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_i2c.c \
-Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_uart.c \
+Src/main.c \
+Src/stm32f4xx_it.c \
+Src/stm32f4xx_hal_msp.c \
+Src/system_stm32f4xx.c \
+Src/app/rfid_tag.c \
+Src/app/inventory.c \
+Src/app/central_message.c \
+Src/app/central_node.c \
+../Core/Src/common/ring_buffer.c \
+../Core/Src/common/private.c \
+../Core/Src/common/trace.c \
+../Core/Src/drivers/rs485_cobs.c \
+Src/drivers/io.c \
+../Core/Src/drivers/mfrc522.c \
+Src/drivers/rtc.c \
+../Core/Src/drivers/spi.c \
+Src/drivers/w5500_ethernet.c \
+Src/drivers/sd_diskio_spi.c \
+Src/drivers/sd_functions.c \
+Src/drivers/sd_spi.c \
+Src/test_central_node.c \
+Src/common/log.c \
+Src/app/client.c \
+../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_rcc.c \
+../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_rtc.c \
+../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_pwr.c \
+../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_exti.c \
+../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc.c \
+../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc_ex.c \
+../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_flash.c \
+../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_flash_ex.c \
+../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_flash_ramfunc.c \
+../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_gpio.c \
+../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dma_ex.c \
+../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dma.c \
+../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_pwr.c \
+../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_pwr_ex.c \
+../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_cortex.c \
+../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal.c \
+../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_exti.c \
+../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_spi.c \
+../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_uart.c \
 
 # 3. Define a safe, native recursive wildcard macro
 # This searches infinitely down through any folder tree structure
 rwildcard = $(foreach d,$(wildcard $(1)*),$(call rwildcard,$(d)/,$(2)) $(filter $(subst *,%,$(2)),$(d)))
 
 # 4. Grab EVERY single C file inside LVGL recursively
-C_SOURCES += $(call rwildcard,Drivers/lvgl-master/src/,*.c)
-C_SOURCES += $(call rwildcard, Core/src/ui/,*.c)
-C_SOURCES += $(call rwildcard, Drivers/nanopb/,*.c)
-C_SOURCES += $(call rwildcard, Drivers/bmi160/,*.c)
-# C_SOURCES += $(call rwildcard, Drivers/w5500_eth/W5500/,*.c)
+C_SOURCES += $(call rwildcard, ../Middlewares/Third_Party/FatFs/src/,*.c)
+C_SOURCES += $(call rwildcard, ../Drivers/w5500_eth/,*.c)
+C_SOURCES += $(call rwildcard, ../Drivers/nanopb/,*.c)
 
 # 5. Force Unix slash compliance for Make safety
 C_SOURCES_CLEAN = $(subst \,/,$(C_SOURCES))
 # ASM sources
 ASM_SOURCES =  \
-startup_stm32f411xe.s
+../startup_stm32f411xe.s
 
 # ASM sources
 ASMM_SOURCES = 
@@ -159,22 +154,18 @@ AS_INCLUDES =
 
 # C includes
 C_INCLUDES =  \
--IDrivers/lvgl-master/ \
--IDrivers/lvgl-master/src/ \
--ICore/Inc \
--IDrivers/w5500_eth/ \
--IDrivers/w5500_eth/DHCP \
--IDrivers/w5500_eth/DNS \
--IDrivers/w5500_eth/MQTT \
--IDrivers/w5500_eth/W5500 \
--IDrivers/STM32F4xx_HAL_Driver/Inc \
--IDrivers/STM32F4xx_HAL_Driver/Inc/Legacy \
--IDrivers/CMSIS/Device/ST/STM32F4xx/Include \
--IDrivers/CMSIS/Include \
--ICore/Inc/app \
--ICore/Inc/common \
--ICore/Inc/drivers \
--ICore/Src/ui \
+-IInc/ \
+-I../Drivers/w5500_eth/ \
+-I../Drivers/w5500_eth/DHCP \
+-I../Drivers/w5500_eth/DNS \
+-I../Drivers/w5500_eth/W5500 \
+-I../Drivers/STM32F4xx_HAL_Driver/Inc \
+-I../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy \
+-I../Drivers/CMSIS/Device/ST/STM32F4xx/Include \
+-I../Drivers/CMSIS/Include \
+-IInc/app \
+-I../Core/Inc/common \
+-I../Core/Inc/drivers \
 
 INC_DIRS = $(sort $(dir $(C_SOURCES_CLEAN)))
 INC_DIRS_FILTERED = $(filter-out Drivers/lvgl-master/src/%, $(INC_DIRS))
@@ -198,7 +189,7 @@ CFLAGS += -MMD -MP -MF"$(@:%.o=%.d)"
 # LDFLAGS
 #######################################
 # link script
-LDSCRIPT = STM32F411XX_FLASH.ld
+LDSCRIPT = ../STM32F411XX_FLASH.ld
 
 # libraries
 LIBS = -lc -lm -lnosys 

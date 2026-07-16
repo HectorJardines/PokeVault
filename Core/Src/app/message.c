@@ -17,8 +17,8 @@
  * STATIC DECLARATIONS
  ***********************/
 static uint16_t compute_crc16(uint8_t *buf, uint16_t length);
-static uint8_t serialize_struct(msg_array* message, uint16_t *length);
-static uint8_t deserialize_msg_buf(uint8_t *serial_buf, uint16_t length, msg *message);
+static uint8_t serialize_struct(msg_array* message, uint32_t *length);
+static uint8_t deserialize_msg_buf(uint8_t *serial_buf, uint32_t length, msg *message);
 static uint8_t crc_is_equal(uint16_t crc, uint8_t *received_crc);
 
 static void rs485_reception_cb(void);
@@ -147,23 +147,25 @@ static uint16_t compute_crc16(uint8_t *buf, uint16_t length) {
 }
 
 
-static uint8_t deserialize_msg_buf(uint8_t *serial_buf, uint16_t length, msg *message) {
+static uint8_t deserialize_msg_buf(uint8_t *serial_buf, uint32_t length, msg *message) {
     pb_istream_t stream_in = pb_istream_from_buffer(serial_buf, length);
     uint8_t status = pb_decode(&stream_in, &msg_msg, (void *)message);
     return !status;
 }
 
-static uint8_t serialize_struct(msg_array* message, uint16_t *len) {
+// NOTE: ALWAYS MAKE SURE YOU CAST CORRECTLY... fixed bug where casted uint16_t * to size_t *
+// get_enc_size writes 4 bytes to the len pointer which only owns 2 bytes of space since
+// len is right above message on the stack we overflow and corrupt the msg_array struct...
+static uint8_t serialize_struct(msg_array* message, uint32_t *len) { 
     uint8_t status = 0;
     // create stream
     pb_ostream_t stream_out;
 
-    status = pb_get_encoded_size((size_t *)len, &msg_msg, (void *)message);
-
+    status = pb_get_encoded_size((size_t *)len, &msg_array_msg, (const void *)message);
     if (status) {
         // create stream
         stream_out = pb_ostream_from_buffer((pb_byte_t *)serialize_buf, (size_t)*len + CRC16_LEN);
-        status = pb_encode(&stream_out, &msg_msg, (void *)message);
+        status = pb_encode(&stream_out, &msg_array_msg, (const void *)message);
 
         if (status) {
             uint16_t crc = compute_crc16(serialize_buf, *len);
@@ -240,12 +242,12 @@ static uint8_t message_flush(void) {
         ring_buffer_pop(&msg_queue, (void *)&arr.msgs[i]);
         arr.msgs_count++;
     }
-    memset((void *)&arr.msgs[i], 0, sizeof(msg));
+
     arr.msgs[i].node_id = NODE_ID;
     arr.msgs[i].command = MSG_CMD_SEND_CPLT;
     arr.msgs_count++;
 
-    uint16_t len = 0;
+    uint32_t len = 0;
     memset((void *)serialize_buf, 0, sizeof(serialize_buf));
     uint8_t status = serialize_struct(&arr, &len);
 

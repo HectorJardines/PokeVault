@@ -6,7 +6,7 @@
 #ifndef _SECURITY_H
 #define _SECURITY_H
 
-#include "../drivers/ir_sensor.h"
+#include "../drivers/ir_sensors.h"
 #include "./rfid_tag.h"
 #include "state_common.h"
 #include "state_armed.h"

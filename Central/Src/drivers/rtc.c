@@ -1,5 +1,5 @@
-#include "rtc.h"
-#include "common/defines.h"
+#include "../../Inc/drivers/rtc.h"
+#include "../../../Core/Inc/common/defines.h"
 #include "../../../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_pwr.h"
 #include "../../../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_rcc.h"
 #include "../../../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_exti.h"

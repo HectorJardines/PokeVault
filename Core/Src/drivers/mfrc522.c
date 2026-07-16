@@ -1,6 +1,6 @@
-#include "../Inc/drivers/mfrc522.h"
-#include "../Inc/drivers/io.h"
-#include "../Inc/drivers/spi.h"
+#include "../../Inc/drivers/mfrc522.h"
+#include "../../Inc/drivers/io.h"
+#include "../../Inc/drivers/spi.h"
 
 #define MFRC522_CS_LOW  (GPIOA->BSRR |= (1 << (IO_PIN_10 + IO_BSRR_BR_OFFSET)))
 #define MFRC522_CS_HIGH (GPIOA->BSRR |= (1 << IO_PIN_10))

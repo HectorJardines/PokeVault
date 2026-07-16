@@ -2,7 +2,7 @@
  * HTTPS Client implementation for Telegram Bot API
  */
 
-#include "../Inc/client.h"
+#include "../../Inc/app/client.h"
 #include "private.h"
 #include "string.h"
 #include "ring_buffer.h"
@@ -96,9 +96,10 @@ uint8_t client_connect(void) {
 uint8_t client_post_message(uint8_t *msg, uint16_t len) {
     uint8_t status = CLIENT_OK;
     net_msg_t client_msg;
+    memset((void *)&client_msg, 0, sizeof(net_msg_t));
 
     // we'll go with the approach of dropping messages that are taking long to be processed (avoid blocking)
-    memcpy((void *) client_msg.msg_body, (void *)msg, len);
+    memcpy((void *) client_msg.msg_body, (void *)msg, len + 1);
     ring_buffer_push(&post_req_q, (void *)&client_msg);
     client.msgs_pending = ring_buffer_count(&post_req_q);
 

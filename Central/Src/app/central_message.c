@@ -1,7 +1,7 @@
-#include "message.h"
-#include "rs485_cobs.h"
-#include "common/ring_buffer.h"
-#include "common/defines.h"
+#include "../../Inc/app/central_message.h"
+#include "../../../Core/Inc/drivers/rs485_cobs.h"
+#include "../../../Core/Inc/common/ring_buffer.h"
+#include "../../../Core/Inc/common/defines.h"
 #include "../../../Drivers/nanopb/pb_encode.h"
 #include "../../../Drivers/nanopb/pb_decode.h"
 #include <stdio.h>
@@ -17,8 +17,8 @@
  * STATIC DECLARATIONS
  ***********************/
 static uint16_t compute_crc16(uint8_t *buf, uint16_t length);
-static uint8_t serialize_struct(msg_array* message, uint16_t *length);
-static uint8_t deserialize_msg_buf(uint8_t *serial_buf, uint16_t length, msg *message);
+static uint8_t serialize_struct(msg* message, uint32_t *length);
+static uint8_t deserialize_msg_buf(uint8_t *serial_buf, uint32_t length, msg_array *message);
 static uint8_t crc_is_equal(uint16_t crc, uint8_t *received_crc);
 
 static void rs485_reception_cb(void);
@@ -39,10 +39,10 @@ STATIC_RING_BUFFER(msg_queue, MAX_MSG_CNT, msg);
  * 
  * 
  */
-void message_init(void) {
-    rs485_init();
+void c_message_init(void) {
     register_msg_ready_cb(rs485_reception_cb);
     register_msg_consumed_cb(rs485_msg_consumed_cb);
+    rs485_init();
 }
 
 
@@ -55,10 +55,10 @@ void message_init(void) {
  * 
  * @param[in] message message to send
  */
-void message_send(msg *message) {
-    uint16_t len = 0;
+uint8_t c_message_send(msg *message) {
+    uint32_t len = 0;
     memset((void *)serialize_buf, 0, sizeof(serialize_buf));
-    uint8_t status = serialize_struct(&message, &len);
+    uint8_t status = serialize_struct(message, &len);
 
     if (len > MAX_FRAME_LEN)
         printf("ERROR: SERIAL BUF LEN GREATER THAN MAX ENCODED BUFFER LENGTH\r\n");
@@ -79,7 +79,7 @@ void message_send(msg *message) {
  * 
  * @return 0 on successful reception; else 1
  */
-uint8_t message_receive(msg_array *message) {
+uint8_t c_message_receive(msg_array *message) {
     uint8_t rx_frame[MAX_FRAME_LEN] = {0};
     uint32_t length = 0;
 
@@ -112,7 +112,7 @@ uint8_t message_receive(msg_array *message) {
  * 
  * @return 1 if peer node messages are available; else 0
  */
-uint8_t message_available(void) {
+uint8_t c_message_available(void) {
     __disable_irq();
     uint8_t is_avail = msg_cnt > 0;
     __enable_irq();
@@ -157,13 +157,13 @@ static uint16_t compute_crc16(uint8_t *buf, uint16_t length) {
 }
 
 
-static uint8_t deserialize_msg_buf(uint8_t *serial_buf, uint16_t length, msg *message) {
+static uint8_t deserialize_msg_buf(uint8_t *serial_buf, uint32_t length, msg_array *message) {
     pb_istream_t stream_in = pb_istream_from_buffer(serial_buf, length);
-    uint8_t status = pb_decode(&stream_in, &msg_msg, (void *)message);
+    uint8_t status = pb_decode(&stream_in, &msg_array_msg, (void *)message);
     return !status;
 }
 
-static uint8_t serialize_struct(msg_array* message, uint16_t *len) {
+static uint8_t serialize_struct(msg* message, uint32_t *len) {
     uint8_t status = 0;
     // create stream
     pb_ostream_t stream_out;
@@ -172,7 +172,7 @@ static uint8_t serialize_struct(msg_array* message, uint16_t *len) {
 
     if (status) {
         // create stream
-        stream_out = pb_ostream_from_buffer((pb_byte_t *)serialize_buf, (size_t)*len + CRC16_LEN);
+        stream_out = pb_ostream_from_buffer((pb_byte_t *)serialize_buf, (size_t)(*len + CRC16_LEN));
         status = pb_encode(&stream_out, &msg_msg, (void *)message);
 
         if (status) {
@@ -189,6 +189,7 @@ static uint8_t serialize_struct(msg_array* message, uint16_t *len) {
 static void rs485_reception_cb(void) {
     if (msg_cnt < MAX_MSG_CNT)
         msg_cnt++;
+    peer_rx_cplt();
 }
 
 static void rs485_msg_consumed_cb(void) {

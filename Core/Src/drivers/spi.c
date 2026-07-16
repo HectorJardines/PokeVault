@@ -1,4 +1,4 @@
-#include "../Inc/drivers/spi.h"
+#include "../../Inc/drivers/spi.h"
 
 #define SPI_TX_RX_TIMEOUT_MS   (500U)
 

@@ -8,7 +8,6 @@
  * have not yet been disarmed.
  * 
  */
-#include "common/log.h"
 #include "common/defines.h"
 #include "../../../Drivers/bmi160/bmi160.h"
 

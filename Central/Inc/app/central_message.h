@@ -42,7 +42,7 @@ typedef enum {
  * 
  * 
  */
-void message_init(void);
+void c_message_init(void);
 
 
 
@@ -52,7 +52,7 @@ void message_init(void);
  * 
  * 
  */
-uint8_t message_send(msg *message);
+uint8_t c_message_send(msg *message);
 
 
 
@@ -62,7 +62,7 @@ uint8_t message_send(msg *message);
  * 
  * 
  */
-uint8_t message_receive(msg_array *message);
+uint8_t c_message_receive(msg_array *message);
 
 
 /**
@@ -71,7 +71,7 @@ uint8_t message_receive(msg_array *message);
  * 
  * 
  */
-uint8_t message_available(void);
+uint8_t c_message_available(void);
 
 
 
