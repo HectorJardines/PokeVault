@@ -44,14 +44,17 @@ Src/app/rfid_tag.c \
 Src/app/inventory.c \
 Src/app/central_message.c \
 Src/app/central_node.c \
+../Core/Src/app/display.c \
 ../Core/Src/common/ring_buffer.c \
 ../Core/Src/common/private.c \
 ../Core/Src/common/trace.c \
 ../Core/Src/drivers/rs485_cobs.c \
+../Core/Src/drivers/ssd1306.c \
 Src/drivers/io.c \
 ../Core/Src/drivers/mfrc522.c \
 Src/drivers/rtc.c \
 ../Core/Src/drivers/spi.c \
+../Core/Src/drivers/i2c.c \
 Src/drivers/w5500_ethernet.c \
 Src/drivers/sd_diskio_spi.c \
 Src/drivers/sd_functions.c \
@@ -77,6 +80,7 @@ Src/app/client.c \
 ../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal.c \
 ../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_exti.c \
 ../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_spi.c \
+../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_i2c.c \
 ../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_uart.c \
 
 # 3. Define a safe, native recursive wildcard macro
@@ -85,6 +89,8 @@ rwildcard = $(foreach d,$(wildcard $(1)*),$(call rwildcard,$(d)/,$(2)) $(filter 
 
 # 4. Grab EVERY single C file inside LVGL recursively
 C_SOURCES += $(call rwildcard, ../Middlewares/Third_Party/FatFs/src/,*.c)
+C_SOURCES += $(call rwildcard, ../Core/src/ui/,*.c)
+C_SOURCES += $(call rwildcard, ../Drivers/lvgl-master/src/,*.c)
 C_SOURCES += $(call rwildcard, ../Drivers/w5500_eth/,*.c)
 C_SOURCES += $(call rwildcard, ../Drivers/nanopb/,*.c)
 
@@ -155,6 +161,8 @@ AS_INCLUDES =
 # C includes
 C_INCLUDES =  \
 -IInc/ \
+-IDrivers/lvgl-master/ \
+-IDrivers/lvgl-master/src/ \
 -I../Drivers/w5500_eth/ \
 -I../Drivers/w5500_eth/DHCP \
 -I../Drivers/w5500_eth/DNS \
@@ -168,7 +176,7 @@ C_INCLUDES =  \
 -I../Core/Inc/drivers \
 
 INC_DIRS = $(sort $(dir $(C_SOURCES_CLEAN)))
-INC_DIRS_FILTERED = $(filter-out Drivers/lvgl-master/src/%, $(INC_DIRS))
+INC_DIRS_FILTERED = $(filter-out ../Drivers/lvgl-master/src/%, $(INC_DIRS))
 C_INCLUDES += $(addprefix -I, $(INC_DIRS_FILTERED))
 
 # compile gcc flags

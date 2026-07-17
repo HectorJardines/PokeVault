@@ -1,7 +1,7 @@
 #ifndef EEZ_LVGL_UI_IMAGES_H
 #define EEZ_LVGL_UI_IMAGES_H
 
-#include "lvgl.h"
+#include "../../../Drivers/lvgl-master/lvgl.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -9,6 +9,7 @@ extern "C" {
 
 extern const lv_image_dsc_t img_lock_locked;
 extern const lv_image_dsc_t img_lock_unlocked;
+// extern const lv_image_dsc_t img_check;
 
 #ifndef EXT_IMG_DESC_T
 #define EXT_IMG_DESC_T

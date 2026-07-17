@@ -517,9 +517,9 @@ static uint8_t write_mfrc_register(uint8_t reg, uint8_t data) {
     MFRC522_CS_LOW;
     // send register address
     reg = MFRC_ADDR_SET_WRITE(reg);
-    uint8_t rslt = TM_SPI_Send(SPI1, reg);
+    uint8_t rslt = spi_write_byte(reg);
     // send data
-    rslt = TM_SPI_Send(SPI1, data);
+    rslt = spi_write_byte(data);
     MFRC522_CS_HIGH;
     return rslt;
 }
@@ -528,9 +528,9 @@ static uint8_t read_mfrc_register(uint8_t reg) {
     MFRC522_CS_LOW;
     // send register address
     reg = MFRC_ADDR_SET_READ(reg);
-    uint8_t rslt = TM_SPI_Send(SPI1, reg);
+    uint8_t rslt = spi_write_byte(reg);
     // read bytes from register
-    rslt = TM_SPI_Send(SPI1, 0x00);
+    rslt = spi_write_byte(0x00);
     MFRC522_CS_HIGH;
     return rslt;
 }

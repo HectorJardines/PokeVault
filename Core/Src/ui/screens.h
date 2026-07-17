@@ -1,7 +1,7 @@
 #ifndef EEZ_LVGL_UI_SCREENS_H
 #define EEZ_LVGL_UI_SCREENS_H
 
-#include "lvgl.h"
+#include "../../../Drivers/lvgl-master/lvgl.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -25,7 +25,7 @@ typedef struct _objects_t {
     lv_obj_t *label_temp_val;
     lv_obj_t *panel_hum;
     lv_obj_t *label_hum_val;
-    lv_obj_t *img_locked_icon;
+    lv_obj_t *locked_icon;
 } objects_t;
 
 extern objects_t objects;

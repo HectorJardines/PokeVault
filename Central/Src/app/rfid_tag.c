@@ -2,6 +2,7 @@
 #include "../../Inc/drivers/spi.h"
 #include "../../Inc/drivers/mfrc522.h"
 #include "../../../Core/Inc/common/defines.h"
+#include "../../../Core/Inc/app/display.h"
 
 #define BLOCKS_PER_SECTOR   (4U)
 #define NUM_OF_ALLOWED_TAGS     (2U)
@@ -95,6 +96,7 @@ static mfrc_status_e tag_scan_and_select(uint8_t *card_buf, uint8_t *card_uid) {
     mfrc_stat = mfrc_request(PICC_WUPA, card_buf);
     if (mfrc_stat == MFRC_OK) {
         // 2. perform anticollision loop to retrieve id
+        display_change_screen(NULL); // begins tag scanning screen cycle
         HAL_Delay(1);
         mfrc_stat = mfrc_anticollision(card_buf);
         if (mfrc_stat == MFRC_OK) {

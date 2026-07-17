@@ -2,7 +2,6 @@
 #define _SSD1306_H
 
 #include <stdint.h>
-#include "../Inc/common/ssd1306_fonts.h"
 #include "stm32f4xx.h"
 
 /**
@@ -92,6 +91,10 @@ typedef enum {
  */
 void ssd1306_init(void);
 
+
+void ssd1306_display_ctl(uint8_t on_or_off);
+
+
 /**
  * @brief Registers a display buffer flush complete callback function
  * 
@@ -144,31 +147,31 @@ void ssd1306_set_pixels(uint8_t *pixel_map, uint8_t start_x, uint8_t start_y, ui
  */
 uint8_t ssd1306_set_cursor(uint8_t x, uint8_t y);
 
-/**
- * @brief write a single char at the position set by ssd1306_set_cursor
- * 
- * Writes the specified character, in the specified font and color, at the 
- * OLED position set by ssd1306_set_cursor. Advances the position of the cursor
- * so that subsequent characters do not overwrite the current one.
- * 
- * @param ch a single character to be written
- * @param font the font in which to display the character
- * @param color color of the character
- * 
- * @return the character written to the display
- */
-char ssd1306_write_char(char ch, Font_t font, ssd1306_color_e color);
+// /**
+//  * @brief write a single char at the position set by ssd1306_set_cursor
+//  * 
+//  * Writes the specified character, in the specified font and color, at the 
+//  * OLED position set by ssd1306_set_cursor. Advances the position of the cursor
+//  * so that subsequent characters do not overwrite the current one.
+//  * 
+//  * @param ch a single character to be written
+//  * @param font the font in which to display the character
+//  * @param color color of the character
+//  * 
+//  * @return the character written to the display
+//  */
+// char ssd1306_write_char(char ch, Font_t font, ssd1306_color_e color);
 
-/**
- * @brief writes the given string at cursor position set by ssd1306_set_cursor
- * 
- * @param str character arrary to be displayed on OLED
- * @param font font in which the string will be displayed
- * @param color color in whcih the string will be displayed
- * 
- * @return 0 on success; 1 else
- */
-uint8_t ssd1306_write_string(char *str, Font_t font, ssd1306_color_e color);
+// /**
+//  * @brief writes the given string at cursor position set by ssd1306_set_cursor
+//  * 
+//  * @param str character arrary to be displayed on OLED
+//  * @param font font in which the string will be displayed
+//  * @param color color in whcih the string will be displayed
+//  * 
+//  * @return 0 on success; 1 else
+//  */
+// uint8_t ssd1306_write_string(char *str, Font_t font, ssd1306_color_e color);
 
 /**
  * @brief clears the display buffer contents in RAM

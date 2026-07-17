@@ -1,13 +1,14 @@
 #ifndef EEZ_LVGL_UI_FONTS_H
 #define EEZ_LVGL_UI_FONTS_H
 
-#include "lvgl.h"
+#include "../../../Drivers/lvgl-master/lvgl.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 extern const lv_font_t ui_font_unscii_8;
+// extern const lv_font_t ui_font_unscii_8_thin;
 
 #ifndef EXT_FONT_DESC_T
 #define EXT_FONT_DESC_T

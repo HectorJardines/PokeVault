@@ -17,6 +17,7 @@ typedef struct {
 /***********************
  * STATIC DECLARATIONS
  ************************/
+static rfid_tag_t active_tag;
 static uint8_t default_sec_key[SEC_KEY_LEN] = {DEFAULT_SEC_KEY, DEFAULT_SEC_KEY, DEFAULT_SEC_KEY, DEFAULT_SEC_KEY, DEFAULT_SEC_KEY, DEFAULT_SEC_KEY};
 
 static uint8_t registered_keys[NUM_OF_ALLOWED_TAGS][UID_LEN_BYTES] = {
@@ -100,21 +101,20 @@ uint8_t tag_init(void) {
 tag_status_e tag_quick_scan(void) {
     tag_status_e card_stat = TAG_REJECTED;
     mfrc_status_e status = MFRC_ERR;
-    uint8_t card_buf[PICC_MEM_BLOCK_LEN];
-    uint8_t card_uid[UID_LEN_BYTES];
+    memset((void *)&active_tag, 0, sizeof(active_tag));
     uint8_t dummy_idx = 0x00;
 
     // 1. sent WAKEUP request to all nearby PICCs
-    status = mfrc_request(PICC_WUPA, card_buf);
+    status = mfrc_request(PICC_WUPA, active_tag.buf);
     if (status == MFRC_OK) {
         // 2. perform anticollision loop to retrieve UID
         HAL_Delay(1);
-        status = mfrc_anticollision(card_buf);
+        status = mfrc_anticollision(active_tag.buf);
         if (status == MFRC_OK) {
             for (uint8_t i = 0; i < UID_LEN_BYTES; ++i)
-                card_uid[i] = card_buf[i];
+                active_tag.uid[i] = active_tag.buf[i];
             // 3. compare retrieved UID against stored UIDs
-            uint8_t match = search_uid(card_uid, &dummy_idx);
+            uint8_t match = search_uid(active_tag.uid, &dummy_idx);
             if (match)
                 card_stat = TAG_AUTHORIZED; // 4. If match return authorized, else rejected
         }
@@ -129,31 +129,30 @@ tag_status_e tag_quick_scan(void) {
 tag_status_e tag_register(tag_index_e tag_entry) {
     tag_status_e card_stat = TAG_ERR;
     mfrc_status_e mfrc_stat = MFRC_ERR;
-    rfid_tag_t tag;
-
+    memset((void *)&active_tag, 0, sizeof(active_tag));
 
     // 1. send request message from PCD
-    mfrc_stat = tag_scan_and_select(tag.buf, tag.uid);
+    mfrc_stat = tag_scan_and_select(active_tag.buf, active_tag.uid);
     if (mfrc_stat == MFRC_OK) {
         // AUTHENTICATE WITH DEFAULT KEY WHEN REGISTERING
         HAL_Delay(1);
-        mfrc_stat = mfrc522_auth(PICC_AUTH_A, SECTOR_TRAIL_BLOCK, default_sec_key, tag.uid);
+        mfrc_stat = mfrc522_auth(PICC_AUTH_A, SECTOR_TRAIL_BLOCK, default_sec_key, active_tag.uid);
         if (mfrc_stat == MFRC_OK) {
-            scramble_key(tag.buf, tag.uid);
-            tag.buf[6] = ACCESS_BYTE_6;
-            tag.buf[7] = ACCESS_BYTE_7;
-            tag.buf[8] = ACCESS_BYTE_8;
+            scramble_key(active_tag.buf, active_tag.uid);
+            active_tag.buf[6] = ACCESS_BYTE_6;
+            active_tag.buf[7] = ACCESS_BYTE_7;
+            active_tag.buf[8] = ACCESS_BYTE_8;
             // set remaining PICC block bytes to 0x88 (unused)
             for (uint8_t i = 0; i < SEC_KEY_LEN + 1; ++i)
-                tag.buf[i + 9] = DEFAULT_SEC_KEY;
+                active_tag.buf[i + 9] = DEFAULT_SEC_KEY;
             // 5. overwrite with new sector key in sector trailer
             HAL_Delay(1);
-            mfrc_stat = mfrc_picc_write(SECTOR_TRAIL_BLOCK, tag.buf);
+            mfrc_stat = mfrc_picc_write(SECTOR_TRAIL_BLOCK, active_tag.buf);
             if (mfrc_stat == MFRC_OK) {
                 // 6. send halt command
                 card_stat = TAG_REGISTERED;
                 for (uint8_t i = 0; i < UID_LEN_BYTES; ++i)
-                    registered_keys[tag_entry][i] = tag.uid[i];
+                    registered_keys[tag_entry][i] = active_tag.uid[i];
             }
             TM_MFRC522_Crypto_Off();
         }
@@ -177,26 +176,26 @@ tag_status_e tag_register(tag_index_e tag_entry) {
 tag_status_e tag_forget(void) {
     tag_status_e card_stat = TAG_ERR;
     mfrc_status_e mfrc_stat = MFRC_ERR;
-    rfid_tag_t tag;
+    memset((void *)&active_tag, 0, sizeof(active_tag));
 
     uint8_t card_idx = -1;
-    mfrc_stat = tag_scan_and_select(tag.buf, tag.uid);
-    if (mfrc_stat == MFRC_OK && search_uid(tag.uid, &card_idx) == UID_FOUND) {
+    mfrc_stat = tag_scan_and_select(active_tag.buf, active_tag.uid);
+    if (mfrc_stat == MFRC_OK && search_uid(active_tag.uid, &card_idx) == UID_FOUND) {
         // 4. authenticate
-        scramble_key(tag.sec_key, tag.uid);
+        scramble_key(active_tag.sec_key, active_tag.uid);
         HAL_Delay(1);
-        mfrc_stat = mfrc522_auth(PICC_AUTH_A, SECTOR_TRAIL_BLOCK, tag.sec_key, tag.uid);
+        mfrc_stat = mfrc522_auth(PICC_AUTH_A, SECTOR_TRAIL_BLOCK, active_tag.sec_key, active_tag.uid);
         if (mfrc_stat == MFRC_OK) {
             // 5. overwrite content in the sector trailer
             for (uint8_t i = 0; i < SEC_KEY_LEN; ++i)
-                tag.buf[i] = DEFAULT_SEC_KEY;
-            tag.buf[6] = ACCESS_BYTE_6;
-            tag.buf[7] = ACCESS_BYTE_7;
-            tag.buf[8] = ACCESS_BYTE_8;
+                active_tag.buf[i] = DEFAULT_SEC_KEY;
+            active_tag.buf[6] = ACCESS_BYTE_6;
+            active_tag.buf[7] = ACCESS_BYTE_7;
+            active_tag.buf[8] = ACCESS_BYTE_8;
             for (uint8_t i = 0; i < SEC_KEY_LEN + 1; ++i)
-                tag.buf[i + 9] = DEFAULT_SEC_KEY;
+                active_tag.buf[i + 9] = DEFAULT_SEC_KEY;
             HAL_Delay(1);
-            mfrc_stat = mfrc_picc_write(SECTOR_TRAIL_BLOCK, tag.buf);
+            mfrc_stat = mfrc_picc_write(SECTOR_TRAIL_BLOCK, active_tag.buf);
             if (mfrc_stat == MFRC_OK) {
                 for (uint8_t i = 0; i < UID_LEN_BYTES; ++i)
                     registered_keys[card_idx][i] = 0x00;
@@ -214,11 +213,11 @@ tag_status_e tag_forget(void) {
 
 uint8_t tag_read_data(uint8_t *uid, uint8_t *tag_data, uint8_t sector, uint8_t block) {
     uint8_t status = STATUS_OK;
-    rfid_tag_t tag;
+    memset((void *)&active_tag, 0, sizeof(active_tag));
 
-    status = tag_scan_and_select(tag.buf, uid);
+    status = tag_scan_and_select(active_tag.buf, uid);
     if (status == STATUS_OK) {
-        status = mfrc522_auth(PICC_AUTH_A, (sector * BLOCKS_PER_SECTOR) + SECTOR_TRAIL_BLOCK, tag.sec_key, uid);
+        status = mfrc522_auth(PICC_AUTH_A, (sector * BLOCKS_PER_SECTOR) + SECTOR_TRAIL_BLOCK, active_tag.sec_key, uid);
 
         if (status == STATUS_OK) {
             status = mfrc_picc_read(block, tag_data);

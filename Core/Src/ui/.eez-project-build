@@ -12,6 +12,8 @@
     "ui.c",
     "ui.h",
     "ui_font_unscii_8.c",
+    "ui_font_unscii_8_thin.c",
+    "ui_image_check.c",
     "ui_image_lock_locked.c",
     "ui_image_lock_unlocked.c",
     "vars.h"

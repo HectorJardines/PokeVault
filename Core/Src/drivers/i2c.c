@@ -1,4 +1,4 @@
-#include "../Inc/drivers/i2c.h"
+#include "../../Inc/drivers/i2c.h"
 
 #define I2C_STD_MODE_Hz (100000U)
 

@@ -77,6 +77,20 @@ void ssd1306_init(void) {
     initialized = true;
 }
 
+/**
+ * @brief Puts the display into sleep mode or wakes from sleep mode
+ * 
+ * 
+ * 
+ * @param[in] on_or_off
+ */
+void ssd1306_display_ctl(uint8_t on_or_off) {
+    if (on_or_off == 0)
+        send_single_byte_cmd(CMD_SET_DIS_OFF);
+    else
+        send_single_byte_cmd(CMD_SET_DIS_ON);
+}
+
 void ssd1306_install_flush_cb(void (*flush_cplt_cb)(DMA_HandleTypeDef* h_dma)) {
     i2c_set_dma_tx_cplt_cb(flush_cplt_cb);
 }
@@ -126,39 +140,39 @@ uint8_t ssd1306_set_cursor(uint8_t x, uint8_t y) {
     return 0;
 }
 
-char ssd1306_write_char(char ch, Font_t font, ssd1306_color_e color) {
-    if (ch < 32 || ch > 126)
-        return -1; // not a valid ASCII character
-    if (display.cursor_x + font.FontWidth > DISPLAY_WIDTH - 1 || display.cursor_y + font.FontHeight > DISPLAY_HEIGHT)
-        return -1; // char won't fit on screen
+// char ssd1306_write_char(char ch, Font_t font, ssd1306_color_e color) {
+//     if (ch < 32 || ch > 126)
+//         return -1; // not a valid ASCII character
+//     if (display.cursor_x + font.FontWidth > DISPLAY_WIDTH - 1 || display.cursor_y + font.FontHeight > DISPLAY_HEIGHT)
+//         return -1; // char won't fit on screen
     
-    uint32_t c;
-    for (int i = 0; i < font.FontHeight; ++i) {
-        c = font.data[(ch - 32) * font.FontHeight + i];
-        for (int j = 0; j < font.FontWidth; ++j) {
-            if ((c << j) & 0x8000) // check if pixel is on
-                ssd1306_draw_pixel(display.cursor_x  + j, display.cursor_y + i, color);
-            else
-                ssd1306_draw_pixel(display.cursor_x  + j, display.cursor_y + i, !color);
-        }
-    }
+//     uint32_t c;
+//     for (int i = 0; i < font.FontHeight; ++i) {
+//         c = font.data[(ch - 32) * font.FontHeight + i];
+//         for (int j = 0; j < font.FontWidth; ++j) {
+//             if ((c << j) & 0x8000) // check if pixel is on
+//                 ssd1306_draw_pixel(display.cursor_x  + j, display.cursor_y + i, color);
+//             else
+//                 ssd1306_draw_pixel(display.cursor_x  + j, display.cursor_y + i, !color);
+//         }
+//     }
 
-    ssd1306_set_cursor(display.cursor_x + font.FontWidth, display.cursor_y);
-    return ch;
-}
+//     ssd1306_set_cursor(display.cursor_x + font.FontWidth, display.cursor_y);
+//     return ch;
+// }
 
-uint8_t ssd1306_write_string(char *str, Font_t font, ssd1306_color_e color) {
-    char c;
-    uint8_t res;
-    while (*str) {
-        c = *str;
-        res = ssd1306_write_char(c, font, color);
-        if (res != *str)
-            return -1; // error writing char
-        str++;
-    }
-    return 0;
-}
+// uint8_t ssd1306_write_string(char *str, Font_t font, ssd1306_color_e color) {
+//     char c;
+//     uint8_t res;
+//     while (*str) {
+//         c = *str;
+//         res = ssd1306_write_char(c, font, color);
+//         if (res != *str)
+//             return -1; // error writing char
+//         str++;
+//     }
+//     return 0;
+// }
 
 /**
  * @brief writes all bytes in display.gddr_buf into ssd1306 RAM

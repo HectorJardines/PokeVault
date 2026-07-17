@@ -1,10 +1,12 @@
 #include <stdio.h>
 #include "../Inc/app/central_node.h"
+#include "../Inc/app/rfid_tag.h"
 #include "../Inc/app/central_message.h"
 #include "../Inc/app/client.h"
 #include "../../Core/Inc/common/trace.h"
 #include "../Inc/drivers/io.h"
 #include "../../Core/Inc/common/defines.h"
+#include "../../Core/Inc/app/display.h"
 #include "main.h"
 
 static void test_setup(void) {
@@ -41,8 +43,30 @@ static void test_central_node_message(void) {
     }
 }
 
+static void test_register_tag(void) {
+    // tag_init();
+    display_init();
+    ui_init();
+
+    volatile uint32_t time_till_next = lv_timer_handler();
+    volatile uint32_t dis_start_tick = HAL_GetTick();
+
+    while(1) {
+		if (HAL_GetTick() - dis_start_tick >= time_till_next) {
+			time_till_next = lv_timer_handler();
+            if (time_till_next == LV_NO_TIMER_READY)
+                time_till_next = LV_DEF_REFR_PERIOD;
+			dis_start_tick = HAL_GetTick();
+		}
+
+        // if (tag_register(TAG_AUTH_CARD, NULL) == STATUS_OK) {
+        //     continue;
+        // }
+    }
+}
+
 
 int main(void) {
     test_setup();
-    test_central_node_message();
+    test_register_tag();
 }
