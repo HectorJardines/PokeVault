@@ -77,8 +77,6 @@ void disarmed_state_enter(struct state_disarmed_data *data, state_e from, event_
                 data->state = DISARMED_CLOSED;
             disarmed_state_run(data);
             break;
-        case EVENT_PRESENCE:
-        case EVENT_NO_PRESENCE:
         case EVENT_TAG_AUTH:
         case EVENT_REMOTE_AUTH:
         case EVENT_UNIT_MOVED:
@@ -121,7 +119,7 @@ static uint8_t disarmed_state_run(struct state_disarmed_data *data) {
     default:
         break;
     }
-    status = message_send(&disarmed_msg);
+    message_send(&disarmed_msg);
     return status;
 }
 

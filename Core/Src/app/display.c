@@ -8,19 +8,23 @@
 
 #define HTILE_BUF_SIZE (((DISPLAY_HEIGHT * DISPLAY_WIDTH)  >> 3) + 8)
 #define VTILE_BUF_SIZE (DISPLAY_WIDTH * (DISPLAY_HEIGHT >> 3))
+
+#define DISP_ON_Msk    (0x1)
 /**************************
  * STATIC DECLARTATIONS
  ***********************/
 static void lvgl_flush_cb(lv_display_t *display, const lv_area_t *area, uint8_t *pixel_map);
 static void lvgl_flush_wait_cb(lv_display_t *display);
 static void lv_round_area_dimensions_cb(lv_event_t *event);
-// static void change_screen_cb(lv_timer_t *tim);
+static void change_screen_cb(lv_timer_t *tim);
 void lv_display_flushed_cb(DMA_HandleTypeDef *h_dma);
 
 static uint8_t htiled_buf[HTILE_BUF_SIZE] = {0};
 static uint8_t vtiled_buf[VTILE_BUF_SIZE] = {0};
 static lv_display_t *display = NULL;
 static lv_timer_t *tim = NULL;
+static uint16_t curr_screen_id = SCREEN_ID_MAIN;
+static uint8_t flags = 0x00;
 /*****************
  * PUBLIC APIs
  *****************/
@@ -44,8 +48,24 @@ void display_init(void) {
     lv_display_set_flush_cb(display, lvgl_flush_cb);
     lv_display_add_event_cb(display, lv_round_area_dimensions_cb, LV_EVENT_INVALIDATE_AREA, display);
 
-    // tim = lv_timer_create(change_screen_cb, DISPLAY_REFR_DELAY, NULL);
-    // lv_timer_pause(tim);
+    tim = lv_timer_create(change_screen_cb, DISPLAY_REFR_DELAY, NULL);
+    lv_timer_pause(tim);
+
+    ui_init();
+}
+
+
+/**
+ * @brief Checks whether the display is ON or OFF
+ * 
+ * This function should be called before making any calls
+ * to lv_timer_handler(). If the display is not ON, do NOT
+ * make a call to lv_timer_handler
+ * 
+ * @return 1 if display is ON; else 0
+ */
+uint8_t display_is_on(void) {
+    return flags & DISP_ON_Msk;
 }
 
 
@@ -55,10 +75,11 @@ void display_init(void) {
  * 
  * 
  */
-void display_on(void) {
+void display_wake(void) {
     // wakes the display from sleep mode
     ssd1306_display_ctl(1);
     // additional logic to resume lvgl rendering logic
+    flags |= DISP_ON_Msk;
 }
 
 
@@ -66,46 +87,54 @@ void display_on(void) {
 /**
  * @brief Turns the display OFF disabling UI interaction
  * 
- * 
- * 
+ * This function sets the display flag to OFF state. Should
+ * start a timer that delays and calls a callback. If the flag
+ * is still set to OFF the display should sleep. Else 
+ * simply return. This makes it so that display isn't turning 
+ * on and off unecessarily
  * 
  */
-void display_off(void) {
+void display_sleep(void) {
     // puts the display into sleep mode
     ssd1306_display_ctl(1);
     // additional logic to pause lvgl updates and such
+    flags &= ~DISP_ON_Msk;
 }
 
 
 
-// void display_change_screen(struct _lv_obj_t *screen) {
-//     if (screen == NULL)
-//         screen = &objects.item_scanning;
+void display_change_screen(struct _lv_obj_t *screen, uint16_t screen_id) {
+    if (screen == NULL) {
+        screen = objects.item_scanning;
+        curr_screen_id = SCREEN_ID_ITEM_SCANNING;
+    }
+    else
+        curr_screen_id = screen_id;
 
-//     lv_screen_load(screen);
+    lv_screen_load(screen);
 
-//     if (screen != &objects.main) {
-//         lv_timer_set_user_data(tim, screen);
-//         lv_timer_resume(tim);
-//     }
-// }
+    if (screen_id != SCREEN_ID_MAIN) {
+        lv_timer_set_user_data(tim, (void *)&curr_screen_id);
+        lv_timer_resume(tim);
+    }
+}
 
 
 /******************
  * STATIC DEFS
  ******************/
 
-// static void change_screen_cb(lv_timer_t *tim) {
-//     if (lv_display_get_screen_loading(display) == NULL) {
-//         void *scr = lv_timer_get_user_data(tim);
-//         if ((struct _lv_obj_t *)scr == &objects.item_scanning)
-//             display_change_screen(&objects.item_scanned);
-//         else if ((struct _lv_obj_t *)scr == &objects.item_scanned)
-//             display_change_screen(&objects.main);
-//     }
-//     lv_timer_reset(tim);
-//     lv_timer_pause(tim);
-// }
+static void change_screen_cb(lv_timer_t *tim) {
+    lv_timer_reset(tim);
+    lv_timer_pause(tim);
+    if (lv_display_get_screen_loading(display) == NULL) {
+        uint16_t scr_id = *((uint16_t *)lv_timer_get_user_data(tim));
+        if (scr_id == SCREEN_ID_ITEM_SCANNING)
+            display_change_screen(objects.item_scanned, SCREEN_ID_ITEM_SCANNED);
+        else if (scr_id == SCREEN_ID_ITEM_SCANNED)
+            display_change_screen(objects.main, SCREEN_ID_MAIN);
+    }
+}
 
 static void lvgl_flush_cb(lv_display_t *display, const lv_area_t *area, uint8_t *pixel_map) {
     int32_t width = lv_area_get_width(area);

@@ -19,9 +19,7 @@ typedef enum {
     EVENT_TAG_AUTH,
     EVENT_REMOTE_AUTH,
     EVENT_UNIT_MOVED,
-    EVENT_ITEM_SCAN,
-    EVENT_PRESENCE,
-    EVENT_NO_PRESENCE
+    EVENT_ITEM_SCAN
 } event_e;
 
 extern struct security_sm_t;

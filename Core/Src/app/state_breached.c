@@ -55,13 +55,11 @@ void breached_state_enter(struct state_breached_data *data, state_e from, event_
             unauth_open.node_id = NODE_ID;
             unauth_open.which_payload = msg_type_event_tag;
             unauth_open.payload.type_event.type = MSG_EVENT_UNIT_OPEN;
-            message_send(&unauth_move);
+            message_send(&unauth_open);
 
             breached_state_run(data);
             break;
         case EVENT_ITEM_SCAN:
-        case EVENT_PRESENCE:
-        case EVENT_NO_PRESENCE:
         case EVENT_REMOTE_AUTH:
         case EVENT_TAG_AUTH:
         case EVENT_UNIT_CLOSED:
@@ -76,12 +74,10 @@ void breached_state_enter(struct state_breached_data *data, state_e from, event_
             inventory_item_update();
             breached_state_run(data);
             break;
-        case EVENT_REMOTE_AUTH: 
+        case EVENT_REMOTE_AUTH:
         case EVENT_TAG_AUTH:
         case EVENT_UNIT_MOVED:
         case EVENT_UNIT_OPENED:
-        case EVENT_PRESENCE:
-        case EVENT_NO_PRESENCE:
         case EVENT_UNIT_CLOSED:
         case EVENT_NONE:
         default:

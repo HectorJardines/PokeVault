@@ -37,7 +37,7 @@ void central_node_init(void) {
     c_message_init();
     client_init();
     client_connect();
-    // tag_init();
+    tag_init();
     // c_inventory_init();
     
     // NO RECEPTION IN PROGRESS INITIALLY
@@ -157,26 +157,34 @@ static uint8_t handle_alert_msg(msg *alert) {
 
     switch (alert->payload.type_alert.type) {
     case ALERT_PRESENCE:
-        len = snprintf((char *)alert_body, MAX_HTTPS_BODY_LEN, "PRESENCE DETECTED: NODE - %d", alert->node_id);
-        status = client_post_message(alert_body, len);
+        msg event = msg_init_default;
+        event.node_id = alert->node_id;
+        event.which_payload = msg_type_event_tag;
+        event.payload.type_event.type = MSG_EVENT_NO_PRESENCE;
+        if (alert->payload.type_alert.value == 1) {
+            len = snprintf((char *)alert_body, MAX_HTTPS_BODY_LEN, "PRESENCE DETECTED: NODE - %d", alert->node_id);
+            status = client_post_message(alert_body, len);
+            event.payload.type_event.type = MSG_EVENT_PRESENCE;
+        }
+        status = handle_event_msg(&event);
         break;
     case ALERT_SEC_STATUS_CHANGE:
         len = snprintf((char *)alert_body, MAX_HTTPS_BODY_LEN, 
-                alert->payload.type_alert.value == 0 ? "UNIT %d DISARMED\r\n" : "UNIT %d ARMED\r\n", 
+                alert->payload.type_alert.value == 0 ? "UNIT %d DISARMED" : "UNIT %d ARMED", 
                 alert->node_id);
         status = client_post_message(alert_body, len);
         break;
     case ALERT_SECURITY_BREACH:
-        len = snprintf((char *)alert_body, MAX_HTTPS_BODY_LEN, "URGENT: UNIT %d BREACHED\r\n", alert->node_id);
+        len = snprintf((char *)alert_body, MAX_HTTPS_BODY_LEN, "URGENT: UNIT %d BREACHED", alert->node_id);
         status = client_post_message(alert_body, len);
         break;
     case ALERT_SYS_HUM:
-        len = snprintf((char *)alert_body, MAX_HTTPS_BODY_LEN, "WARN: UNIT %d EXCESS HUMIDITITY - %d\%\r\n", 
+        len = snprintf((char *)alert_body, MAX_HTTPS_BODY_LEN, "WARN: UNIT %d EXCESS HUMIDITITY - %d\%", 
                 alert->node_id, alert->payload.type_alert.value);
         status = client_post_message(alert_body, len);
         break;
     case ALERT_SYS_TEMP:
-        len = snprintf((char *)alert_body, MAX_HTTPS_BODY_LEN, "WARN: UNIT %d EXCESS TEMP - %d\%\r\n", 
+        len = snprintf((char *)alert_body, MAX_HTTPS_BODY_LEN, "WARN: UNIT %d EXCESS TEMP - %d°C",
                 alert->node_id, alert->payload.type_alert.value);
         status = client_post_message(alert_body, len);
         break;

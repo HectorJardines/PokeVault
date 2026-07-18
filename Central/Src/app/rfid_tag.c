@@ -9,7 +9,7 @@
 #define UID_FOUND   (1U)
 #define UID_UNKNOWN (0U)
 
-#define ITEM_SECTOR       (2U)
+#define ITEM_SECTOR       (8U)
 #define TYPE_IDX          (1U)
 #define NAME_IDX          (2U)
 #define TRAIL_IDX         (3U)
@@ -96,7 +96,7 @@ static mfrc_status_e tag_scan_and_select(uint8_t *card_buf, uint8_t *card_uid) {
     mfrc_stat = mfrc_request(PICC_WUPA, card_buf);
     if (mfrc_stat == MFRC_OK) {
         // 2. perform anticollision loop to retrieve id
-        display_change_screen(NULL); // begins tag scanning screen cycle
+        display_change_screen(NULL, 0); // begins tag scanning screen cycle
         HAL_Delay(1);
         mfrc_stat = mfrc_anticollision(card_buf);
         if (mfrc_stat == MFRC_OK) {

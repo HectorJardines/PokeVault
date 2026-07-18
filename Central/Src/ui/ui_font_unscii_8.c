@@ -15,7 +15,7 @@
 #ifdef LV_LVGL_H_INCLUDE_SIMPLE
     #include "lvgl.h"
 #else
-    #include "../../../Drivers/lvgl-master/lvgl.h"
+    #include "lvgl/lvgl.h"
 #endif
 
 #ifndef UI_FONT_UNSCII_8

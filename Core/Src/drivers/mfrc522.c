@@ -2,8 +2,8 @@
 #include "../../Inc/drivers/io.h"
 #include "../../Inc/drivers/spi.h"
 
-#define MFRC522_CS_LOW  (GPIOA->BSRR |= (1 << (IO_PIN_10 + IO_BSRR_BR_OFFSET)))
-#define MFRC522_CS_HIGH (GPIOA->BSRR |= (1 << IO_PIN_10))
+#define MFRC522_CS_LOW  (GPIOA->BSRR |= (1 << (IO_PIN_6 + IO_BSRR_BR_OFFSET)))
+#define MFRC522_CS_HIGH (GPIOA->BSRR |= (1 << IO_PIN_6))
 #define MFRC_MAX_FIFO_LEN       (64U)
 #define PICC_UID_LEN_BYTES      (4U)
 #define PICC_UID_CLn_LEN        (5U)
@@ -282,8 +282,6 @@ uint16_t mfrc_picc_read(uint8_t picc_block_addr, uint8_t *rcv_data) {
     status = mfrc_send_to_picc(PCD_CMD_TRANSCEIVE, buffer, 4, rcv_data, &rcv_len);
     if (status != MFRC_OK || rcv_len != (PICC_DATA_BLOCK_LEN + PICC_CRC_LEN))
         status = MFRC_ERR;
-    else
-        status = rcv_len;
 
     return status;
 }

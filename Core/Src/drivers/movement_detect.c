@@ -56,7 +56,8 @@ uint8_t movement_init(void) {
  * @return 1 on movement detected; 0 else
  */
 uint8_t movement_detected(void) {
-    return unit_movement.motion_detected;
+    uint8_t movement = unit_movement.motion_detected;
+    return movement;
 }
 
 
@@ -68,7 +69,9 @@ uint8_t movement_detected(void) {
  * @return 1 on no movement deteceted; 0 else
  */
 uint8_t movement_stopped(void) {
-    return !unit_movement.motion_detected;
+    uint8_t no_movement = !unit_movement.motion_detected;
+    unit_movement.motion_detected = 0;
+    return no_movement;
 }
 
 
@@ -80,17 +83,9 @@ uint8_t movement_stopped(void) {
  * @return 1 on tap detected; 0 else
  */
 uint8_t movement_tap_detected(void) {
-    return unit_movement.tap_detected;
-}
-
-
-/**
- * @brief Temp function for testing, replace with a timer
- * 
- */
-void clear_movement(void) {
+    uint8_t tap = unit_movement.tap_detected;
     unit_movement.tap_detected = 0;
-    unit_movement.motion_detected = 0;
+    return tap;
 }
 
 
@@ -124,39 +119,42 @@ static uint8_t configure_bmi160_dev(void) {
 static uint8_t configure_bmi160_int(void) {
     uint8_t status = STATUS_OK;
 
-    h_imu.conf.any_sig_sel = BMI160_ANY_MOTION_ENABLED;
-
     // configure INT1 pin for any motion interrupts
-    h_imu.anym.int_pin_settg.output_en = SET; // PIN IN OUTPUT MODE
-    h_imu.anym.int_pin_settg.edge_ctrl = SET; // EDGE TRIGGERED INTERRUPT
-    h_imu.anym.int_pin_settg.output_mode = SET; // OPEN_DRAIN OUTPUT MODE
-    h_imu.anym.int_pin_settg.output_type = SET; // ACTIVE HIGH INTERRUPT MODE
+    h_imu.anym.int_pin_settg.output_en = BMI160_ENABLE; // PIN IN OUTPUT MODE
+    h_imu.anym.int_pin_settg.edge_ctrl = BMI160_ENABLE; // EDGE TRIGGERED INTERRUPT
+    h_imu.anym.int_pin_settg.output_mode = BMI160_ENABLE; // OPEN_DRAIN OUTPUT MODE
+    h_imu.anym.int_pin_settg.output_type = BMI160_DISABLE; // ACTIVE LOW INTERRUPT MODE
+    h_imu.anym.int_pin_settg.input_en = BMI160_DISABLE;
+    h_imu.anym.int_pin_settg.latch_dur = BMI160_LATCH_DUR_NONE;
     h_imu.anym.int_channel = BMI160_INT_CHANNEL_1; // SET INTERRUPT ON PIN 1
 
     h_imu.anym.int_type = BMI160_ACC_ANY_MOTION_INT;
-    h_imu.anym.int_type_cfg.acc_any_motion_int.anymotion_x = SET;
-    h_imu.anym.int_type_cfg.acc_any_motion_int.anymotion_y = SET;
-    h_imu.anym.int_type_cfg.acc_any_motion_int.anymotion_en = TRUE;
-    h_imu.anym.int_type_cfg.acc_any_motion_int.anymotion_dur = (uint8_t)0x3U;
-    h_imu.anym.int_type_cfg.acc_any_motion_int.anymotion_thr = 20; // TODO: ADJUST THIS VALUE IN PRACTICE ( 20 * 15.63mg/LSB = 312.6 mg of force change )
-    h_imu.anym.int_type_cfg.acc_any_motion_int.anymotion_data_src = SET; // pre-filter data src
+    h_imu.anym.int_type_cfg.acc_any_motion_int.anymotion_x = BMI160_ENABLE;
+    h_imu.anym.int_type_cfg.acc_any_motion_int.anymotion_y = BMI160_ENABLE;
+    h_imu.anym.int_type_cfg.acc_any_motion_int.anymotion_z = BMI160_ENABLE;
+    h_imu.anym.int_type_cfg.acc_any_motion_int.anymotion_en = BMI160_ENABLE;
+    h_imu.anym.int_type_cfg.acc_any_motion_int.anymotion_dur = (uint8_t)0x0U;
+    h_imu.anym.int_type_cfg.acc_any_motion_int.anymotion_thr = 5; // TODO: ADJUST THIS VALUE IN PRACTICE ( 20 * 15.63mg/LSB = 312.6 mg of force change )
+    h_imu.anym.int_type_cfg.acc_any_motion_int.anymotion_data_src = BMI160_DISABLE; // pre-filter data src
 
     status = bmi160_set_int_config(&h_imu.anym, &h_imu.conf);
     
 
     if (status == STATUS_OK) {
         // CONFIGURE INT2 PIN FOR DOUBLE TAP INTERRUPTS
-        h_imu.dtap.int_pin_settg.output_en = SET;
-        h_imu.dtap.int_pin_settg.edge_ctrl = SET;
-        h_imu.dtap.int_pin_settg.output_mode = SET;
-        h_imu.dtap.int_pin_settg.output_type = SET;
+        h_imu.dtap.int_pin_settg.output_en = BMI160_ENABLE; // output mode
+        h_imu.dtap.int_pin_settg.edge_ctrl = BMI160_ENABLE; // edge triggered
+        h_imu.dtap.int_pin_settg.output_mode = BMI160_ENABLE; // open-drain
+        h_imu.dtap.int_pin_settg.output_type = BMI160_DISABLE; // active low
+        h_imu.dtap.int_pin_settg.input_en = BMI160_DISABLE;
+        h_imu.dtap.int_pin_settg.latch_dur = BMI160_LATCH_DUR_NONE; // disbale int latching
         h_imu.dtap.int_channel = BMI160_INT_CHANNEL_2;
 
         h_imu.dtap.int_type = BMI160_ACC_DOUBLE_TAP_INT;
-        h_imu.dtap.int_type_cfg.acc_tap_int.tap_data_src = SET; // pre-filter data src
-        h_imu.dtap.int_type_cfg.acc_tap_int.tap_en = TRUE;
-        h_imu.dtap.int_type_cfg.acc_tap_int.tap_quiet = SET; // 20ms quiet period
-        h_imu.dtap.int_type_cfg.acc_tap_int.tap_shock = CLR; // 50 ms shock duration
+        h_imu.dtap.int_type_cfg.acc_tap_int.tap_data_src = BMI160_DISABLE; // pre-filter data src
+        h_imu.dtap.int_type_cfg.acc_tap_int.tap_en = BMI160_ENABLE;
+        h_imu.dtap.int_type_cfg.acc_tap_int.tap_quiet = BMI160_ENABLE; // 20ms quiet period
+        h_imu.dtap.int_type_cfg.acc_tap_int.tap_shock = BMI160_DISABLE; // 50 ms shock duration
         h_imu.dtap.int_type_cfg.acc_tap_int.tap_dur = 0x01; // 100ms after quiet period will count as dtap
         h_imu.dtap.int_type_cfg.acc_tap_int.tap_thr = 0x00; // 250mg * 0.5 = 125mg force difference
 
@@ -165,9 +163,9 @@ static uint8_t configure_bmi160_int(void) {
     }
 
     if (status == STATUS_OK) {
-        io_configure_interrupt(IO_INT_ANYM, IO_INTERRUPT_RT, movement_int_anym_isr);
+        io_configure_interrupt(IO_INT_ANYM, IO_INTERRUPT_FT, movement_int_anym_isr);
         io_irq_enable_interrupt(IO_INT_ANYM);
-        io_configure_interrupt(IO_INT_DTAP, IO_INTERRUPT_RT, movement_int_dtap_isr);
+        io_configure_interrupt(IO_INT_DTAP, IO_INTERRUPT_FT, movement_int_dtap_isr);
         io_irq_enable_interrupt(IO_INT_DTAP);
     }
 

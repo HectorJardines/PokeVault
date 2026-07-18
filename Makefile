@@ -41,7 +41,6 @@ Core/Src/main.c \
 Core/Src/stm32f4xx_it.c \
 Core/Src/stm32f4xx_hal_msp.c \
 Core/Src/system_stm32f4xx.c \
-Core/Src/app/alerts.c \
 Core/Src/app/rfid_tag.c \
 Core/Src/app/message.c \
 Core/Src/common/ssd1306_fonts.c \
@@ -51,15 +50,15 @@ Core/Src/common/trace.c \
 Core/Src/drivers/rs485_cobs.c \
 Core/Src/drivers/adc.c \
 Core/Src/drivers/aht20.c \
-Core/Src/drivers/bmi160.c \
 Core/Src/drivers/i2c.c \
 Core/Src/drivers/io.c \
 Core/Src/drivers/mfrc522.c \
 Core/Src/drivers/spi.c \
 Core/Src/drivers/ssd1306.c \
 Core/Src/drivers/movement_detect.c \
+Core/Src/drivers/ir_sensors.c \
 Core/Src/app/vault_main.c \
-Core/Src/test_hardware.c \
+Core/Src/test_peer.c \
 Core/Src/app/display.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_rcc.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_rtc.c \

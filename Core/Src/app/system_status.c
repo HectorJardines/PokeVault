@@ -1,5 +1,7 @@
 #include "system_status.h"
 #include "message.h"
+#include "display.h"
+#include "rfid_tag.h"
 
 
 #define EXCESS_TEMP_THRSH   (26) // in celcius
@@ -13,6 +15,7 @@
 static uint8_t handle_excess_temp_hum(uint32_t value, uint8_t temp_or_hum);
 static uint8_t handle_presence_detect(void);
 
+const static uint8_t auth_card_type[PICC_MEM_BLOCK_LEN] = {0xca, 0xfe, 0xbe, 0xef, 0xde, 0xad, 0,0,0,0,0,0,0,0,0,0};
 static system_info_t active_sys_state;
 /*********************
  * PUB APIs
@@ -31,7 +34,6 @@ uint8_t system_monitor_init(void) {
         status = ir_init();
     if (status == STATUS_OK)
         status = movement_init();
-
     memset((void *)&active_sys_state, 0, sizeof(system_info_t));
 
     return status;
@@ -96,6 +98,38 @@ uint8_t system_process_state(void) {
 
 
 
+/**
+ * @brief Scans for nearby PICC, checks if it is an AUTH card
+ * 
+ * This function is periodically called to scan for nearby PICC,
+ * in the case that a PICC is deteceted the ITEM sector block
+ * is read to retrieve the type of PICC (e.g. item or auth card).
+ * If an auth card is detected this function posts a message to 
+ * the security sm and updates armed status on display.
+ * 
+ * 
+ * @return 1 if a PICC is detected and it is of type AUTH card;
+ * 0 else
+ */
+uint8_t system_check_card_auth(void) {
+    uint8_t is_auth = 1, status = STATUS_OK;
+    uint8_t tag_data[PICC_MEM_BLOCK_LEN];
+
+    status = tag_read_data(active_sys_state.prev_uid, tag_data, ITEM_SECTOR, TYPE_BLOCK);
+    if (status == STATUS_OK) {
+        for (uint8_t i = 0; i < PICC_MEM_BLOCK_LEN; ++i) {
+            if (tag_data[i] != auth_card_type[i]) {
+                is_auth = 0;
+                break;
+            }
+        }
+    }
+
+    return is_auth;
+}
+
+
+
 /*****************
  * STATIC DEFS
  ****************/
@@ -111,7 +145,7 @@ static uint8_t handle_excess_temp_hum(uint32_t value, uint8_t temp_or_hum) {
         temp_hum_msg.payload.type_alert.type = ALERT_SYS_HUM;
 
     temp_hum_msg.payload.type_alert.value = value;
-    status = message_send(&temp_hum_msg);
+    message_send(&temp_hum_msg);
 
     return status;
 }
@@ -124,9 +158,28 @@ static uint8_t handle_presence_detect(void) {
 
     presence_msg.node_id = NODE_ID;
     presence_msg.which_payload = msg_type_alert_tag;
-    presence_msg.payload.type_event.type = ALERT_PRESENCE;
+    presence_msg.payload.type_alert.type = ALERT_PRESENCE;
+    presence_msg.payload.type_alert.value = 1; // presence detected 
     
-    status = message_send(&presence_msg);
+    display_wake();
+    message_send(&presence_msg);
+
+    
+
+    return status;
+}
+
+static uint8_t handle_presence_gone(void) {
+    uint8_t status = STATUS_OK;
+    msg presence_msg = msg_init_default;
+
+    presence_msg.node_id = NODE_ID;
+    presence_msg.which_payload = msg_type_alert_tag;
+    presence_msg.payload.type_alert.type = ALERT_PRESENCE;
+    presence_msg.payload.type_alert.value = 0; // presence gone
+
+    display_sleep();
+    message_send(&presence_msg);
 
     return status;
 }

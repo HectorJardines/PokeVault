@@ -18,8 +18,6 @@ static transition_t transitions[NUM_TRANSITIONS] = {
     {SECURITY_ARMED, EVENT_NONE, SECURITY_ARMED},
     {SECURITY_ARMED, EVENT_TAG_AUTH, SECURITY_DISARMED},
     {SECURITY_ARMED, EVENT_REMOTE_AUTH, SECURITY_DISARMED},
-    {SECURITY_ARMED, EVENT_PRESENCE, SECURITY_ARMED}, // POST AN INTERNAL EVENT FOR DISPLAY ON
-    {SECURITY_ARMED, EVENT_NO_PRESENCE, SECURITY_ARMED}, // POST AN INTERNAL EVENT FOR DISPLAY OFF
     {SECURITY_ARMED, EVENT_UNIT_CLOSED, SECURITY_ARMED},
     {SECURITY_ARMED, EVENT_UNIT_OPENED, SECURITY_BREACHED},
     {SECURITY_ARMED, EVENT_UNIT_MOVED, SECURITY_BREACHED},
@@ -28,8 +26,6 @@ static transition_t transitions[NUM_TRANSITIONS] = {
     {SECURITY_BREACHED, EVENT_NONE, SECURITY_BREACHED},
     {SECURITY_BREACHED, EVENT_TAG_AUTH, SECURITY_DISARMED},
     {SECURITY_BREACHED, EVENT_REMOTE_AUTH, SECURITY_DISARMED},
-    {SECURITY_BREACHED, EVENT_PRESENCE, SECURITY_BREACHED},
-    {SECURITY_BREACHED, EVENT_NO_PRESENCE, SECURITY_BREACHED},
     {SECURITY_BREACHED, EVENT_UNIT_CLOSED, SECURITY_BREACHED},
     {SECURITY_BREACHED, EVENT_UNIT_OPENED, SECURITY_BREACHED},
     {SECURITY_BREACHED, EVENT_UNIT_MOVED, SECURITY_BREACHED},
@@ -38,8 +34,6 @@ static transition_t transitions[NUM_TRANSITIONS] = {
     {SECURITY_DISARMED, EVENT_NONE, SECURITY_DISARMED},
     {SECURITY_DISARMED, EVENT_TAG_AUTH, SECURITY_DISARMED},
     {SECURITY_DISARMED, EVENT_REMOTE_AUTH, SECURITY_DISARMED},
-    {SECURITY_DISARMED, EVENT_PRESENCE, SECURITY_DISARMED},
-    {SECURITY_DISARMED, EVENT_NO_PRESENCE, SECURITY_DISARMED},
     {SECURITY_DISARMED, EVENT_UNIT_CLOSED, SECURITY_ARMED},
     {SECURITY_DISARMED, EVENT_UNIT_OPENED, SECURITY_DISARMED},
     {SECURITY_DISARMED, EVENT_UNIT_MOVED, SECURITY_DISARMED},
@@ -174,13 +168,10 @@ static state_e security_process_event(security_sm_t *sec_sm, event_e event) {
  */
 static event_e security_check_inputs(security_sm_t *sec_sm) {
     event_e event = EVENT_NONE;
-
     system_retrieve_state(&sec_sm->common.sys_sens_status);
 
     // events processed in order of importance
-    if (tag_quick_scan() == TAG_AUTHORIZED)
-        event = EVENT_TAG_AUTH;
-    else if (HAS_INTERNAL_EVT(sec_sm))
+    if (HAS_INTERNAL_EVT(sec_sm))
         event = take_internal_event(sec_sm);
     else if (sec_sm->common.sys_sens_status.unit_opened)
         event = EVENT_UNIT_OPENED;
@@ -188,12 +179,6 @@ static event_e security_check_inputs(security_sm_t *sec_sm) {
         event = EVENT_UNIT_MOVED;
     else if (sec_sm->common.sys_sens_status.unit_closed)
         event = EVENT_UNIT_CLOSED;
-    else if (inventory_scan_for_item() == STATUS_OK)
-        event = EVENT_ITEM_SCAN;
-    else if (sec_sm->common.sys_sens_status.presence)
-        event = EVENT_PRESENCE;
-    else if (sec_sm->common.sys_sens_status.no_presence)
-        event = EVENT_NO_PRESENCE;
 
     return event;
 }

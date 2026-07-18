@@ -42,6 +42,8 @@ static ir_sens_state_t active_state;
 uint8_t ir_init(void) {
     io_configure_interrupt(IO_IR_RCV, IO_INTERRPT_RTFT, ir_line_cb);
     io_configure_interrupt(IO_PIR_RCV, IO_INTERRPT_RTFT, pir_presence_cb);
+    io_irq_enable_interrupt(IO_IR_RCV);
+    io_irq_enable_interrupt(IO_PIR_RCV);
 
     return STATUS_OK;
 }

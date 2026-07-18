@@ -44,7 +44,7 @@ static void test_central_node_message(void) {
 }
 
 static void test_register_tag(void) {
-    // tag_init();
+    tag_init();
     display_init();
     ui_init();
 
@@ -59,9 +59,9 @@ static void test_register_tag(void) {
 			dis_start_tick = HAL_GetTick();
 		}
 
-        // if (tag_register(TAG_AUTH_CARD, NULL) == STATUS_OK) {
-        //     continue;
-        // }
+        if (tag_register(TAG_AUTH_CARD, NULL) == STATUS_OK) {
+            continue;
+        }
     }
 }
 

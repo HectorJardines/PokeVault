@@ -59,4 +59,17 @@ void security_init(security_sm_t *);
 state_e security_run(security_sm_t *sec_sm, uint8_t *event_processed);
 
 
+
+/**
+ * @brief Posts the specified event to the security SM
+ * 
+ * 
+ * Problem with this approach is that we need a way to pass 
+ * the data associated with an event from the outside...
+ * 
+ * @param[in] event event to post to the SM
+ */
+uint8_t security_post_event(security_sm_t* sec_sm, event_e event);
+
+
 #endif

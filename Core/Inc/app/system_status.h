@@ -27,6 +27,8 @@ typedef struct {
     uint8_t no_presence;
     movement_state_t unit_movement;
     aht20_data_t temp_hum_readings;
+
+    uint8_t prev_uid[4]; // UID OF THE LAST AUTH CARD
 } system_info_t;
 
 
@@ -70,5 +72,22 @@ uint8_t system_retrieve_state(system_info_t *sys_state);
  * 
  */
 uint8_t system_process_state(void);
+
+
+
+/**
+ * @brief Scans for nearby PICC, checks if it is an AUTH card
+ * 
+ * This function is periodically called to scan for nearby PICC,
+ * in the case that a PICC is deteceted the ITEM sector block
+ * is read to retrieve the type of PICC (e.g. item or auth card).
+ * If an auth card is detected this function posts a message to 
+ * the security sm and updates armed status on display.
+ * 
+ * 
+ * @return 1 if a PICC is detected and it is of type AUTH card;
+ * 0 else
+ */
+uint8_t system_check_card_auth(void);
 
 #endif /* _SYS_STAT_H*/
