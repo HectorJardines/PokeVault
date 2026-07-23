@@ -8,6 +8,9 @@
  * 
  */
 
+#ifndef _IR_SENSORS_H
+#define _IR_SENSORS_H
+
 #include <stdint.h>
 
 /***********************
@@ -61,3 +64,5 @@ void ir_read_sens_state(ir_sens_state_t *unit_state);
  * @param[]
  */
 
+
+#endif /* _IR_SENSORS_H */

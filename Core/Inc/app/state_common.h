@@ -32,6 +32,7 @@ struct state_common_data {
     timer_t *timer;
     system_info_t sys_sens_status;
     transaction_t trans_info;
+    uint8_t is_open;
 };
 
 #endif

@@ -48,13 +48,12 @@ void disarmed_state_enter(struct state_disarmed_data *data, state_e from, event_
         switch (event) {
         case EVENT_TAG_AUTH:
         case EVENT_REMOTE_AUTH:
+            data->state = DISARMED_IDLE;
             disarmed_state_run(data);
             break;
         case EVENT_ITEM_SCAN:
         case EVENT_UNIT_OPENED:
         case EVENT_UNIT_CLOSED:
-        case EVENT_PRESENCE:
-        case EVENT_NO_PRESENCE:
         case EVENT_UNIT_MOVED:
         case EVENT_NONE:
             break;
@@ -68,7 +67,7 @@ void disarmed_state_enter(struct state_disarmed_data *data, state_e from, event_
             disarmed_state_run(data);
             break;
         case EVENT_UNIT_OPENED:
-            if (data->state == DISARMED_CLOSED)
+            if (data->state == DISARMED_CLOSED || data->state == DISARMED_IDLE)
                 data->state = DISARMED_OPEN;
             disarmed_state_run(data);
             break;
@@ -113,8 +112,10 @@ static uint8_t disarmed_state_run(struct state_disarmed_data *data) {
             data->state = DISARMED_OPEN;
         break;
     case DISARMED_IDLE:
-        disarmed_msg.which_payload = msg_type_event_tag;
-        disarmed_msg.payload.type_event.type = MSG_EVENT_DISARMED;
+        display_refresh_value(LABEL_STATUS, 0);
+        disarmed_msg.which_payload = msg_type_alert_tag;
+        disarmed_msg.payload.type_alert.type = ALERT_SEC_STATUS_CHANGE;
+        disarmed_msg.payload.type_alert.value = 0;
         break;
     default:
         break;

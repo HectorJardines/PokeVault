@@ -7,7 +7,7 @@
 
 #include "../drivers/mfrc522.h"
 
-#define UID_LEN_BYTES       (4U) // 4 UID BYTES + 1 BCC
+#define UID_LEN_BYTES       (5U) // 4 UID BYTES + 1 BCC
 #define PICC_MEM_BLOCK_LEN  (16U)
 #define SER_NUM_LEN_BYTES   (4U)
 #define SEC_KEY_LEN         (6U)
@@ -21,7 +21,7 @@
 #define MAN_SECTOR_NUM      (0U)
 #define MAN_SECTOR_BLOCK    (0U)
 
-#define ITEM_SECTOR         (2U)
+#define ITEM_SECTOR         (8U)
 #define TYPE_BLOCK          (1U)
 #define NAME_BLOCK          (2U)
 #define TRAIL_BLOCK         (3U)
@@ -42,6 +42,12 @@ typedef enum {
     TAG_ENTRY1,
     TAG_ENTRY2
 } tag_index_e;
+
+typedef struct {
+    uint8_t buf[PICC_MEM_BLOCK_LEN];
+    uint8_t uid[UID_LEN_BYTES];
+    uint8_t sec_key[SEC_KEY_LEN];
+} rfid_tag_t;
 
 /********************
  * PUBLIC APIs

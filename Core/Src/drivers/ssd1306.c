@@ -274,37 +274,37 @@ static uint8_t set_addressing_scheme(void) {
 }
 
 static int8_t send_single_byte_cmd(uint8_t cmd) {
-    int8_t res = I2C_BUSY_IN_TX;
-    uint16_t retry = UINT16_MAX;
+    int8_t res = HAL_BUSY;
+    uint16_t retry = 500;
     uint8_t cmd_pair[] = {SSD1306_CTL_BYTE_CMD, cmd};
-    while (retry-- && res == I2C_BUSY_IN_TX)
+    while (retry-- && res == HAL_BUSY)
         res = display.i2c_tx(SSD1306_DEV_ADDR, cmd_pair, SINGLE_BYTE);
     return res;
 }
 
 static int8_t send_multi_byte_cmd(uint8_t *cmds, uint8_t len) {
-    uint16_t retry = UINT16_MAX;
-    int8_t res = I2C_BUSY_IN_TX;
-    while (retry-- && res == I2C_BUSY_IN_TX)
+    uint16_t retry = 500;
+    int8_t res = HAL_BUSY;
+    while (retry-- && res == HAL_BUSY)
         res = display.i2c_tx(SSD1306_DEV_ADDR, cmds, len);
     return res;
 }
 
 static int8_t send_single_byte_data(uint8_t *data) {
-    int8_t res = I2C_BUSY_IN_TX;
-    uint16_t retry = UINT16_MAX;
+    int8_t res = HAL_BUSY;
+    uint16_t retry = 500;
     uint8_t data_pair[] = {SSD1306_CTL_BYTE_DATA, *data};
-    while (retry-- && res == I2C_BUSY_IN_TX)
+    while (retry-- && res == HAL_BUSY)
         res = display.i2c_tx(SSD1306_DEV_ADDR, data_pair, SINGLE_BYTE);
     return res;
 }
 
 static int8_t send_multi_byte_data(uint8_t *data, uint32_t len) {
     int8_t res = I2C_OK;
-    uint16_t retry = UINT16_MAX;
+    uint16_t retry = 500;
     data_buf[0] = SSD1306_CTL_BYTE_DATA;
     memcpy(&data_buf[1], data, len);
-    // while (retry-- && res == I2C_BUSY_IN_TX)
+    // while (retry-- && res == HAL_BUSY)
     res = display.i2c_tx_dma(SSD1306_DEV_ADDR, data_buf, LEN_DATA_CTL_AND_DATA);
     return res;
 }

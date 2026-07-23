@@ -3416,6 +3416,8 @@ static int8_t enable_accel_any_motion_int(const struct bmi160_acc_any_mot_int_cf
 
         /* write data to Int Enable 0 register */
         rslt = bmi160_set_regs(BMI160_INT_ENABLE_0_ADDR, &data, 1, dev);
+        uint8_t byte;
+        bmi160_get_regs(BMI160_INT_ENABLE_0_ADDR, &data, 1, dev);
     }
 
     return rslt;

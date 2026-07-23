@@ -56,6 +56,20 @@ uint8_t i2c_transmit(uint8_t dev_addr, uint8_t *send_data, uint32_t data_len);
  */
 uint8_t i2c_receive(uint8_t dev_addr, uint8_t *rcv_data, uint32_t data_len);
 
+
+/**
+ * @brief Writes a register address and reads from register using (SR)
+ * 
+ * Some peripherals require a repeated start between reg addr
+ * writes and subsequent reads from the peripheral. This function
+ * handles the repeated start generation in such cases. 
+ * This function operates in blocking mode.
+ * 
+ * @param
+ */
+uint8_t i2c_write_read(uint8_t dev_addr, uint8_t reg_addr, uint8_t *data_read, uint16_t read_len);
+
+
 /**
  * @brief Non-blocking DMA transmit wrapper
  * 
@@ -77,5 +91,7 @@ uint8_t i2c_transmit_dma(uint8_t dev_addr, uint8_t *data, uint16_t data_len);
  * @param tx_cmplt_cb pointer to callback function
  */
 void i2c_set_dma_tx_cplt_cb(void(*tx_cmplt_cb)(DMA_HandleTypeDef * hdma));
+
+uint8_t i2c_is_busy(void); // TEMP BLOCKING FUNC UNTIL WE IMPLEMENT Q
 
 #endif

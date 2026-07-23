@@ -81,7 +81,7 @@ uint8_t message_receive(msg *message) {
     uint32_t length = 0;
 
     uint8_t status = rs485_receive(rx_frame, &length);
-    if (status == STATUS_OK) {
+    if (status == STATUS_OK && length > 0) {
         uint16_t crc_check = compute_crc16(rx_frame, length - CRC16_LEN);
         if (crc_is_equal(crc_check, &rx_frame[length - CRC16_LEN])) {
             status = deserialize_msg_buf(rx_frame, length - CRC16_LEN, message);

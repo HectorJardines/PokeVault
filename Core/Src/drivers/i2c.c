@@ -1,4 +1,6 @@
 #include "../../Inc/drivers/i2c.h"
+#include "../../../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_i2c.h"
+#include "../../Inc/common/defines.h"
 
 #define I2C_STD_MODE_Hz (100000U)
 
@@ -26,7 +28,7 @@ void i2c_init(i2c_device_e dev) {
 }
 
 uint8_t i2c_transmit(uint8_t dev_addr, uint8_t *send_data, uint32_t data_len) {
-    dev_addr = (dev_addr << 1) | 0x01;
+    dev_addr = (dev_addr << 1);
     return HAL_I2C_Master_Transmit(&h_i2c1, dev_addr, send_data, data_len, 500);
 }
 
@@ -41,7 +43,103 @@ uint8_t i2c_transmit_dma(uint8_t dev_addr, uint8_t *data, uint16_t data_len) {
     HAL_NVIC_EnableIRQ(I2C1_EV_IRQn);
     HAL_NVIC_EnableIRQ(I2C1_ER_IRQn);
     HAL_NVIC_EnableIRQ(DMA1_Stream1_IRQn);
+
     return res;
+}
+
+uint8_t i2c_write_read(uint8_t dev_addr, uint8_t reg_addr, uint8_t *data_read, uint16_t read_len) {
+    uint8_t status = STATUS_OK;
+    uint16_t retry = 500;
+    uint8_t tmp = (dev_addr << 1);
+
+    if (!LL_I2C_IsEnabled(h_i2c1.Instance))
+        LL_I2C_Enable(h_i2c1.Instance);
+    LL_I2C_AcknowledgeNextData(h_i2c1.Instance, LL_I2C_ACK);
+
+    LL_I2C_GenerateStartCondition(h_i2c1.Instance);
+    while (--retry && !LL_I2C_IsActiveFlag_SB(h_i2c1.Instance));
+    if (!retry) return STATUS_ERR;
+
+    LL_I2C_TransmitData8(h_i2c1.Instance, tmp);
+    retry = 500;
+    while (--retry && !LL_I2C_IsActiveFlag_ADDR(h_i2c1.Instance));
+    if (!retry) return STATUS_ERR;
+
+    LL_I2C_ClearFlag_ADDR(h_i2c1.Instance);
+
+    retry = 500;
+    while (--retry && !LL_I2C_IsActiveFlag_TXE(h_i2c1.Instance));
+    if (!retry) return STATUS_ERR;
+    // send register address
+    LL_I2C_TransmitData8(h_i2c1.Instance, reg_addr);
+    retry = 500;
+    while (--retry && !LL_I2C_IsActiveFlag_TXE(h_i2c1.Instance));
+    if (!retry) return STATUS_ERR;
+
+    /********************* REP START RECEIVE **************************/
+
+    // generate rep start
+    LL_I2C_GenerateStartCondition(h_i2c1.Instance);
+    retry = 500;
+    while (--retry && !LL_I2C_IsActiveFlag_SB(h_i2c1.Instance));
+    if (!retry) return STATUS_ERR;
+    
+    tmp = (dev_addr << 1) | 0x01; 
+    LL_I2C_TransmitData8(h_i2c1.Instance, tmp);
+    retry = 500;
+    while (--retry && !LL_I2C_IsActiveFlag_ADDR(h_i2c1.Instance));
+    if (!retry) return STATUS_ERR;
+
+    if (read_len == 1) {
+        LL_I2C_AcknowledgeNextData(h_i2c1.Instance, LL_I2C_NACK);
+        LL_I2C_ClearFlag_ADDR(h_i2c1.Instance);
+        LL_I2C_GenerateStopCondition(h_i2c1.Instance);
+        while (!LL_I2C_IsActiveFlag_RXNE(h_i2c1.Instance));
+        data_read[0] = LL_I2C_ReceiveData8(h_i2c1.Instance);
+    }
+    else if (read_len == 2) {
+        LL_I2C_AcknowledgeNextData(h_i2c1.Instance, LL_I2C_NACK);
+        LL_I2C_EnableBitPOS(h_i2c1.Instance);
+        LL_I2C_ClearFlag_ADDR(h_i2c1.Instance);
+        retry = 500;
+        while (--retry && !LL_I2C_IsActiveFlag_BTF(h_i2c1.Instance));
+        if (!retry) return STATUS_ERR;
+        LL_I2C_GenerateStopCondition(h_i2c1.Instance);
+        
+        data_read[0] = LL_I2C_ReceiveData8(h_i2c1.Instance);
+        retry = 500;
+        while (--retry && !LL_I2C_IsActiveFlag_RXNE(h_i2c1.Instance));
+        if (!retry) return STATUS_ERR;
+        data_read[1] = LL_I2C_ReceiveData8(h_i2c1.Instance);
+    }
+    else {
+        LL_I2C_ClearFlag_ADDR(h_i2c1.Instance);
+        uint8_t i;
+        for (i = 0; i < read_len - 3; ++i) {
+            while (!LL_I2C_IsActiveFlag_RXNE(h_i2c1.Instance));
+            data_read[i] = LL_I2C_ReceiveData8(h_i2c1.Instance);
+        }
+        retry = 500;
+        while (--retry && !LL_I2C_IsActiveFlag_BTF(h_i2c1.Instance));
+        if (!retry) return STATUS_ERR;
+        LL_I2C_AcknowledgeNextData(h_i2c1.Instance, LL_I2C_NACK);
+        data_read[i++] = LL_I2C_ReceiveData8(h_i2c1.Instance);
+
+        retry = 500;
+        while (--retry && !LL_I2C_IsActiveFlag_BTF(h_i2c1.Instance));
+        if (!retry) return STATUS_ERR;
+        LL_I2C_GenerateStopCondition(h_i2c1.Instance);
+        data_read[i++] = LL_I2C_ReceiveData8(h_i2c1.Instance);
+
+        while (!LL_I2C_IsActiveFlag_RXNE(h_i2c1.Instance));
+        data_read[i++] = LL_I2C_ReceiveData8(h_i2c1.Instance);
+    }
+
+    return status;
+}
+
+uint8_t i2c_is_busy(void) {
+    return HAL_I2C_GetState(&h_i2c1) == HAL_I2C_STATE_BUSY_TX;
 }
 
 /**
@@ -80,6 +178,8 @@ static void i2c_configure(void) {
     h_i2c1.Init.OwnAddress2 = 0;
 
     // initializes CRR/TRISE/MODE/etc.
+    h_i2c1.Instance->CR1 |= I2C_CR1_SWRST;
+    h_i2c1.Instance->CR1 &= ~I2C_CR1_SWRST;
     HAL_I2C_Init(&h_i2c1);
 }
 

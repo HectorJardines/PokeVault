@@ -8,6 +8,7 @@
 #include "movement_detect.h"
 // #include "../../Drivers/w5500_eth/TLS/SSLInterface.h"
 #include "ir_sensors.h"
+#include "security.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -49,10 +50,12 @@ static void test_movement_sens(void) {
     while (1) {
         if (movement_detected())
             printf("MOVEMENT DETECTED\r\n");
+        if (movement_stopped())
+            printf("NO MOVEMENT\r\n");
         if (movement_tap_detected()) 
             printf("DOUBLE TAP DETECTEd\r\n");
         
-        clear_movement();
+        // clear_movement();
         HAL_Delay(800);
     }
 }
@@ -215,6 +218,81 @@ static void test_lvgl_update_temp(void) {
 //         HAL_Delay(600000);
 //     }
 // }
+
+
+static void test_tag_read_data(void) {
+    uint8_t data[PICC_MEM_BLOCK_LEN];
+
+    rfid_tag_t tag;
+    tag_init();
+
+    while (1) {
+        if (tag_read_data(tag.uid, data, ITEM_SECTOR, TYPE_BLOCK)) {
+            printf("got data...\r\n");
+            HAL_Delay(1000);
+        }
+        else
+            printf("no card\r\n");
+    }
+}
+
+static void test_system_messaging(void) {
+    uint8_t status = STATUS_OK;
+    struct security_sm_t main_sm;
+    msg rx_msg = msg_init_default;
+    memset((void *)&main_sm, 0, sizeof (struct security_sm_t));
+    SystemClock_Config();
+    IO_Init();
+    display_init();
+    status |= system_monitor_init();
+    message_init();
+    status |= inventory_init();
+    security_init(&main_sm);
+
+    if (status) {
+        while (1) {}
+    }
+
+    uint32_t display_tick = HAL_GetTick(), sensor_tick = HAL_GetTick(), auth_tick = HAL_GetTick();
+    uint32_t invent_tick = HAL_GetTick();
+
+    uint32_t disp_period = 0, sens_period = 100, auth_period = 50, invent_period = 100;
+
+    while (1) {
+        if (message_available())
+            status = message_receive(&rx_msg);
+
+        if (display_is_on()) {
+            if (HAL_GetTick() - display_tick >= disp_period) {
+                disp_period = lv_timer_handler();
+                if (disp_period == LV_NO_TIMER_READY)
+                    disp_period = LV_DEF_REFR_PERIOD;
+                display_tick = HAL_GetTick();
+            }
+        }
+
+        if (HAL_GetTick() - sensor_tick >= sens_period) {
+            system_process_state();
+            sensor_tick = HAL_GetTick();
+        }
+
+        if ((HAL_GetTick() - auth_tick >= auth_period) && display_scan_cplt()) {
+            uint8_t card_present = system_check_card_auth();
+            if (card_present)
+                security_post_event(&main_sm, EVENT_TAG_AUTH);
+            auth_tick = HAL_GetTick();
+        }
+
+        if ((HAL_GetTick() - invent_tick >= invent_period) && display_scan_cplt()) {
+            uint8_t item_present = inventory_scan_for_item();
+            if (item_present == STATUS_OK)
+                security_post_event(&main_sm, EVENT_ITEM_SCAN);
+            invent_tick = HAL_GetTick();
+        }
+
+        security_run(&main_sm, NULL);
+    }
+}
 
 
 int main(void) {

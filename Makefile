@@ -22,7 +22,7 @@ TARGET = poke_vault
 # debug build?
 DEBUG = 1
 # optimization
-OPT = -Og
+OPT = -O0 -g
 
 
 #######################################
@@ -41,8 +41,6 @@ Core/Src/main.c \
 Core/Src/stm32f4xx_it.c \
 Core/Src/stm32f4xx_hal_msp.c \
 Core/Src/system_stm32f4xx.c \
-Core/Src/app/rfid_tag.c \
-Core/Src/app/message.c \
 Core/Src/common/ssd1306_fonts.c \
 Core/Src/common/ring_buffer.c \
 Core/Src/common/private.c \
@@ -60,6 +58,14 @@ Core/Src/drivers/ir_sensors.c \
 Core/Src/app/vault_main.c \
 Core/Src/test_peer.c \
 Core/Src/app/display.c \
+Core/Src/app/rfid_tag.c \
+Core/Src/app/message.c \
+Core/Src/app/security.c \
+Core/Src/app/state_armed.c \
+Core/Src/app/state_breached.c \
+Core/Src/app/state_disarmed.c \
+Core/Src/app/inventory.c \
+Core/Src/app/system_status.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_rcc.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_rtc.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_pwr.c \

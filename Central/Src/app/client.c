@@ -33,6 +33,7 @@ static https_pkt_t active_pkt;
 static int32_t tls_send_data(void);
 static int32_t tls_read_data(void);
 static uint8_t tls_parse_data(void);
+static uint8_t client_disconnect(void);
 
 
 STATIC_RING_BUFFER(post_req_q, MAX_QUEUE_LEN, net_msg_t);
@@ -59,7 +60,7 @@ uint8_t client_init(void) {
     client.sock_num = TLS_SOCK_NUM;
     client.chat_id_h = (uint32_t)(CHAT_ID / 1000000000ULL);
     client.chat_id_l = (uint32_t)(CHAT_ID % 1000000000ULL);
-    client.conn_status = 0;
+    client.flags = 0x00;
     client.msgs_avail = 0;
     client.msgs_pending = 0;
     client.update_id = 0;
@@ -85,12 +86,11 @@ uint8_t client_connect(void) {
     if (res == CLIENT_OK) {
         res = wiz_tls_connect(&client.tls_context, client.server_port, client.host_ip);
         if (res == CLIENT_OK)
-            client.conn_status = 1;
+            client.flags |= CLI_CONN_STAT_Msk; // SET CONN STATUS OK
     }
 
     return res;
 }
-
 
 
 uint8_t client_post_message(uint8_t *msg, uint16_t len) {
@@ -100,6 +100,7 @@ uint8_t client_post_message(uint8_t *msg, uint16_t len) {
 
     // we'll go with the approach of dropping messages that are taking long to be processed (avoid blocking)
     memcpy((void *) client_msg.msg_body, (void *)msg, len + 1);
+    client_msg.msg_len = len + 1;
     ring_buffer_push(&post_req_q, (void *)&client_msg);
     client.msgs_pending = ring_buffer_count(&post_req_q);
 
@@ -195,14 +196,63 @@ uint8_t client_receive(void) {
 }
 
 
+/**
+ * @brief Checks whether the client is connected
+ * 
+ * Since read and writes can trigger disconnect events, 
+ * the read/write function set flags to indicate those 
+ * disconnect events. If any are set, this function will 
+ * disconnect and return the updated status
+ *  
+ * @return 1 if connected; else 0
+ */
 uint8_t client_connected(void) {
-    return client.conn_status == 1;
+    if ((client.flags & (CLI_CONN_ERR_Msk | CLI_PCN_Msk)))
+        client_disconnect();
+    return client.flags & CLI_CONN_STAT_Msk;
 }
 
+
+/**
+ * @brief Checks if any messages are pending to be sent
+ * 
+ * 
+ */
+uint8_t client_messages_pending(void) {
+    return client.msgs_pending;
+}
 
 /***************************
  * STATIC DEFINITIONS
  ***************************/
+
+
+
+/**
+ * @brief closes the connection with the client
+ * 
+ * 
+ * The client connection may need to be closed for a number 
+ * of reason. Most notable are the peer close notify and error 
+ * events. In the former the node should send a close_notify 
+ * message before closing the connection, in the latter
+ * simply close connection and free resource and reconnect
+ * 
+ *
+ */
+static uint8_t client_disconnect(void) {
+    int32_t status = 0;
+    if (client.flags & CLI_PCN_Msk)
+        status = wiz_tls_close_notify(client.tls_context.ssl);
+    
+    close(client.sock_num);
+    status = mbedtls_ssl_session_reset(client.tls_context.ssl);
+    client.flags = 0; // RESETS ALL CLIENT FLAGS
+
+    return status;
+}
+
+
 
 //  COULD EMPLOY STATE LOGIC WHERE WE BREAK ON MBEDTLS_WANT_WRITE/READ OR WHEN BYTES READ < LEN
 //  THIS WOULD ALLOW US TO AVOID BLOCKING IN THE CASE THAT MANY CALLS TO WIZ_TLS_WRITE ARE MADE
@@ -215,6 +265,7 @@ static int32_t tls_send_data(void) {
     while ((status = wiz_tls_write(&client.tls_context, client.out_buf, strlen((const char *)client.out_buf))) <= 0) {
         if (status != MBEDTLS_ERR_SSL_WANT_READ && status != MBEDTLS_ERR_SSL_WANT_WRITE) {
             printf(" failed \n ! wiz_tls_write returned %d\n\n\r\n", status);
+            client.flags |= CLI_CONN_ERR_Msk;
             status = CLIENT_ERR;
             break;
         }
@@ -236,8 +287,10 @@ static int32_t tls_read_data(void) {
         if (status == MBEDTLS_ERR_SSL_WANT_READ || status == MBEDTLS_ERR_SSL_WANT_WRITE)
             continue; // more bytes to read
 
-        if (status == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY) // peer will send no more bytes
+        if (status == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY) { // peer will send no more bytes need to reset context
+            client.flags |= CLI_PCN_Msk;
             break;
+        }
 
         if (status < 0) {// no bytes read; some other error (there are a few errors where we simply need to retry later)
             printf(" failed \n ! wiz_tls_read returned %d\n\n\r\n", status);
@@ -245,7 +298,7 @@ static int32_t tls_read_data(void) {
         }
 
         if (status == 0) { // connection error; requires that we reset the connection
-            client.conn_status = 0;
+            client.flags |= CLI_CONN_ERR_Msk;
             break;
         }
 

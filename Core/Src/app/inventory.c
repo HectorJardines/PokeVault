@@ -10,16 +10,18 @@
 /*************************
  * STATIC DECLARATION
  ************************/
-static uint8_t inventory_item_update(void);
-
 
 static uint8_t item_type_block[PICC_MEM_BLOCK_LEN] = {0xde, 0xad, 0xbe, 0xef, 0xca, 0xfe, 0,0,0,0,0,0,0,0,0,0};
 static transaction_t active_transaction;
 // BUFFER STORES RECENT TRANSACITONS IN CASE OF MESSAGE FAILURE
 STATIC_RING_BUFFER(transaction_cache, CACHE_SIZE, transaction_t);
-/******
+
+
+/*************************
  * PUB APIs
- */
+ ***************/
+
+
 
 /**
  * @brief Initialize inventory management subsystem 

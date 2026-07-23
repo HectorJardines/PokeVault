@@ -18,7 +18,7 @@
  *****************/
 
 
-typedef struct {
+struct security_sm_t{
     state_e current_state;
     struct state_common_data common;
     struct state_armed_data armed;
@@ -26,7 +26,7 @@ typedef struct {
     struct state_breached_data breached;
 
     event_e internal_event;
-} security_sm_t;
+};
 
 /*****************
  * USER APIs
@@ -39,7 +39,7 @@ typedef struct {
  * This API intializes the keycard and line_break submodules that 
  * make up the systems security mechanisms.
  */
-void security_init(security_sm_t *);
+void security_init(struct security_sm_t *);
 
 
 
@@ -56,7 +56,7 @@ void security_init(security_sm_t *);
  * 
  * @return returns the current state of the security system
  */
-state_e security_run(security_sm_t *sec_sm, uint8_t *event_processed);
+state_e security_run(struct security_sm_t *sec_sm, uint8_t *event_processed);
 
 
 
@@ -69,7 +69,7 @@ state_e security_run(security_sm_t *sec_sm, uint8_t *event_processed);
  * 
  * @param[in] event event to post to the SM
  */
-uint8_t security_post_event(security_sm_t* sec_sm, event_e event);
+uint8_t security_post_event(struct security_sm_t* sec_sm, event_e event);
 
 
 #endif

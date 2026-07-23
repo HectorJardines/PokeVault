@@ -1,7 +1,6 @@
 #include "../../Inc/common/log.h"
 #include "../../Inc/common/defines.h"
-#include "../../../Drivers/printf/printf.h"
-#include "../Inc/drivers/rtc.h"
+#include "../../Inc/drivers/rtc.h"
 #include "spi.h"
 #include <stdio.h>
 #include <string.h>
@@ -37,10 +36,9 @@ static log_t active_log;
  * 
  */
 void log_init(void) {
-    uint8_t status = 0x00;
-    spi_init(SPI_DEVICE_BMI160);
-    status = sd_mount();
-    return status;
+    uint8_t status = STATUS_OK;
+    // spi_init(SPI_DEVICE_BMI160);
+    // status = sd_mount();
 }
 
 /**
@@ -55,7 +53,7 @@ uint8_t log_event(const char *event_msg) {
     active_log.len = strlen(event_msg);
     memcpy((void *)active_log.msg, event_msg, active_log.len);
     active_log.log_type = LOG_EVENT;
-    
+    printf(event_msg);
     // pops off any log that is taking too long to TX so we don't block
     ring_buffer_push(&log_queue, (void *)&active_log);
 
@@ -74,7 +72,7 @@ uint8_t log_transaction(const char *trans_msg) {
     active_log.len = strlen(trans_msg);
     memcpy((void *)active_log.msg, trans_msg, active_log.len);
     active_log.log_type = LOG_TRANS;
-    
+    printf(trans_msg);
     // pops off any log that is taking too long to TX so we don't block
     ring_buffer_push(&log_queue, (void *)&active_log);
 
@@ -93,6 +91,7 @@ uint8_t log_warn(const char *warn_msg) {
     memset((void *)&active_log, 0, sizeof(active_log));
     active_log.len = strlen(warn_msg);
     memcpy((void *)active_log.msg, warn_msg, active_log.len);
+    printf(warn_msg);
     active_log.log_type = LOG_ERROR;
     
     // pops off any log that is taking too long to TX so we don't block
@@ -114,7 +113,7 @@ uint8_t log_error(const char *err_msg) {
     active_log.len = strlen(err_msg);
     memcpy((void *)active_log.msg, err_msg, active_log.len);
     active_log.log_type = LOG_ERR;
-    
+    printf(err_msg);
     // pops off any log that is taking too long to TX so we don't block
     ring_buffer_push(&log_queue, (void *)&active_log);
 

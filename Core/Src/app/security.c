@@ -41,9 +41,10 @@ static transition_t transitions[NUM_TRANSITIONS] = {
 };
 
 
-static void state_enter(security_sm_t *sec_sm, transition_t trans);
-static state_e security_process_event(security_sm_t *sec_sm, event_e event);
-static event_e security_check_inputs(security_sm_t *sec_sm);
+static void state_enter(struct security_sm_t *sec_sm, transition_t trans);
+static state_e security_process_event(struct security_sm_t *sec_sm, event_e event);
+static event_e security_check_inputs(struct security_sm_t *sec_sm);
+static event_e take_internal_event(struct security_sm_t *sec_sm);
 /***********************
  * PUBLIC APIs
  *****************/
@@ -53,21 +54,21 @@ static event_e security_check_inputs(security_sm_t *sec_sm);
  * This API intializes the keycard and line_break submodules that 
  * make up the systems security mechanisms.
  */
-void security_init(security_sm_t *sec_sm) {
+void security_init(struct security_sm_t *sec_sm) {
     sec_sm->current_state = SECURITY_ARMED;
     sec_sm->common.sec_sm_data = sec_sm;
     sec_sm->common.sys_sens_status.presence = FALSE;
     sec_sm->common.sys_sens_status.no_presence = TRUE;
-    sec_sm->common.sys_sens_status.unit_opened = FALSE;
-    sec_sm->common.sys_sens_status.unit_closed = TRUE;
+    sec_sm->common.sys_sens_status.line_connected = FALSE;
+    sec_sm->common.sys_sens_status.line_broken = TRUE;
     sec_sm->common.sys_sens_status.unit_movement.motion_detected = FALSE;
     sec_sm->common.sys_sens_status.unit_movement.tap_detected = FALSE;
     sec_sm->common.sys_sens_status.temp_hum_readings.humidity = 0;
     sec_sm->common.sys_sens_status.temp_hum_readings.temp = 0;
 
-    sec_sm->armed.comm = sec_sm;
-    sec_sm->breached.comm = sec_sm;
-    sec_sm->disarmed.comm = sec_sm;
+    sec_sm->armed.comm = &sec_sm->common;
+    sec_sm->breached.comm = &sec_sm->common;
+    sec_sm->disarmed.comm = &sec_sm->common;
 
     disarmed_state_init(&sec_sm->disarmed);
     armed_state_init(&sec_sm->armed);
@@ -84,7 +85,7 @@ void security_init(security_sm_t *sec_sm) {
  * 
  * @param[in] event event to post to the SM
  */
-uint8_t security_post_event(security_sm_t* sec_sm, event_e event) {
+uint8_t security_post_event(struct security_sm_t* sec_sm, event_e event) {
     uint8_t status = STATUS_ERR;
 
     if (!HAS_INTERNAL_EVT(sec_sm)) {
@@ -111,7 +112,7 @@ uint8_t security_post_event(security_sm_t* sec_sm, event_e event) {
  * 
  * @return returns the current state of the security system
  */
-state_e security_run(security_sm_t *sec_sm, uint8_t *event_processed) {
+state_e security_run(struct security_sm_t *sec_sm, uint8_t *event_processed) {
     event_e event = security_check_inputs(sec_sm);
     return security_process_event(sec_sm, event);
 }
@@ -121,7 +122,7 @@ state_e security_run(security_sm_t *sec_sm, uint8_t *event_processed) {
  * STATIC DECLARATIONS
  **********************/
 
-static void state_enter(security_sm_t *sec_sm, transition_t trans) {
+static void state_enter(struct security_sm_t *sec_sm, transition_t trans) {
     if (sec_sm->current_state != trans.to)
         sec_sm->current_state = trans.to;
     
@@ -142,7 +143,7 @@ static void state_enter(security_sm_t *sec_sm, transition_t trans) {
 /**
  * @brief Updates the current security state based on the current readings
  */
-static state_e security_process_event(security_sm_t *sec_sm, event_e event) {
+static state_e security_process_event(struct security_sm_t *sec_sm, event_e event) {
     state_e curr_state = sec_sm->current_state;
 
     for (uint8_t i = 0; i < NUM_TRANSITIONS; ++i) {
@@ -166,19 +167,23 @@ static state_e security_process_event(security_sm_t *sec_sm, event_e event) {
  * the security system depending on the combination of 
  * values.
  */
-static event_e security_check_inputs(security_sm_t *sec_sm) {
+static event_e security_check_inputs(struct security_sm_t *sec_sm) {
     event_e event = EVENT_NONE;
     system_retrieve_state(&sec_sm->common.sys_sens_status);
 
     // events processed in order of importance
     if (HAS_INTERNAL_EVT(sec_sm))
         event = take_internal_event(sec_sm);
-    else if (sec_sm->common.sys_sens_status.unit_opened)
+    else if (sec_sm->common.sys_sens_status.line_connected && !sec_sm->common.is_open) {
         event = EVENT_UNIT_OPENED;
+        sec_sm->common.is_open = TRUE;
+    }
     else if (sec_sm->common.sys_sens_status.unit_movement.motion_detected)
         event = EVENT_UNIT_MOVED;
-    else if (sec_sm->common.sys_sens_status.unit_closed)
+    else if (sec_sm->common.sys_sens_status.line_broken && sec_sm->common.is_open) {
         event = EVENT_UNIT_CLOSED;
+        sec_sm->common.is_open = FALSE;
+    }
 
     return event;
 }
@@ -189,7 +194,7 @@ static event_e security_check_inputs(security_sm_t *sec_sm) {
  * 
  * 
  */
-static event_e take_internal_event(security_sm_t *sec_sm) {
+static event_e take_internal_event(struct security_sm_t *sec_sm) {
     uint8_t event = sec_sm->internal_event;
     sec_sm->internal_event = EVENT_NONE;
     return event;

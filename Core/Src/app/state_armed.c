@@ -45,10 +45,12 @@ void armed_state_enter(struct state_armed_data *data, state_e from, event_e even
     case SECURITY_DISARMED:
         switch (event) {
         case EVENT_UNIT_CLOSED:
+            display_refresh_value(LABEL_STATUS, 1);
             msg closed_msg = msg_init_default;
             closed_msg.node_id = NODE_ID;
-            closed_msg.which_payload = msg_type_event_tag;
-            closed_msg.payload.type_event.type = MSG_EVENT_UNIT_CLOSE;
+            closed_msg.which_payload = msg_type_alert_tag;
+            closed_msg.payload.type_alert.type = ALERT_SEC_STATUS_CHANGE;
+            closed_msg.payload.type_alert.value = 1;
             message_send(&closed_msg);
 
             armed_state_run(data);

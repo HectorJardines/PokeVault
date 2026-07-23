@@ -21,8 +21,8 @@
  **********************/
 
 typedef struct {
-    uint8_t unit_opened;
-    uint8_t unit_closed;
+    uint8_t line_broken;
+    uint8_t line_connected;
     uint8_t presence;
     uint8_t no_presence;
     movement_state_t unit_movement;

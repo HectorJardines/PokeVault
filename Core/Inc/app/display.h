@@ -4,6 +4,12 @@
 #include "../../../Drivers/lvgl-master/lvgl.h"
 #include "../drivers/ssd1306.h"
 
+typedef enum {
+    LABEL_HUM,
+    LABEL_TEMP,
+    LABEL_STATUS
+} disp_label_e;
+
 /**
  * @brief Intializes display GUI
  * 
@@ -22,6 +28,32 @@ void display_init(void);
  * @return 1 if display is ON; else 0
  */
 uint8_t display_is_on(void);
+
+
+
+/**
+ * @brief Returns whether display scan visual is complete
+ * 
+ * This function should be called before scanning for any 
+ * tags. Helps to mitigate multiple scans since MCU is much 
+ * faster than user in terms of "scanning" items.
+ * 
+ * @return 1 if visual is complete; 0 else
+ */
+uint8_t display_scan_cplt(void);
+
+
+/**
+ * @brief Refresh temp/humidity value on screen
+ * 
+ * 
+ * @param[in] val
+ * @param[in] hum_or_temp
+ * 
+ * @return 0 on success; else 1
+ */
+uint8_t display_refresh_value(disp_label_e hum_or_temp, uint16_t val);
+
 
 /**
  * @brief Turn the display ON allowing UI interaction

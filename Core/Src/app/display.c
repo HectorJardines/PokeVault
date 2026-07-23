@@ -1,6 +1,7 @@
 #include "../../Inc/app/display.h"
 #include "../ui/ui.h"
 #include "../../../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h"
+#include "../../Inc/common/defines.h"
 
 #define DISPLAY_WIDTH   (128U)
 #define DISPLAY_HEIGHT  (64U)
@@ -9,7 +10,8 @@
 #define HTILE_BUF_SIZE (((DISPLAY_HEIGHT * DISPLAY_WIDTH)  >> 3) + 8)
 #define VTILE_BUF_SIZE (DISPLAY_WIDTH * (DISPLAY_HEIGHT >> 3))
 
-#define DISP_ON_Msk    (0x1)
+#define DISP_ON_Msk         (0x1)
+#define DISP_SCAN_CPLT_Msk  (0x1 << 1)
 /**************************
  * STATIC DECLARTATIONS
  ***********************/
@@ -17,14 +19,16 @@ static void lvgl_flush_cb(lv_display_t *display, const lv_area_t *area, uint8_t 
 static void lvgl_flush_wait_cb(lv_display_t *display);
 static void lv_round_area_dimensions_cb(lv_event_t *event);
 static void change_screen_cb(lv_timer_t *tim);
-void lv_display_flushed_cb(DMA_HandleTypeDef *h_dma);
 
 static uint8_t htiled_buf[HTILE_BUF_SIZE] = {0};
 static uint8_t vtiled_buf[VTILE_BUF_SIZE] = {0};
 static lv_display_t *display = NULL;
 static lv_timer_t *tim = NULL;
 static uint16_t curr_screen_id = SCREEN_ID_MAIN;
-static uint8_t flags = 0x00;
+static uint8_t flags = 0x00 | (DISP_ON_Msk | DISP_SCAN_CPLT_Msk);
+static char armed_val[9] = {'A', 'r', 'm', 'e', 'd', '\0'};
+static char temp_val[4] = {'6', '7', '\0'};
+static char hum_val[4] = {'6', '7', '\0'};
 /*****************
  * PUBLIC APIs
  *****************/
@@ -33,7 +37,6 @@ static uint8_t flags = 0x00;
 static uint8_t initialized = 0;
 void display_init(void) {
     lv_init();
-    // ssd1306_install_flush_cb(lv_display_flushed_cb);
     ssd1306_init();
     display = lv_display_create(DISPLAY_WIDTH, DISPLAY_HEIGHT);
     lv_tick_set_cb(HAL_GetTick);
@@ -52,6 +55,10 @@ void display_init(void) {
     lv_timer_pause(tim);
 
     ui_init();
+
+    lv_label_set_text_static(objects.label_hum_val, hum_val);
+    lv_label_set_text_static(objects.label_temp_val, temp_val);
+    lv_label_set_text_static(objects.label_armed_status_val, armed_val);
 }
 
 
@@ -66,6 +73,20 @@ void display_init(void) {
  */
 uint8_t display_is_on(void) {
     return flags & DISP_ON_Msk;
+}
+
+
+/**
+ * @brief Returns whether display scan visual is complete
+ * 
+ * This function should be called before scanning for any 
+ * tags. Helps to mitigate multiple scans since MCU is much 
+ * faster than user in terms of "scanning" items.
+ * 
+ * @return 1 if visual is complete; 0 else
+ */
+uint8_t display_scan_cplt(void) {
+    return flags & DISP_SCAN_CPLT_Msk;
 }
 
 
@@ -96,7 +117,7 @@ void display_wake(void) {
  */
 void display_sleep(void) {
     // puts the display into sleep mode
-    ssd1306_display_ctl(1);
+    ssd1306_display_ctl(0);
     // additional logic to pause lvgl updates and such
     flags &= ~DISP_ON_Msk;
 }
@@ -107,6 +128,7 @@ void display_change_screen(struct _lv_obj_t *screen, uint16_t screen_id) {
     if (screen == NULL) {
         screen = objects.item_scanning;
         curr_screen_id = SCREEN_ID_ITEM_SCANNING;
+        flags &= ~(DISP_SCAN_CPLT_Msk);
     }
     else
         curr_screen_id = screen_id;
@@ -117,6 +139,42 @@ void display_change_screen(struct _lv_obj_t *screen, uint16_t screen_id) {
         lv_timer_set_user_data(tim, (void *)&curr_screen_id);
         lv_timer_resume(tim);
     }
+    else
+        flags |= (DISP_SCAN_CPLT_Msk);
+}
+
+
+/**
+ * @brief Refresh temp/humidity value on screen
+ * 
+ * 
+ * @param[in] val
+ * @param[in] hum_or_temp
+ * 
+ * @return 0 on success; else 1
+ */
+uint8_t display_refresh_value(disp_label_e label, uint16_t val) {
+    switch (label) {
+    case LABEL_HUM:
+        lv_snprintf(hum_val, sizeof(hum_val), "%d", val);
+        lv_label_set_text_static(objects.label_hum_val, NULL);
+        break;
+    case LABEL_TEMP:
+        lv_snprintf(temp_val, sizeof(temp_val), "%d", val);
+        lv_label_set_text_static(objects.label_temp_val, NULL);
+        break;
+    case LABEL_STATUS:
+        lv_memset(armed_val, 0, sizeof(armed_val));
+        if (val == 1)
+            lv_snprintf(armed_val, sizeof(armed_val),  "Armed");
+        else if (val == 0)
+            lv_snprintf(armed_val, sizeof(armed_val),  "Disarmed");
+
+        lv_label_set_text_static(objects.label_armed_status_val, NULL);
+        break;
+    }
+    
+    return STATUS_OK;
 }
 
 

@@ -28,17 +28,19 @@
 #define HTTPS_SERVER_PORT       (443U)
 #define TLS_SOCK_NUM            (0U)
 
+#define CLI_CONN_STAT_Msk       (0x01U)
+#define CLI_CONN_ERR_Msk        (0x01U << 1)
+#define CLI_PCN_Msk             (0x01U << 2)
 
 
 typedef struct {
     uint8_t https_req[MAX_HTTPS_REQ_LEN];
     uint8_t out_buf[MAX_HTTPS_OUTPUT_LEN];
-    uint8_t message[MAX_CLIENT_MSG_LEN];
     uint8_t host_ip[IPv4_ADDR_LEN];
     uint8_t host_name[MAX_HOST_NAME_LEN];
     uint8_t token[API_TOKEN_LEN];               /* TELEGRAM BOT API TOKEN */
 
-    uint8_t conn_status;
+    uint8_t flags;
     uint8_t msgs_avail;                 /* NUMBER OF MSGS AVAILABLE FOR READ */
     uint8_t msgs_pending;               /* NUMBER OF MSGS PENDING SEND */
     uint8_t sock_num;                   /* W5500 SOCKET NUMBER IN USE */
@@ -51,10 +53,15 @@ typedef struct {
     wiz_NetInfo ethernet_context;
 } client_context_t;
 
-
+typedef enum {
+    DISCONNECT_ERR,
+    DISCONNECT_PCN      /* PEER CLOSE NOTIFY */
+} disc_cause_e;
 
 typedef enum {
     CLIENT_OK,
+    CLIENT_DC_ERR,
+    CLIENT_DC_PCN,
     CLIENT_ERR,
     CLIENT_IDLE
 } client_status_e;
@@ -138,5 +145,13 @@ uint8_t client_retrieve_message(uint8_t *msg, uint16_t *len);
  * 
  */
 uint8_t client_connected(void);
+
+
+/**
+ * @brief Checks if any messages are pending to be sent
+ * 
+ * 
+ */
+uint8_t client_messages_pending(void);
 
 #endif /* _CLIENT_H */

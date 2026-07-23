@@ -26,12 +26,15 @@ uint8_t aht20_init(void) {
     i2c_init(I2C_DEVICE_AHT20);
     status = aht20_power_on();
 
-    if (!status)
+    if (status) { //  calibration bit set
         intialized = 1;
+        status = 0;
+    }
     return status;
 }
 
 uint8_t aht20_read_data(aht20_data_t *data) {
+    while (i2c_is_busy());
     uint8_t rslt = 0;
     // start measurement for all sensors
     rslt |= aht20_start_measurement();

@@ -1,8 +1,10 @@
 #include "movement_detect.h"
 #include "io.h"
 #include "i2c.h"
+#include <stdio.h>
 
 #define DEV_ID  (0x68)
+#define MAX_IMU_TX_LEN (64)
 
 /*************************
  * STATIC DECLARATIONS
@@ -37,7 +39,7 @@ uint8_t movement_init(void) {
         status = configure_bmi160_dev();
         if (status == STATUS_OK) {
             status = configure_bmi160_int();
-            if (status)
+            if (!status)
                 initialized = INITIALIZED;
         }
     }
@@ -56,6 +58,13 @@ uint8_t movement_init(void) {
  * @return 1 on movement detected; 0 else
  */
 uint8_t movement_detected(void) {
+    union bmi160_int_status stat;
+    uint8_t byte = 0x00;
+    bmi160_get_regs(BMI160_INT_ENABLE_0_ADDR, &byte, 1, &h_imu.conf);
+    printf("INT CONFIG: %x\r\n", byte);
+    bmi160_get_int_status(BMI160_INT_STATUS_0, &stat, &h_imu.conf);
+    
+    printf("INT BIT: %d\r\n", stat.bit.anym);
     uint8_t movement = unit_movement.motion_detected;
     return movement;
 }
@@ -125,7 +134,7 @@ static uint8_t configure_bmi160_int(void) {
     h_imu.anym.int_pin_settg.output_mode = BMI160_ENABLE; // OPEN_DRAIN OUTPUT MODE
     h_imu.anym.int_pin_settg.output_type = BMI160_DISABLE; // ACTIVE LOW INTERRUPT MODE
     h_imu.anym.int_pin_settg.input_en = BMI160_DISABLE;
-    h_imu.anym.int_pin_settg.latch_dur = BMI160_LATCH_DUR_NONE;
+    h_imu.anym.int_pin_settg.latch_dur = BMI160_LATCH_DUR_10_MILLI_SEC;
     h_imu.anym.int_channel = BMI160_INT_CHANNEL_1; // SET INTERRUPT ON PIN 1
 
     h_imu.anym.int_type = BMI160_ACC_ANY_MOTION_INT;
@@ -133,12 +142,11 @@ static uint8_t configure_bmi160_int(void) {
     h_imu.anym.int_type_cfg.acc_any_motion_int.anymotion_y = BMI160_ENABLE;
     h_imu.anym.int_type_cfg.acc_any_motion_int.anymotion_z = BMI160_ENABLE;
     h_imu.anym.int_type_cfg.acc_any_motion_int.anymotion_en = BMI160_ENABLE;
-    h_imu.anym.int_type_cfg.acc_any_motion_int.anymotion_dur = (uint8_t)0x0U;
-    h_imu.anym.int_type_cfg.acc_any_motion_int.anymotion_thr = 5; // TODO: ADJUST THIS VALUE IN PRACTICE ( 20 * 15.63mg/LSB = 312.6 mg of force change )
+    h_imu.anym.int_type_cfg.acc_any_motion_int.anymotion_dur = (uint8_t)0x2U;
+    h_imu.anym.int_type_cfg.acc_any_motion_int.anymotion_thr = 10; // TODO: ADJUST THIS VALUE IN PRACTICE ( 20 * 15.63mg/LSB = 312.6 mg of force change )
     h_imu.anym.int_type_cfg.acc_any_motion_int.anymotion_data_src = BMI160_DISABLE; // pre-filter data src
 
     status = bmi160_set_int_config(&h_imu.anym, &h_imu.conf);
-    
 
     if (status == STATUS_OK) {
         // CONFIGURE INT2 PIN FOR DOUBLE TAP INTERRUPTS
@@ -147,7 +155,7 @@ static uint8_t configure_bmi160_int(void) {
         h_imu.dtap.int_pin_settg.output_mode = BMI160_ENABLE; // open-drain
         h_imu.dtap.int_pin_settg.output_type = BMI160_DISABLE; // active low
         h_imu.dtap.int_pin_settg.input_en = BMI160_DISABLE;
-        h_imu.dtap.int_pin_settg.latch_dur = BMI160_LATCH_DUR_NONE; // disbale int latching
+        h_imu.dtap.int_pin_settg.latch_dur = BMI160_LATCH_DUR_10_MILLI_SEC; // disbale int latching
         h_imu.dtap.int_channel = BMI160_INT_CHANNEL_2;
 
         h_imu.dtap.int_type = BMI160_ACC_DOUBLE_TAP_INT;
@@ -186,18 +194,15 @@ static void movement_int_dtap_isr(void) {
 
 static int8_t i2c_tx_wrapper(uint8_t dev_addr, uint8_t reg_addr, uint8_t *data, uint16_t len) {
     int8_t status = STATUS_OK;
-    status = i2c_transmit(dev_addr, &reg_addr, 1); // send reg addr first
-    if (status == STATUS_OK)
-        status = i2c_transmit(dev_addr, data, len);
+    uint8_t buf[MAX_IMU_TX_LEN];
+    buf[0] = reg_addr;
+    memcpy((void *)&buf[1], (const void *)data, len);
+    status = i2c_transmit(dev_addr, buf, len + 1); // send reg addr first
     return status;
 }
 
 
 static int8_t i2c_rx_wrapper(uint8_t dev_addr, uint8_t reg_addr, uint8_t *data, uint16_t len) {
-    int8_t status = STATUS_OK;
-    status = i2c_transmit(dev_addr, &reg_addr, 1);
-    if (status == STATUS_OK)
-        status = i2c_receive(dev_addr, data, len);
-    return status;
+    return i2c_write_read(dev_addr, reg_addr, data, len);
 }
 

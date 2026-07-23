@@ -36,7 +36,6 @@ void central_node_init(void) {
     register_peer_rx_cplt_cb(node_poll_complete_cb);
     c_message_init();
     client_init();
-    client_connect();
     tag_init();
     // c_inventory_init();
     
@@ -184,7 +183,7 @@ static uint8_t handle_alert_msg(msg *alert) {
         status = client_post_message(alert_body, len);
         break;
     case ALERT_SYS_TEMP:
-        len = snprintf((char *)alert_body, MAX_HTTPS_BODY_LEN, "WARN: UNIT %d EXCESS TEMP - %d°C",
+        len = snprintf((char *)alert_body, MAX_HTTPS_BODY_LEN, "WARN: UNIT %d EXCESS TEMP - %dC",
                 alert->node_id, alert->payload.type_alert.value);
         status = client_post_message(alert_body, len);
         break;

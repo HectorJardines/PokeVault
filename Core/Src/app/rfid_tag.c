@@ -2,17 +2,19 @@
 #include "../Inc/drivers/spi.h"
 #include "../Inc/drivers/mfrc522.h"
 #include "common/defines.h"
+#include "display.h"
+#include <string.h>
 
 #define BLOCKS_PER_SECTOR   (4U)
 #define NUM_OF_ALLOWED_TAGS     (2U)
 #define UID_FOUND   (1U)
 #define UID_UNKNOWN (0U)
 
-typedef struct {
-    uint8_t buf[PICC_MEM_BLOCK_LEN];
-    uint8_t uid[UID_LEN_BYTES];
-    uint8_t sec_key[SEC_KEY_LEN];
-} rfid_tag_t;
+// typedef struct {
+//     uint8_t buf[PICC_MEM_BLOCK_LEN];
+//     uint8_t uid[UID_LEN_BYTES];
+//     uint8_t sec_key[SEC_KEY_LEN];
+// } rfid_tag_t;
 
 /***********************
  * STATIC DECLARATIONS
@@ -80,11 +82,16 @@ static mfrc_status_e tag_scan_and_select(uint8_t *card_buf, uint8_t *card_uid);
  * PUBLIC APIs
  *******************/
 
+
+static uint8_t initialized = 0;
 /**
  * @brief Initializes the RFID keycard reader
  */
 uint8_t tag_init(void) {
-    mfrc522_init();
+    if (!initialized) {
+        mfrc522_init();
+        initialized = 1;
+    }
     return MFRC_OK;
 }
 
@@ -212,17 +219,19 @@ tag_status_e tag_forget(void) {
 
 
 uint8_t tag_read_data(uint8_t *uid, uint8_t *tag_data, uint8_t sector, uint8_t block) {
-    uint8_t status = STATUS_OK;
+    uint8_t status = STATUS_ERR;
     memset((void *)&active_tag, 0, sizeof(active_tag));
 
     status = tag_scan_and_select(active_tag.buf, uid);
     if (status == STATUS_OK) {
-        status = mfrc522_auth(PICC_AUTH_A, (sector * BLOCKS_PER_SECTOR) + SECTOR_TRAIL_BLOCK, active_tag.sec_key, uid);
+        display_change_screen(NULL, 0);
+        status = mfrc522_auth(PICC_AUTH_A, (sector * BLOCKS_PER_SECTOR) + SECTOR_TRAIL_BLOCK, default_sec_key, uid);
 
         if (status == STATUS_OK) {
-            status = mfrc_picc_read(block, tag_data);
+            status = mfrc_picc_read((sector * BLOCKS_PER_SECTOR) + block, tag_data);
             TM_MFRC522_Crypto_Off();
         }
+        mfrc_halt();
     }
 
     return status;
@@ -273,7 +282,7 @@ static mfrc_status_e tag_scan_and_select(uint8_t *card_buf, uint8_t *card_uid) {
         HAL_Delay(1);
         mfrc_stat = mfrc_anticollision(card_buf);
         if (mfrc_stat == MFRC_OK) {
-            for (uint8_t i = 0; i < UID_LEN_BYTES; ++i)
+            for (uint8_t i = 0; i < SER_NUM_LEN_BYTES; ++i)
                 card_uid[i] = card_buf[i];
             // 3. select tag
             HAL_Delay(1);

@@ -4,6 +4,8 @@
 #include "rfid_tag.h"
 
 
+#define TEMP_DELTA          (2U)
+#define HUM_DELTA           (2U)
 #define EXCESS_TEMP_THRSH   (26) // in celcius
 #define EXCESS_HUM_THRSH    (60) // percentage
 #define TEMP    (0U)
@@ -14,6 +16,7 @@
  ************************/
 static uint8_t handle_excess_temp_hum(uint32_t value, uint8_t temp_or_hum);
 static uint8_t handle_presence_detect(void);
+static uint8_t handle_presence_gone(void);
 
 const static uint8_t auth_card_type[PICC_MEM_BLOCK_LEN] = {0xca, 0xfe, 0xbe, 0xef, 0xde, 0xad, 0,0,0,0,0,0,0,0,0,0};
 static system_info_t active_sys_state;
@@ -60,10 +63,10 @@ uint8_t system_retrieve_state(system_info_t *sys_state) {
     // unit open/close and presence detection logic
     ir_sens_state_t sens_status;
     ir_read_sens_state(&sens_status);
-    sys_state->unit_opened = (sens_status.line_state == IR_LINE_CONNECTED && sys_state->unit_opened == 0);
-    sys_state->unit_closed = (sens_status.line_state == IR_LINE_BROKEN && sys_state->unit_closed == 0);
-    sys_state->presence = (sens_status.presence_state == PIR_PRESENCE && sys_state->presence == 0);
-    sys_state->no_presence = (sens_status.presence_state == PIR_NO_PRESENCE && sys_state->no_presence == 0);
+    sys_state->line_connected = (sens_status.line_state == IR_LINE_CONNECTED);
+    sys_state->line_broken = (sens_status.line_state == IR_LINE_BROKEN);
+    sys_state->presence = (sens_status.presence_state == PIR_PRESENCE);
+    sys_state->no_presence = (sens_status.presence_state == PIR_NO_PRESENCE);
 
 
     status = aht20_read_data(&sys_state->temp_hum_readings);
@@ -84,15 +87,29 @@ uint8_t system_retrieve_state(system_info_t *sys_state) {
  * 
  */
 uint8_t system_process_state(void) {
-    uint8_t status = system_retrieve_state(&active_sys_state);
+    system_info_t tmp;
+    uint8_t status = system_retrieve_state(&tmp);
 
-    if (active_sys_state.temp_hum_readings.temp > EXCESS_TEMP_THRSH)
-        status |= handle_excess_temp_hum(active_sys_state.temp_hum_readings.temp, TEMP);
-    if (active_sys_state.temp_hum_readings.humidity > EXCESS_HUM_THRSH)
-        status |= handle_excess_temp_hum(active_sys_state.temp_hum_readings.humidity, HUM);
-    if (active_sys_state.presence)
-        status |= handle_presence_detect();
+    if (status == STATUS_OK) {
 
+        if (tmp.temp_hum_readings.temp != active_sys_state.temp_hum_readings.temp)
+            status |= display_refresh_value(LABEL_TEMP, tmp.temp_hum_readings.temp);
+        if (tmp.temp_hum_readings.humidity != active_sys_state.temp_hum_readings.humidity)
+            status |= display_refresh_value(LABEL_HUM, tmp.temp_hum_readings.humidity);
+
+        if (tmp.temp_hum_readings.temp > EXCESS_TEMP_THRSH && 
+            (tmp.temp_hum_readings.temp > active_sys_state.temp_hum_readings.temp + TEMP_DELTA)) // don't want to spam messages
+            status |= handle_excess_temp_hum(tmp.temp_hum_readings.temp, TEMP);
+        if (tmp.temp_hum_readings.humidity > EXCESS_HUM_THRSH && 
+            (tmp.temp_hum_readings.humidity > active_sys_state.temp_hum_readings.humidity + HUM_DELTA))
+            status |= handle_excess_temp_hum(tmp.temp_hum_readings.humidity, HUM);
+        if (tmp.presence && active_sys_state.no_presence) // if hasn't changed back to no presence don't alert again
+            status |= handle_presence_detect();
+        if (tmp.no_presence && active_sys_state.presence) // same logic
+            status |= handle_presence_gone();
+
+        memcpy((void *)&active_sys_state, (void *)&tmp, sizeof(system_info_t));
+    }
     return status;
 }
 
@@ -114,6 +131,7 @@ uint8_t system_process_state(void) {
 uint8_t system_check_card_auth(void) {
     uint8_t is_auth = 1, status = STATUS_OK;
     uint8_t tag_data[PICC_MEM_BLOCK_LEN];
+    uint8_t dummy;
 
     status = tag_read_data(active_sys_state.prev_uid, tag_data, ITEM_SECTOR, TYPE_BLOCK);
     if (status == STATUS_OK) {
@@ -124,6 +142,8 @@ uint8_t system_check_card_auth(void) {
             }
         }
     }
+    else 
+        is_auth = 0;
 
     return is_auth;
 }
