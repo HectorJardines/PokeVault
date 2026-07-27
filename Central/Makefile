@@ -88,10 +88,6 @@ Src/app/client.c \
 rwildcard = $(foreach d,$(wildcard $(1)*),$(call rwildcard,$(d)/,$(2)) $(filter $(subst *,%,$(2)),$(d)))
 
 # 4. Grab EVERY single C file inside LVGL recursively
-C_SOURCES += $(call rwildcard, ../Middlewares/Third_Party/FatFs/src/,*.c)
-C_SOURCES += $(call rwildcard, ../Core/src/ui/,*.c)
-C_SOURCES += $(call rwildcard, ../Drivers/lvgl-master/src/,*.c)
-C_SOURCES += $(call rwildcard, ../Drivers/w5500_eth/,*.c)
 C_SOURCES += $(call rwildcard, ../Drivers/nanopb/,*.c)
 
 # 5. Force Unix slash compliance for Make safety

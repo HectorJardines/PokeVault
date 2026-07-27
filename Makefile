@@ -13,8 +13,8 @@
 ######################################
 # target
 ######################################
-TARGET = poke_vault
-
+PEER = poke_vault_peer
+CONTROLLER = poke_vault_ctlr
 
 ######################################
 # building variables
@@ -37,35 +37,15 @@ BUILD_DIR = build
 # C sources
 # Core/Src/app/security.c
 C_SOURCES =  \
-Core/Src/main.c \
-Core/Src/stm32f4xx_it.c \
-Core/Src/stm32f4xx_hal_msp.c \
-Core/Src/system_stm32f4xx.c \
 Core/Src/common/ssd1306_fonts.c \
 Core/Src/common/ring_buffer.c \
 Core/Src/common/private.c \
 Core/Src/common/trace.c \
 Core/Src/drivers/rs485_cobs.c \
-Core/Src/drivers/adc.c \
-Core/Src/drivers/aht20.c \
 Core/Src/drivers/i2c.c \
-Core/Src/drivers/io.c \
 Core/Src/drivers/mfrc522.c \
 Core/Src/drivers/spi.c \
 Core/Src/drivers/ssd1306.c \
-Core/Src/drivers/movement_detect.c \
-Core/Src/drivers/ir_sensors.c \
-Core/Src/app/vault_main.c \
-Core/Src/test_peer.c \
-Core/Src/app/display.c \
-Core/Src/app/rfid_tag.c \
-Core/Src/app/message.c \
-Core/Src/app/security.c \
-Core/Src/app/state_armed.c \
-Core/Src/app/state_breached.c \
-Core/Src/app/state_disarmed.c \
-Core/Src/app/inventory.c \
-Core/Src/app/system_status.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_rcc.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_rtc.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_pwr.c \
@@ -93,13 +73,66 @@ rwildcard = $(foreach d,$(wildcard $(1)*),$(call rwildcard,$(d)/,$(2)) $(filter 
 
 # 4. Grab EVERY single C file inside LVGL recursively
 C_SOURCES += $(call rwildcard,Drivers/lvgl-master/src/,*.c)
-C_SOURCES += $(call rwildcard, Core/src/ui/,*.c)
 C_SOURCES += $(call rwildcard, Drivers/nanopb/,*.c)
-C_SOURCES += $(call rwildcard, Drivers/bmi160/,*.c)
-# C_SOURCES += $(call rwildcard, Drivers/w5500_eth/W5500/,*.c)
+
+
+C_PEER_SOURCES = \
+Core/Src/main.c \
+Core/Src/stm32f4xx_it.c \
+Core/Src/stm32f4xx_hal_msp.c \
+Core/Src/system_stm32f4xx.c \
+Core/Src/drivers/adc.c \
+Core/Src/drivers/aht20.c \
+Core/Src/drivers/io.c \
+Core/Src/drivers/movement_detect.c \
+Core/Src/drivers/ir_sensors.c \
+Core/Src/app/vault_main.c \
+Core/Src/test_peer.c \
+Core/Src/app/display.c \
+Core/Src/app/rfid_tag.c \
+Core/Src/app/message.c \
+Core/Src/app/security.c \
+Core/Src/app/state_armed.c \
+Core/Src/app/state_breached.c \
+Core/Src/app/state_disarmed.c \
+Core/Src/app/inventory.c \
+Core/Src/app/system_status.c \
+
+C_PEER_SOURCES += $(call rwildcard, Core/src/ui/,*.c)
+C_PEER_SOURCES += $(call rwildcard, Drivers/bmi160/,*.c)
+C_PEER_SOURCES += $(C_SOURCES)
+
+C_CTLR_SOURCES = \
+Central/Src/main.c \
+Central/Src/stm32f4xx_it.c \
+Central/Src/stm32f4xx_hal_msp.c \
+Central/Src/system_stm32f4xx.c \
+Central/Src/app/rfid_tag.c \
+Central/Src/app/inventory.c \
+Central/Src/app/central_message.c \
+Central/Src/app/central_node.c \
+Central/Src/drivers/w5500_ethernet.c \
+Central/Src/drivers/sd_diskio_spi.c \
+Central/Src/drivers/sd_functions.c \
+Central/Src/drivers/sd_spi.c \
+Central/Src/test_central_node.c \
+Central/Src/common/log.c \
+Central/Src/app/client.c \
+Central/Src/drivers/io.c \
+Central/Src/drivers/rtc.c \
+FreeRTOS_WrkSpace/ARM_CM4F/port.c \
+FreeRTOS_WrkSpace/MemMang/heap_4.c \
+
+C_CTLR_SOURCES += $(call rwildcard, FreeRTOS_WrkSpace/source/,*.c)
+C_CTLR_SOURCES += $(call rwildcard, Middlewares/Third_Party/FatFs/src/,*.c)
+C_CTLR_SOURCES += $(call rwildcard, Central/src/ui/,*.c)
+C_CTLR_SOURCES += $(call rwildcard, Drivers/w5500_eth/,*.c)
+C_CTLR_SOURCES += $(C_SOURCES)
+
 
 # 5. Force Unix slash compliance for Make safety
-C_SOURCES_CLEAN = $(subst \,/,$(C_SOURCES))
+C_P_SOURCES_CLEAN = $(subst \,/,$(C_PEER_SOURCES))
+C_C_SOURCES_CLEAN = $(subst \,/,$(C_CTLR_SOURCES))
 # ASM sources
 ASM_SOURCES =  \
 startup_stm32f411xe.s
@@ -166,24 +199,50 @@ AS_INCLUDES =
 C_INCLUDES =  \
 -IDrivers/lvgl-master/ \
 -IDrivers/lvgl-master/src/ \
--ICore/Inc \
 -IDrivers/STM32F4xx_HAL_Driver/Inc \
 -IDrivers/STM32F4xx_HAL_Driver/Inc/Legacy \
 -IDrivers/CMSIS/Device/ST/STM32F4xx/Include \
 -IDrivers/CMSIS/Include \
+
+
+C_P_INCLUDES = \
+-ICore/Inc \
 -ICore/Inc/app \
 -ICore/Inc/common \
--ICore/Inc/drivers \
 -ICore/Src/ui \
+-ICore/Inc/drivers 
 
-INC_DIRS = $(sort $(dir $(C_SOURCES_CLEAN)))
-INC_DIRS_FILTERED = $(filter-out Drivers/lvgl-master/src/%, $(INC_DIRS))
-C_INCLUDES += $(addprefix -I, $(INC_DIRS_FILTERED))
+C_P_INCLUDES += $(C_INCLUDES)
+
+P_INC_DIRS = $(sort $(dir $(C_P_SOURCES_CLEAN)))
+P_INC_DIRS_FILTERED = $(filter-out Drivers/lvgl-master/src/%, $(P_INC_DIRS))
+C_P_INCLUDES += $(addprefix -I, $(P_INC_DIRS_FILTERED))
+
+
+C_C_INCLUDES = \
+-ICentral/Inc/ \
+-IDrivers/w5500_eth/ \
+-IDrivers/w5500_eth/DHCP \
+-IDrivers/w5500_eth/DNS \
+-IDrivers/w5500_eth/W5500 \
+-ICentral/Inc/app \
+-ICore/Inc/common \
+-ICore/Inc/drivers \
+-IFreeRTOS_WrkSpace/ \
+-IFreeRTOS_WrkSpace/ARM_CM4F/ \
+-IFreeRTOS_WrkSpace/include/ \
+
+C_C_INCLUDES += $(C_INCLUDES)
+
+C_INC_DIRS = $(sort $(dir $(C_C_SOURCES_CLEAN)))
+C_INC_DIRS_FILTERED = $(filter-out Drivers/lvgl-master/src/%, $(C_INC_DIRS))
+C_C_INCLUDES += $(addprefix -I, $(C_INC_DIRS_FILTERED))
 
 # compile gcc flags
 ASFLAGS = $(MCU) $(AS_DEFS) $(AS_INCLUDES) $(OPT) -Wall -fdata-sections -ffunction-sections
 
-CFLAGS += $(MCU) $(C_DEFS) $(C_INCLUDES) $(OPT) -Wall -fdata-sections -ffunction-sections
+P_CFLAGS += $(MCU) $(C_DEFS) $(C_P_INCLUDES) $(OPT) -Wall -fdata-sections -ffunction-sections
+C_CFLAGS += $(MCU) $(C_DEFS) $(C_C_INCLUDES) $(OPT) -Wall -fdata-sections -ffunction-sections
 
 ifeq ($(DEBUG), 1)
 CFLAGS += -g -gdwarf-2 -fdata-sections -ffunction-sections -g3
@@ -192,6 +251,9 @@ endif
 
 # Generate dependency information
 CFLAGS += -MMD -MP -MF"$(@:%.o=%.d)"
+
+C_CFLAGS += $(CFLAGS)
+P_CFLAGS += $(CFLAGS)
 
 
 #######################################
@@ -203,83 +265,104 @@ LDSCRIPT = STM32F411XX_FLASH.ld
 # libraries
 LIBS = -lc -lm -lnosys 
 LIBDIR = 
-LDFLAGS = $(MCU) -specs=nano.specs -T$(LDSCRIPT) $(LIBDIR) $(LIBS) -Wl,-Map=$(BUILD_DIR)/$(TARGET).map,--cref -Wl,--gc-sections
+P_LDFLAGS = $(MCU) -specs=nano.specs -T$(LDSCRIPT) $(LIBDIR) $(LIBS) -Wl,-Map=$(BUILD_DIR)/$(PEER)/$(PEER).map,--cref -Wl,--gc-sections
+C_LDFLAGS = $(MCU) -specs=nano.specs -T$(LDSCRIPT) $(LIBDIR) $(LIBS) -Wl,-Map=$(BUILD_DIR)/$(CONTROLLER)/$(CONTROLLER).map,--cref -Wl,--gc-sections
+
 
 # default action: build all
-all: $(BUILD_DIR)/$(TARGET).elf $(BUILD_DIR)/$(TARGET).hex $(BUILD_DIR)/$(TARGET).bin
 
 
 #######################################
 # build the application
 #######################################
 # 3. Formulate standard relative object file trees inside the build directory
-OBJECTS = $(addprefix $(BUILD_DIR)/,$(C_SOURCES_CLEAN:.c=.o))
-OBJECTS += $(addprefix $(BUILD_DIR)/,$(ASM_SOURCES:.s=.o))
-OBJECTS += $(addprefix $(BUILD_DIR)/,$(ASMM_SOURCES:.S=.o))
+P_BUILD_DIR = $(BUILD_DIR)/$(PEER)
+P_OBJECTS = $(addprefix $(P_BUILD_DIR)/,$(C_P_SOURCES_CLEAN:.c=.o))
+P_OBJECTS += $(addprefix $(P_BUILD_DIR)/,$(ASM_SOURCES:.s=.o))
+P_OBJECTS += $(addprefix $(P_BUILD_DIR)/,$(ASMM_SOURCES:.S=.o))
+
+peer: $(P_BUILD_DIR)/$(PEER).elf $(P_BUILD_DIR)/$(PEER).hex $(P_BUILD_DIR)/$(PEER).bin
+
+
+C_BUILD_DIR = $(BUILD_DIR)/$(CONTROLLER)
+C_OBJECTS = $(addprefix $(C_BUILD_DIR)/,$(C_C_SOURCES_CLEAN:.c=.o))
+C_OBJECTS += $(addprefix $(C_BUILD_DIR)/,$(ASM_SOURCES:.s=.o))
+C_OBJECTS += $(addprefix $(C_BUILD_DIR)/,$(ASMM_SOURCES:.S=.o))
+
+controller: $(C_BUILD_DIR)/$(CONTROLLER).elf $(C_BUILD_DIR)/$(CONTROLLER).hex $(C_BUILD_DIR)/$(CONTROLLER).bin
+
+########################################
+# PEER COMPILATION RULES
+########################################
 
 # 4. Compilation Rule for C Files
-$(BUILD_DIR)/%.o: %.c Makefile
+$(P_BUILD_DIR)/%.o: %.c Makefile
 	@if not exist "$(dir $@)" mkdir "$(subst /,\,$(dir $@))"
-	$(CC) -c $(CFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/$(notdir $(<:.c=.lst)) $< -o $@
+	$(CC) -c $(P_CFLAGS) -Wa,-a,-ad,-alms=$(P_BUILD_DIR)/$(notdir $(<:.c=.lst)) $< -o $@
 
 # 5. Compilation Rules for Assembler Files
-$(BUILD_DIR)/%.o: %.s Makefile
+$(P_BUILD_DIR)/%.o: %.s Makefile
 	@if not exist "$(dir $@)" mkdir "$(subst /,\,$(dir $@))"
-	$(AS) -c $(CFLAGS) $< -o $@
+	$(AS) -c $(P_CFLAGS) $< -o $@
 
-$(BUILD_DIR)/%.o: %.S Makefile
+$(P_BUILD_DIR)/%.o: %.S Makefile
 	@if not exist "$(dir $@)" mkdir "$(subst /,\,$(dir $@))"
-	$(AS) -c $(CFLAGS) $< -o $@
+	$(AS) -c $(P_CFLAGS) $< -o $@
 
 # 6. Linking phase using the response file bypass
 # 6. Linking phase using an iterative Windows-safe response file loop
-$(BUILD_DIR)/$(TARGET).elf: $(OBJECTS) Makefile
+$(P_BUILD_DIR)/$(PEER).elf: $(P_OBJECTS) Makefile
 	@echo Generating linker response file...
-	@if exist "$(BUILD_DIR)\object_list.txt" del "$(BUILD_DIR)\object_list.txt"
-	@for %%i in ($(OBJECTS)) do @echo %%i >> $(BUILD_DIR)/object_list.txt
+	@if exist "$(P_BUILD_DIR)\object_list.txt" del "$(P_BUILD_DIR)\object_list.txt"
+	@for %%i in ($(P_OBJECTS)) do @echo %%i >> $(P_BUILD_DIR)/object_list.txt
 	@echo Linking application...
-	$(CC) @$(BUILD_DIR)/object_list.txt $(LDFLAGS) -o $@
+	$(CC) @$(P_BUILD_DIR)/object_list.txt $(P_LDFLAGS) -o $@
 	$(SZ) $@
 
-$(BUILD_DIR)/%.hex: $(BUILD_DIR)/%.elf
+$(P_BUILD_DIR)/%.hex: $(P_BUILD_DIR)/%.elf
 	$(HEX) $< $@
 	
-$(BUILD_DIR)/%.bin: $(BUILD_DIR)/%.elf
+$(P_BUILD_DIR)/%.bin: $(P_BUILD_DIR)/%.elf
 	$(BIN) $< $@
 
-# # list of objects
-# OBJECTS = $(addprefix $(BUILD_DIR)/,$(notdir $(C_SOURCES:.c=.o)))
-# vpath %.c $(sort $(dir $(C_SOURCES)))
-# # list of ASM program objects
-# OBJECTS += $(addprefix $(BUILD_DIR)/,$(notdir $(ASM_SOURCES:.s=.o)))
-# vpath %.s $(sort $(dir $(ASM_SOURCES)))
-# OBJECTS += $(addprefix $(BUILD_DIR)/,$(notdir $(ASMM_SOURCES:.S=.o)))
-# vpath %.S $(sort $(dir $(ASMM_SOURCES)))
 
-# $(BUILD_DIR)/%.o: %.c Makefile | $(BUILD_DIR) 
-# 	$(CC) -c $(CFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/$(notdir $(<:.c=.lst)) $< -o $@
+########################################
+# CONTROLLER COMPILATION RULES
+########################################
 
-# $(BUILD_DIR)/%.o: %.s Makefile | $(BUILD_DIR)
-# 	$(AS) -c $(CFLAGS) $< -o $@
-# $(BUILD_DIR)/%.o: %.S Makefile | $(BUILD_DIR)
-# 	$(AS) -c $(CFLAGS) $< -o $@
+$(C_BUILD_DIR)/%.o: %.c Makefile
+	@if not exist "$(dir $@)" mkdir "$(subst /,\,$(dir $@))"
+	$(CC) -c $(C_CFLAGS) -Wa,-a,-ad,-alms=$(C_BUILD_DIR)/$(notdir $(<:.c=.lst)) $< -o $@
 
-# $(BUILD_DIR)/$(TARGET).elf: $(OBJECTS) Makefile
-# 	$(CC) $(OBJECTS) $(LDFLAGS) -o $@
-# 	$(SZ) $@
+$(C_BUILD_DIR)/%.o: %.s Makefile
+	@if not exist "$(dir $@)" mkdir "$(subst /,\,$(dir $@))"
+	$(AS) -c $(C_CFLAGS) $< -o $@
 
-# $(BUILD_DIR)/%.hex: $(BUILD_DIR)/%.elf | $(BUILD_DIR)
-# 	$(HEX) $< $@
+$(C_BUILD_DIR)/%.o: %.S Makefile
+	@if not exist "$(dir $@)" mkdir "$(subst /,\,$(dir $@))"
+	$(AS) -c $(C_CFLAGS) $< -o $@
+
+$(C_BUILD_DIR)/$(CONTROLLER).elf: $(C_OBJECTS) Makefile
+	@echo Generating linker response file...
+	@if exist "$(C_BUILD_DIR)\object_list.txt" del "$(C_BUILD_DIR)\object_list.txt"
+	@for %%i in ($(C_OBJECTS)) do @echo %%i >> $(C_BUILD_DIR)/object_list.txt
+	@echo Linking application...
+	$(CC) @$(C_BUILD_DIR)/object_list.txt $(C_LDFLAGS) -o $@
+	$(SZ) $@
+
+$(C_BUILD_DIR)/%.hex: $(C_BUILD_DIR)/%.elf
+	$(HEX) $< $@
 	
-# $(BUILD_DIR)/%.bin: $(BUILD_DIR)/%.elf | $(BUILD_DIR)
-# 	$(BIN) $< $@	
-	
-# $(BUILD_DIR):
-# 	mkdir $@		
+$(C_BUILD_DIR)/%.bin: $(C_BUILD_DIR)/%.elf
+	$(BIN) $< $@	
 
 #######################################
 # clean up
 #######################################
+clean_peer:
+	-rm -fR $(P_BUILD_DIR)
+clean_ctlr:
+	-rm -fR $(C_BUILD_DIR)
 clean:
 	-rm -fR $(BUILD_DIR)
   

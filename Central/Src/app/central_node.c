@@ -7,8 +7,14 @@
 #include "ring_buffer.h"
 #include <stdio.h>
 
+#include "../../../FreeRTOS_WrkSpace/include/FreeRTOS.h"
+#include "../../../FreeRTOS_WrkSpace/include/task.h"
+
 #define MAX_PENDING_MSGS    (15U)
 #define MAX_PEER_NODE_CNT   (1U)
+
+#define CENTRAL_NODE_STACK_DEPTH    (2048U)
+#define CENTRAL_NODE_PRIO           (3U)
 
 /*************************
  * STATIC DECLARATIONS
@@ -18,6 +24,8 @@ static uint8_t handle_msg(msg *message);
 static uint8_t handle_alert_msg(msg *alert);
 static uint8_t handle_event_msg(msg *event);
 static void node_poll_complete_cb(void);
+
+static void task_central_node(void);
 
 static node_state_t central_node = {0,0,0};
 STATIC_RING_BUFFER(pending_msgs, MAX_PENDING_MSGS, msg);
@@ -42,6 +50,13 @@ void central_node_init(void) {
     // NO RECEPTION IN PROGRESS INITIALLY
     central_node.flags = 0x00;
     central_node.flags |= (PEER_RX_CPLT_Msk);
+
+    uint8_t stat = xTaskCreate(task_central_node, "Central Node Tsk", CENTRAL_NODE_STACK_DEPTH, 
+                NULL, CENTRAL_NODE_PRIO, NULL);
+    
+    if (stat != pdPASS) {
+        while (1) {}
+    }
 }
 
 
@@ -120,6 +135,24 @@ uint8_t central_node_process(void) {
 /*************************
  * STATIC DECLARATIONS
  *************************/
+
+/**
+ * @brief This task is responsible for receiving and processing messages
+ * 
+ * This task blocks on a counting sem(?) waiting for messages
+ * sends them to ethernet controller, sd card reader, etc. as 
+ * needed. 
+ */
+static void task_central_node(void) {
+    
+    
+    for (;;) {
+
+    }
+}
+
+
+
 static uint8_t handle_command_msg(msg* cmd_msg) {
     uint8_t status = STATUS_OK;
 

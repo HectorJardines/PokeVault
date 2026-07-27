@@ -2,6 +2,10 @@
  * HTTPS Client implementation for Telegram Bot API
  */
 
+#include "../../../FreeRTOS_WrkSpace/include/FreeRTOS.h"
+#include "../../../FreeRTOS_WrkSpace/include/task.h"
+#include "../../../FreeRTOS_WrkSpace/include/queue.h"
+
 #include "../../Inc/app/client.h"
 #include "private.h"
 #include "string.h"
@@ -14,6 +18,8 @@
 #define CHAT_ID             (8807953801ULL)
 #define MAX_QUEUE_LEN       (10U)
 #define MAX_HTTPS_PKT_LEN   (1024U)
+#define CLI_STACK_DEPTH     (2048U) // 2048 units not bytes
+#define CLI_TASK_PRIO       (5U)
 
 typedef struct {
     uint8_t msg_body[MAX_HTTPS_BODY_LEN];
@@ -34,6 +40,8 @@ static int32_t tls_send_data(void);
 static int32_t tls_read_data(void);
 static uint8_t tls_parse_data(void);
 static uint8_t client_disconnect(void);
+
+static void task_client(void *arg);
 
 
 STATIC_RING_BUFFER(post_req_q, MAX_QUEUE_LEN, net_msg_t);
@@ -65,10 +73,11 @@ uint8_t client_init(void) {
     client.msgs_pending = 0;
     client.update_id = 0;
 
-    res = w5500_configure();
-    if (res == CLIENT_OK)
-        res = wiz_tls_init(&client.tls_context, &client.sock_num);
-    return res;
+    uint8_t stat = xTaskCreate(task_client, "Client Task", CLI_STACK_DEPTH, 
+                NULL, CLI_TASK_PRIO, NULL);
+    if (stat != pdPASS) {
+        while (1) {}
+    }
 }
 
 
@@ -225,6 +234,22 @@ uint8_t client_messages_pending(void) {
 /***************************
  * STATIC DEFINITIONS
  ***************************/
+
+/**
+ * @brief Handles send/rcv messages to/from the ethernet controller
+ * 
+ * 
+ * 
+ */
+static void task_client(void *arg) {
+
+
+
+    // task body
+    for (;;) {
+
+    }
+}
 
 
 

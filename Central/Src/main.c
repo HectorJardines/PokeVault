@@ -17,7 +17,7 @@
   */
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
-#include "main.h"
+#include "../Inc/main.h"
 // #include "fatfs.h"
 
 /* Private includes ----------------------------------------------------------*/

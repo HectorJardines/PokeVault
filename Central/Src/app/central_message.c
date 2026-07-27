@@ -4,6 +4,10 @@
 #include "../../../Core/Inc/common/defines.h"
 #include "../../../Drivers/nanopb/pb_encode.h"
 #include "../../../Drivers/nanopb/pb_decode.h"
+
+#include "../../../FreeRTOS_WrkSpace/include/FreeRTOS.h"
+#include "../../../FreeRTOS_WrkSpace/include/task.h"
+
 #include <stdio.h>
 
 #define CRC16_LEN  (2U)
@@ -13,6 +17,9 @@
 #define MAX_MSG_CNT (15U)
 #define MAX_MSG_PER_CTS (5U)
 
+#define MSG_CTLR_STACK_DEPTH    (2048U)
+#define MSG_CTLR_PRIO           (2U)
+
 /************************
  * STATIC DECLARATIONS
  ***********************/
@@ -20,9 +27,11 @@ static uint16_t compute_crc16(uint8_t *buf, uint16_t length);
 static uint8_t serialize_struct(msg* message, uint32_t *length);
 static uint8_t deserialize_msg_buf(uint8_t *serial_buf, uint32_t length, msg_array *message);
 static uint8_t crc_is_equal(uint16_t crc, uint8_t *received_crc);
-
 static void rs485_reception_cb(void);
 static void rs485_msg_consumed_cb(void);
+
+
+static void task_message_ctlr(void *arg);
 
 
 static uint8_t serialize_buf[DRIVERS_NANOPB_MESSAGES_PB_H_MAX_SIZE + CRC16_LEN];
@@ -43,6 +52,13 @@ void c_message_init(void) {
     register_msg_ready_cb(rs485_reception_cb);
     register_msg_consumed_cb(rs485_msg_consumed_cb);
     rs485_init();
+
+    uint8_t stat = xTaskCreate(task_message_ctlr, "Msg Ctlr Task", MSG_CTLR_STACK_DEPTH,
+                    NULL, MSG_CTLR_PRIO, NULL);
+    
+    if (stat != pdPASS) {
+        while (1) {}
+    }
 }
 
 
@@ -133,6 +149,24 @@ void register_peer_rx_cplt_cb(void(*cb)(void)) {
 /***********************
  *  STATIC DEFS
  **********************/
+
+
+/**
+ * @brief This task is responsible for de/serializing and de/encoding messages
+ * 
+ * This task is signaled by the UART DMA peripheral central node
+ * when messages are to be received/sent from/to peer nodes.
+ * 
+ */
+static void task_message_ctlr(void *arg) {
+    
+    for (;;) {
+
+    }
+}
+
+
+
 
 static uint8_t crc_is_equal(uint16_t crc, uint8_t *received_crc) {
     return (crc == *((uint16_t *)received_crc));
