@@ -1,8 +1,12 @@
 #include "../../Inc/app/rfid_tag.h"
 #include "../../Inc/drivers/spi.h"
 #include "../../Inc/drivers/mfrc522.h"
+#include "../../Inc/drivers/io.h"
 #include "../../../Core/Inc/common/defines.h"
-#include "../../../Core/Inc/app/display.h"
+
+/****************
+ * MACROS
+ *******************/
 
 #define BLOCKS_PER_SECTOR   (4U)
 #define NUM_OF_ALLOWED_TAGS     (2U)
@@ -43,6 +47,13 @@ static uint8_t card_block_buf[PICC_MEM_BLOCK_LEN] = {0xca, 0xfe, 0xbe, 0xef, 0xd
  */
 static mfrc_status_e tag_scan_and_select(uint8_t *card_buf, uint8_t *card_uid);
 
+static uint8_t mfrc_spi_tx_byte(uint8_t byte);
+static uint8_t mfrc_spi_rx_byte(void);
+static void mfrc_cs_low(void);
+static void mfrc_cs_high(void);
+static uint8_t mfrc_spi_req(void);
+static void mfrc_spi_rel(void);
+
 /********************
  * PUBLIC APIs
  *******************/
@@ -51,7 +62,11 @@ static mfrc_status_e tag_scan_and_select(uint8_t *card_buf, uint8_t *card_uid);
  * @brief Initializes the RFID keycard reader
  */
 tag_status_e tag_init(void) {
-    mfrc522_init();
+    mfrc_reader_t reader = {.init = spi_init, .transmit_byte = mfrc_spi_tx_byte, 
+                            .receive_byte = mfrc_spi_rx_byte, .select = mfrc_cs_high, 
+                            .deselect = mfrc_cs_low, .req_bus = mfrc_spi_req, 
+                            .rel_bus = mfrc_spi_rel};
+    mfrc522_init(&reader);
     return MFRC_OK;
 }
 
@@ -109,4 +124,36 @@ static mfrc_status_e tag_scan_and_select(uint8_t *card_buf, uint8_t *card_uid) {
     }
 
     return mfrc_stat;
+}
+
+
+static uint8_t mfrc_spi_tx_byte(uint8_t byte) {
+    return spi_transmit(DEV_MFRC, &byte, 1);
+}
+
+
+static uint8_t mfrc_spi_rx_byte(void) {
+    uint8_t read_byte = 0x00;
+    spi_receive(DEV_MFRC, &read_byte, 1);
+    return read_byte;
+}
+
+
+static void mfrc_cs_low(void) {
+    io_set_out(IO_SPI_CS_MFRC, LOW);
+}
+
+
+static void mfrc_cs_high(void) {
+    io_set_out(IO_SPI_CS_MFRC, HIGH);
+}
+
+
+static uint8_t mfrc_spi_req(void) {
+    return spi_lock(DEV_MFRC);
+}
+
+
+static void mfrc_spi_rel(void) {
+    spi_unlock(DEV_MFRC);
 }

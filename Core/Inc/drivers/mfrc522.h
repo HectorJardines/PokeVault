@@ -7,7 +7,6 @@
 #define _MFRC522_H
 
 #include <stdint.h>
-#include "./spi.h"
 
 /************************
  *  REGISTER DEFINITIONS
@@ -109,11 +108,28 @@ typedef enum {
     MFRC_TIMEOUT
 } mfrc_status_e;
 
+
+typedef void(*init_t)(void);
+typedef uint8_t(*transmit_byte_t)(uint8_t byte);
+typedef uint8_t(*receive_byte_t)(void);
+typedef void(*cs_low_t)(void);
+typedef void(*cs_high_t)(void);
+typedef uint8_t(*spi_request_t)(void);
+typedef void(*spi_release_t)(void);
+
+
 typedef struct {
-    void (*spi_init)(spi_device_e dev);
-    uint8_t(*spi_tx)(uint8_t *data, uint32_t len);
-    uint8_t(*spi_rx)(uint8_t *data, uint32_t len);
+    init_t              init;
+    transmit_byte_t     transmit_byte;
+    receive_byte_t      receive_byte;
+
+    cs_low_t            select;
+    cs_high_t           deselect;
+    spi_request_t       req_bus;
+    spi_release_t       rel_bus;
 } mfrc_reader_t;
+
+
 
 /**********************
  *      USER APIs
@@ -122,7 +138,7 @@ typedef struct {
 /**
  * @brief Intializes and configures the MFRC522 device
  */
-void mfrc522_init(void);
+void mfrc522_init(mfrc_reader_t *read);
 
 
 

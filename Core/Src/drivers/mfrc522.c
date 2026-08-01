@@ -1,6 +1,5 @@
 #include "../../Inc/drivers/mfrc522.h"
 #include "../../Inc/drivers/io.h"
-#include "../../Inc/drivers/spi.h"
 
 #define MFRC522_CS_LOW  (GPIOA->BSRR |= (1 << (IO_PIN_6 + IO_BSRR_BR_OFFSET)))
 #define MFRC522_CS_HIGH (GPIOA->BSRR |= (1 << IO_PIN_6))
@@ -45,6 +44,7 @@ static uint8_t mfrc_send_to_picc(uint8_t command, uint8_t *send_data, uint8_t se
 static uint8_t write_pcd_cmd(uint8_t pcd_cmd);
 static uint8_t mfrc_calculate_crc(uint8_t *checksum_data, uint8_t data_len, uint8_t *checksum);
 
+static mfrc_reader_t reader;
 /**************************
  *      PUBLIC APIs
  **************************/
@@ -52,9 +52,17 @@ static uint8_t mfrc_calculate_crc(uint8_t *checksum_data, uint8_t data_len, uint
  /**
  * @brief Intializes and configures the MFRC522 device
  */
-void mfrc522_init(void) {
+void mfrc522_init(mfrc_reader_t *mfrc) {
+    reader.init = mfrc->init;
+    reader.receive_byte = mfrc->receive_byte;
+    reader.transmit_byte = mfrc->transmit_byte;
+    reader.select = mfrc->select;
+    reader.deselect = mfrc->deselect;
+    reader.req_bus = mfrc->req_bus;
+    reader.rel_bus = mfrc->rel_bus;
+
     // intialize spi peripheral
-    spi_init(SPI_DEVICE_MFRC522);
+    reader.init();
     // reset mfrc522
     mfrc_reset();
 
@@ -512,24 +520,38 @@ static uint8_t clear_bitmask_on_reg(uint8_t reg, uint8_t reg_msk) {
 }
 
 static uint8_t write_mfrc_register(uint8_t reg, uint8_t data) {
-    MFRC522_CS_LOW;
-    // send register address
-    reg = MFRC_ADDR_SET_WRITE(reg);
-    uint8_t rslt = spi_write_byte(reg);
-    // send data
-    rslt = spi_write_byte(data);
-    MFRC522_CS_HIGH;
+    uint8_t rslt = MFRC_ERR;
+    if (reader.req_bus() == 1) {
+        reader.select();
+
+        // send register address
+        reg = MFRC_ADDR_SET_WRITE(reg);
+        rslt = reader.transmit_byte(reg);
+        // send data
+        rslt = reader.transmit_byte(data);
+
+        reader.deselect();
+        reader.rel_bus();
+    }
     return rslt;
 }
 
 static uint8_t read_mfrc_register(uint8_t reg) {
-    MFRC522_CS_LOW;
-    // send register address
-    reg = MFRC_ADDR_SET_READ(reg);
-    uint8_t rslt = spi_write_byte(reg);
-    // read bytes from register
-    rslt = spi_write_byte(0x00);
-    MFRC522_CS_HIGH;
+    uint8_t rslt = MFRC_ERR;
+
+    if (reader.req_bus() == 1) {
+        reader.select();
+
+        // send register address
+        reg = MFRC_ADDR_SET_READ(reg);
+        uint8_t rslt = reader.transmit_byte(reg);
+        // read bytes from register
+        rslt = reader.receive_byte();
+
+        reader.deselect();
+        reader.rel_bus();
+    }
+
     return rslt;
 }
 

@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 #include "../drivers/sd_functions.h"
-#include "ring_buffer.h"
+#include "../../../Core/Inc/common/ring_buffer.h"
 #include "../../../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_usart.h"
 
 #define LOG_WARN_Msk        (0x01)
@@ -14,7 +14,7 @@
 #define LOG_ALL_Msk         (0x0F)
 #define MAX_MSG_CNT     (10U)
 #define MAX_LOG_BODY_LEN     (64U)
-#define MAX_FMT_MSG_LEN      (256U)
+#define MAX_FMT_MSG_LEN      (103U)
 
 /*****************
  * ENUMS

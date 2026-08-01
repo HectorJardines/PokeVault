@@ -14,6 +14,7 @@
     "ui_font_unscii_16.c",
     "ui_font_unscii_8.c",
     "ui_image_check.c",
+    "ui_image_nfc.c",
     "vars.h"
   ]
 }

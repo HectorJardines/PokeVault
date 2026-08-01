@@ -1,5 +1,5 @@
 #include "../../Inc/app/central_message.h"
-#include "../../../Core/Inc/drivers/rs485_cobs.h"
+#include "../../Inc/drivers/rs485_cobs.h"
 #include "../../../Core/Inc/common/ring_buffer.h"
 #include "../../../Core/Inc/common/defines.h"
 #include "../../../Drivers/nanopb/pb_encode.h"
@@ -7,18 +7,24 @@
 
 #include "../../../FreeRTOS_WrkSpace/include/FreeRTOS.h"
 #include "../../../FreeRTOS_WrkSpace/include/task.h"
+#include "../../../FreeRTOS_WrkSpace/include/queue.h"
 
 #include <stdio.h>
 
-#define CRC16_LEN  (2U)
-#define NUM_OVERHEAD_BYTES (2U)
-#define MAX_COBS_OVERHEAD ((DRIVERS_NANOPB_MESSAGES_PB_H_MAX_SIZE >> 8) + NUM_OVERHEAD_BYTES)
-#define MAX_FRAME_LEN (DRIVERS_NANOPB_MESSAGES_PB_H_MAX_SIZE + MAX_COBS_OVERHEAD + CRC16_LEN)
-#define MAX_MSG_CNT (15U)
+/*************************
+ * MACROS
+ ***************/
+#define MAX_MSG_CNT_OUT (10U) // much smaller struct
 #define MAX_MSG_PER_CTS (5U)
 
+#define MSG_POST_OUT_TIMEOUT    (pdMS_TO_TICKS(50))
 #define MSG_CTLR_STACK_DEPTH    (2048U)
 #define MSG_CTLR_PRIO           (2U)
+
+
+/**************
+ * TYPEDEFS
+ *****************/
 
 /************************
  * STATIC DECLARATIONS
@@ -27,6 +33,9 @@ static uint16_t compute_crc16(uint8_t *buf, uint16_t length);
 static uint8_t serialize_struct(msg* message, uint32_t *length);
 static uint8_t deserialize_msg_buf(uint8_t *serial_buf, uint32_t length, msg_array *message);
 static uint8_t crc_is_equal(uint16_t crc, uint8_t *received_crc);
+static uint8_t message_send(msg *message);
+static void message_post_in(uint8_t *frame, uint32_t len, BaseType_t *hpt);
+static uint8_t process_frame(uint8_t *frame_buf, uint32_t frame_len, msg_array *messages);
 static void rs485_reception_cb(void);
 static void rs485_msg_consumed_cb(void);
 
@@ -35,9 +44,10 @@ static void task_message_ctlr(void *arg);
 
 
 static uint8_t serialize_buf[DRIVERS_NANOPB_MESSAGES_PB_H_MAX_SIZE + CRC16_LEN];
-static volatile uint8_t msg_cnt = 0;
-static void(*peer_rx_cplt)(void);
-STATIC_RING_BUFFER(msg_queue, MAX_MSG_CNT, msg);
+
+static QueueHandle_t msg_q;
+static StaticQueue_t _msg_q;
+static uint8_t msg_q_buf[MAX_MSG_CNT_OUT * sizeof(frame_msg_t)];
 /************
  * APIs
  ************/
@@ -49,10 +59,11 @@ STATIC_RING_BUFFER(msg_queue, MAX_MSG_CNT, msg);
  * 
  */
 void c_message_init(void) {
-    register_msg_ready_cb(rs485_reception_cb);
-    register_msg_consumed_cb(rs485_msg_consumed_cb);
+    // register_msg_ready_cb(rs485_reception_cb);
+    // register_msg_consumed_cb(rs485_msg_consumed_cb);
     rs485_init();
 
+    msg_q = xQueueCreateStatic(MAX_MSG_CNT_OUT, sizeof(frame_msg_t), msg_q_buf, &_msg_q);
     uint8_t stat = xTaskCreate(task_message_ctlr, "Msg Ctlr Task", MSG_CTLR_STACK_DEPTH,
                     NULL, MSG_CTLR_PRIO, NULL);
     
@@ -60,6 +71,88 @@ void c_message_init(void) {
         while (1) {}
     }
 }
+
+
+
+/**
+ * @brief Posts a message to the message task's out buf
+ * 
+ * @return 0 on success; else 1
+ */
+uint8_t c_message_post_out(msg *message) {
+    frame_msg_t temp;
+    temp.which = 0;
+    memcpy((void *)&temp.message,  (void *)message, sizeof(msg));
+    return !xQueueSendToBack(msg_q, &temp, MSG_POST_OUT_TIMEOUT);
+}
+
+
+// /**
+//  * @brief Checks for any pending peer node messages
+//  * 
+//  * 
+//  * 
+//  * @return 1 if peer node messages are available; else 0
+//  */
+// uint8_t c_message_available(void) {
+//     __disable_irq();
+//     uint8_t is_avail = msg_cnt > 0;
+//     __enable_irq();
+//     return is_avail;
+// }
+
+
+// /**
+//  * @brief Registers the callback function for peer node RX cplt
+//  * 
+//  * 
+//  * 
+//  */
+// void register_peer_rx_cplt_cb(void(*cb)(void)) {
+//     peer_rx_cplt = cb;
+// }
+
+/***********************
+ *  STATIC DEFS
+ **********************/
+
+
+/**
+ * @brief This task is responsible for de/serializing and de/encoding messages
+ * 
+ * This task is signaled by the UART DMA peripheral central node
+ * when messages are to be received/sent from/to peer nodes.
+ * 
+ */
+static void task_message_ctlr(void *arg) {
+    uint8_t status = 0;
+    frame_msg_t object;
+
+    for (;;) {
+        if (xQueueReceive(msg_q, (void *)&object, portMAX_DELAY) == pdTRUE) {
+            switch (object.which)
+            {
+            case FRAME_IN:
+                msg_array arr = msg_array_init_zero;
+                status = process_frame(object.frame.buf, object.frame.len, &arr);
+                if (status == 0) {
+                    // push message array to central node
+
+                }
+                break;
+            case MSG_OUT:
+                // we should probably block here as to not use the bus when its busy...
+                message_send(&object.message);
+                break;
+            default:
+                break;
+            }
+
+            memset((void *)&object, 0, sizeof(object));
+        }
+    }
+}
+
 
 
 /**
@@ -71,7 +164,7 @@ void c_message_init(void) {
  * 
  * @param[in] message message to send
  */
-uint8_t c_message_send(msg *message) {
+static uint8_t message_send(msg *message) {
     uint32_t len = 0;
     memset((void *)serialize_buf, 0, sizeof(serialize_buf));
     uint8_t status = serialize_struct(message, &len);
@@ -95,76 +188,22 @@ uint8_t c_message_send(msg *message) {
  * 
  * @return 0 on successful reception; else 1
  */
-uint8_t c_message_receive(msg_array *message) {
-    uint8_t rx_frame[MAX_FRAME_LEN] = {0};
-    uint32_t length = 0;
+static uint8_t process_frame(uint8_t *frame_buf, uint32_t frame_len, msg_array *messages) {
+    uint8_t status = 0;
 
-    uint8_t status = rs485_receive(rx_frame, &length);
-    if (status == 0) {
-        uint16_t crc_check = compute_crc16(rx_frame, length - CRC16_LEN);
-        if (crc_is_equal(crc_check, &rx_frame[length - CRC16_LEN])) {
-            status = deserialize_msg_buf(rx_frame, length - CRC16_LEN, message);
-            if (status)
-                printf("FAILED TO DESERIALIZE MSG: %s\r\n", rx_frame);
-        }
-        else {
-            printf("ERROR: CRC VALUES DO NOT MATCH\r\n");
-            status = 1;
-        }
+    uint16_t crc_check = compute_crc16(frame_buf, frame_len - CRC16_LEN);
+    if (crc_is_equal(crc_check, &frame_buf[frame_len - CRC16_LEN])) {
+        status = deserialize_msg_buf(frame_buf, frame_len - CRC16_LEN, messages);
+        if (status)
+            printf("FAILED TO DESERIALIZE MSG: %s\r\n", frame_buf);
     }
     else {
-        printf("MSG RECEIVE FAILED\r\n");
+        printf("ERROR: CRC VALUES DO NOT MATCH\r\n");
+        status = 1;
     }
-
+ 
     return status;
 }
-
-
-
-/**
- * @brief Checks for any pending peer node messages
- * 
- * 
- * 
- * @return 1 if peer node messages are available; else 0
- */
-uint8_t c_message_available(void) {
-    __disable_irq();
-    uint8_t is_avail = msg_cnt > 0;
-    __enable_irq();
-    return is_avail;
-}
-
-
-/**
- * @brief Registers the callback function for peer node RX cplt
- * 
- * 
- * 
- */
-void register_peer_rx_cplt_cb(void(*cb)(void)) {
-    peer_rx_cplt = cb;
-}
-
-/***********************
- *  STATIC DEFS
- **********************/
-
-
-/**
- * @brief This task is responsible for de/serializing and de/encoding messages
- * 
- * This task is signaled by the UART DMA peripheral central node
- * when messages are to be received/sent from/to peer nodes.
- * 
- */
-static void task_message_ctlr(void *arg) {
-    
-    for (;;) {
-
-    }
-}
-
 
 
 
@@ -220,13 +259,18 @@ static uint8_t serialize_struct(msg* message, uint32_t *len) {
 }
 
 
-static void rs485_reception_cb(void) {
-    if (msg_cnt < MAX_MSG_CNT)
-        msg_cnt++;
-    peer_rx_cplt();
+
+/**
+ * @brief Posts a message to the message task's in buf
+ * 
+ * 
+ */
+static void message_post_in(uint8_t *frame, uint32_t len, BaseType_t *hpt) {
+    frame_msg_t temp;
+    temp.which = FRAME_IN;
+    memcpy((void *)temp.frame.buf, (void *)frame, sizeof(temp.frame.buf));
+    temp.frame.len = len;
+    xQueueSendToBackFromISR(msg_q, &temp, hpt);
 }
 
-static void rs485_msg_consumed_cb(void) {
-    if (msg_cnt > 0)
-        msg_cnt--;
-}
+

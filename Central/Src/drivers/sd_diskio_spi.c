@@ -28,21 +28,44 @@ DSTATUS SD_disk_status(BYTE drv) {
 DSTATUS SD_disk_initialize(BYTE drv) {
     if (drv != 0)
         return STA_NOINIT;
-
-    return (SD_SPI_Init() == SD_OK) ? 0 : STA_NOINIT;
+    DSTATUS stat = STA_NOINIT;
+    if(spi_lock(DEV_SD) == pdTRUE) {
+        stat = (SD_SPI_Init() == SD_OK) ? 0 : STA_NOINIT;
+        spi_unlock(DEV_SD);
+    }
+    return stat;
 }
 
 DRESULT SD_disk_read(BYTE pdrv, BYTE *buff, DWORD sector, UINT count) {
     if (pdrv != 0 || count == 0)
         return RES_PARERR;
     if (!card_initialized) return RES_NOTRDY;
-    return (SD_ReadBlocks(buff, sector, count) == SD_OK) ? RES_OK : RES_ERROR;
+    
+    DSTATUS stat = RES_ERROR;
+    if ((stat = spi_lock(DEV_SD)) == pdTRUE) {
+        stat = (SD_ReadBlocks(buff, sector, count) == SD_OK) ? RES_OK : RES_ERROR;
+        spi_unlock(DEV_SD);
+    }
+    else
+        stat = RES_ERROR;
+
+    return stat;
 }
 
 DRESULT SD_disk_write(BYTE pdrv,  BYTE *buff, DWORD sector, UINT count) {
     if (pdrv || !count) return RES_PARERR;
     if (!card_initialized) return RES_NOTRDY;
-    return (SD_WriteBlocks(buff, sector, count) == SD_OK) ? RES_OK : RES_ERROR;
+
+    DSTATUS stat = RES_ERROR;
+
+    if((stat = spi_lock(DEV_SD)) == pdTRUE) {
+        stat = (SD_WriteBlocks(buff, sector, count) == SD_OK) ? RES_OK : RES_ERROR;
+        spi_unlock(DEV_SD);
+    }
+    else
+        stat = RES_ERROR;
+    
+    return stat;
 }
 
 DRESULT SD_disk_ioctl(BYTE pdrv, BYTE cmd, void *buff) {

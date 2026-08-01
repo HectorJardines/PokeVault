@@ -14,8 +14,7 @@
  ******************************************************************************/
 
 #include "../../Inc/drivers/sd_spi.h"
-#include "../../../Core/Inc/drivers/spi.h"
-#include "io.h"
+#include "../../Inc/drivers/io.h"
 #include <string.h>
 #include <stdio.h>
 
@@ -26,11 +25,11 @@
 
 #define USE_DMA 1
 
-extern SPI_HandleTypeDef hspi1;
-#define SD_SPI_HANDLE hspi1
+// extern SPI_HandleTypeDef hspi1;
+// #define SD_SPI_HANDLE hspi1
 
-#define SD_CS_LOW()     io_set_out(IO_SPI_CS_W5500, IO_OUT_HIGH)
-#define SD_CS_HIGH()    io_set_out(IO_SPI_CS_W5500, IO_OUT_LOW)
+#define SD_CS_LOW()     io_set_out(IO_SPI_CS_SD, LOW)
+#define SD_CS_HIGH()    io_set_out(IO_SPI_CS_SD, HIGH)
 
 /***************************************************************
  * 🚫 DO NOT MODIFY BELOW THIS LINE
@@ -41,41 +40,59 @@ extern SPI_HandleTypeDef hspi1;
 volatile int dma_tx_done = 0;
 volatile int dma_rx_done = 0;
 
-void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi) {
-	if (hspi == &SD_SPI_HANDLE) dma_tx_done = 1;
-}
+// void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi) {
+// 	if (hspi == &SD_SPI_HANDLE) dma_tx_done = 1;
+// }
 
-void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef *hspi) {
-	if (hspi == &hspi1) dma_rx_done = 1;
-}
+// void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef *hspi) {
+// 	if (hspi == &hspi1) dma_rx_done = 1;
+// }
 #endif
 
 static void SD_TransmitByte(uint8_t data) {
-    spi_write_byte(data);
+    spi_transmit(DEV_SD, &data, 1);
 }
 
 static uint8_t SD_ReceiveByte(void) {
-    uint8_t dummy = 0xFF;
-    return spi_write_byte(dummy);
+    uint8_t dummy = 0x00;
+    spi_receive(DEV_SD, &dummy, 1);
+    return dummy;
 }
 
+/**
+ * @brief Trasnmits a buffer of data to the sd SPI peripheral
+ * 
+ * This function assumes that a lock on the SPI peripheral
+ * has been obtained by the thread.
+ * 
+ */
 static void SD_TransmitBuffer(const uint8_t *buffer, uint16_t len) {
 #if USE_DMA
     dma_tx_done = 0;
-    HAL_SPI_Transmit_DMA(&SD_SPI_HANDLE, (uint8_t *)buffer, len);
-    while (!dma_tx_done);
+    spi_transmit_dma(DEV_SD, (uint8_t *)buffer, len);
+    spi_wait(DEV_SD);
 #else
     HAL_SPI_Transmit(&SD_SPI_HANDLE, (uint8_t *)buffer, len, HAL_MAX_DELAY);
 #endif
 }
 
+
+/**
+ * @brief Receives a buffer of data from the sd SPI peripheral
+ * 
+ * This function assumes that a lock on the SPI peripheral
+ * has been obtained by the thread.
+ * 
+ */
 static void SD_ReceiveBuffer(uint8_t *buffer, uint16_t len) {
 #if USE_DMA
-	static uint8_t tx_dummy[512];
-    for (int i = 0; i < len; i++) tx_dummy[i] = 0xFF;  // Fill with 0xFF
-    dma_rx_done = 0;
-    HAL_SPI_TransmitReceive_DMA(&hspi1, tx_dummy, buffer, len);
-    while (!dma_rx_done);
+	// static uint8_t tx_dummy[512];
+    // for (int i = 0; i < len; i++) tx_dummy[i] = 0xFF;  // Fill with 0xFF
+    // dma_rx_done = 0;
+    // HAL_SPI_TransmitReceive_DMA(&hspi1, tx_dummy, buffer, len);
+    // while (!dma_rx_done);
+    spi_receive_dma(DEV_SD, buffer, len);
+    spi_wait(DEV_SD);
 #else
     for (uint16_t i = 0; i < len; i++) {
         buffer[i] = SD_ReceiveByte();

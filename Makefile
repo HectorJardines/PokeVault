@@ -37,15 +37,9 @@ BUILD_DIR = build
 # C sources
 # Core/Src/app/security.c
 C_SOURCES =  \
-Core/Src/common/ssd1306_fonts.c \
 Core/Src/common/ring_buffer.c \
-Core/Src/common/private.c \
 Core/Src/common/trace.c \
-Core/Src/drivers/rs485_cobs.c \
-Core/Src/drivers/i2c.c \
 Core/Src/drivers/mfrc522.c \
-Core/Src/drivers/spi.c \
-Core/Src/drivers/ssd1306.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_rcc.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_rtc.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_pwr.c \
@@ -86,6 +80,10 @@ Core/Src/drivers/aht20.c \
 Core/Src/drivers/io.c \
 Core/Src/drivers/movement_detect.c \
 Core/Src/drivers/ir_sensors.c \
+Core/Src/drivers/i2c.c \
+Core/Src/drivers/spi.c \
+Core/Src/drivers/ssd1306.c \
+Core/Src/drivers/rs485_cobs.c \
 Core/Src/app/vault_main.c \
 Core/Src/test_peer.c \
 Core/Src/app/display.c \
@@ -115,11 +113,17 @@ Central/Src/drivers/w5500_ethernet.c \
 Central/Src/drivers/sd_diskio_spi.c \
 Central/Src/drivers/sd_functions.c \
 Central/Src/drivers/sd_spi.c \
+Central/Src/drivers/spi.c \
+Central/Src/drivers/ili9341.c \
+Central/Src/drivers/rs485_cobs.c \
 Central/Src/test_central_node.c \
 Central/Src/common/log.c \
+Central/Src/common/printf-stdarg.c \
+Central/Src/common/private.c \
 Central/Src/app/client.c \
 Central/Src/drivers/io.c \
 Central/Src/drivers/rtc.c \
+Central/Src/drivers/xpt2046.c \
 FreeRTOS_WrkSpace/ARM_CM4F/port.c \
 FreeRTOS_WrkSpace/MemMang/heap_4.c \
 
@@ -188,7 +192,6 @@ C_DEFS =  \
 -DUSE_HAL_DRIVER \
 -DSTM32F411xE \
 -DLV_DISABLE_API_MAPPING \
--DLV_CONF_INCLUDE_SIMPLE \
 -DMBEDTLS_CONFIG_FILE=\"SSLConfig.h\"
 
 
@@ -226,8 +229,8 @@ C_C_INCLUDES = \
 -IDrivers/w5500_eth/DNS \
 -IDrivers/w5500_eth/W5500 \
 -ICentral/Inc/app \
--ICore/Inc/common \
--ICore/Inc/drivers \
+-ICentral/Inc/common \
+-ICentral/Inc/drivers \
 -IFreeRTOS_WrkSpace/ \
 -IFreeRTOS_WrkSpace/ARM_CM4F/ \
 -IFreeRTOS_WrkSpace/include/ \
@@ -241,8 +244,8 @@ C_C_INCLUDES += $(addprefix -I, $(C_INC_DIRS_FILTERED))
 # compile gcc flags
 ASFLAGS = $(MCU) $(AS_DEFS) $(AS_INCLUDES) $(OPT) -Wall -fdata-sections -ffunction-sections
 
-P_CFLAGS += $(MCU) $(C_DEFS) $(C_P_INCLUDES) $(OPT) -Wall -fdata-sections -ffunction-sections
-C_CFLAGS += $(MCU) $(C_DEFS) $(C_C_INCLUDES) $(OPT) -Wall -fdata-sections -ffunction-sections
+P_CFLAGS += $(MCU) $(C_DEFS) $(C_P_INCLUDES) $(OPT) -Wall -fdata-sections -ffunction-sections -DLV_CONF_INCLUDE_SIMPLE=\"Core/Inc/app/lv_conf.h\"
+C_CFLAGS += $(MCU) $(C_DEFS) $(C_C_INCLUDES) $(OPT) -Wall -fdata-sections -ffunction-sections -DLV_CONF_INCLUDE_SIMPLE=\"Central/Inc/drivers/lv_conf.h\"
 
 ifeq ($(DEBUG), 1)
 CFLAGS += -g -gdwarf-2 -fdata-sections -ffunction-sections -g3

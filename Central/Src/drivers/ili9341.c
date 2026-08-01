@@ -37,15 +37,21 @@ void ili9341_init(void) {
  */
 void ili9341_send_cmd(lv_display_t * disp, const uint8_t * cmd, size_t cmd_size, const uint8_t *param, size_t param_size) {
     uint8_t status = 0;
-    DISP_CMD_PIN();
-    DISP_CS_LOW();
-    status = spi_transmit(DEV_DISP, cmd, cmd_size);
-    if (param_size > 0) {
-        DISP_DATA_PIN();
-        status |= spi_transmit(DEV_DISP, param, param_size);
+    // sleep thread until spi periph is free
+    if (spi_lock(DEV_DISP) == 1) {
+        DISP_CMD_PIN();
+        DISP_CS_LOW();
+
+        status = spi_transmit(DEV_DISP, cmd, cmd_size);
+        if (param_size > 0) {
+            DISP_DATA_PIN();
+            status |= spi_transmit(DEV_DISP, param, param_size);
+        }
+
+        DISP_CS_HIGH();
+        status = spi_unlock(DEV_DISP);
     }
-    DISP_CS_HIGH();
-    return status;
+    (void)status;
 }
 
 
@@ -57,15 +63,21 @@ void ili9341_send_cmd(lv_display_t * disp, const uint8_t * cmd, size_t cmd_size,
  */
 void ili9341_send_pixels(lv_display_t * disp, const uint8_t * cmd, size_t cmd_size, uint8_t * param, size_t param_size) {
     uint8_t status = 0;
-    DISP_CMD_PIN();
-    DISP_CS_LOW();
-    if (cmd_size > 0)
-        status = spi_transmit(DEV_DISP, cmd, cmd_size);
+    if (spi_lock(DEV_DISP) == 1) {
+        DISP_CMD_PIN();
+        DISP_CS_LOW();
+        if (cmd_size > 0)
+            status = spi_transmit(DEV_DISP, cmd, cmd_size);
 
-    DISP_DATA_PIN();
-    status |= spi_transmit_dma(DEV_DISP, param, param_size);
+        DISP_DATA_PIN();
+        status |= spi_transmit_dma(DEV_DISP, param, param_size);
+        spi_wait(DEV_DISP);
 
-    return status;
+        DISP_CS_HIGH();
+        lv_display_flush_ready(disp);
+        spi_unlock(DEV_DISP);
+    }
+    (void)status;
 }
 
 

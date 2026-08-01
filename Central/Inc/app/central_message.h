@@ -47,22 +47,11 @@ void c_message_init(void);
 
 
 /**
- * @brief Send message to central MCU
- * 
- * 
- * 
- */
-uint8_t c_message_send(msg *message);
-
-
-
-/**
- * @brief receive message from central MCU
- * 
+ * @brief Posts a message to the message task's out buf
  * 
  * 
  */
-uint8_t c_message_receive(msg_array *message);
+uint8_t c_message_post_out(msg *message);
 
 
 /**

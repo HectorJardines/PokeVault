@@ -10,7 +10,8 @@ typedef enum {
     DEV_MFRC,
     DEV_ETH,
     DEV_SD,
-    DEV_DISP
+    DEV_DISP,
+    DEV_TOUCH
 } spi_dev_e;
 
 
@@ -49,5 +50,17 @@ uint8_t spi_transmit_dma(spi_dev_e dev, uint8_t *data, uint32_t len);
  */
 uint8_t spi_receive_dma(spi_dev_e dev, uint8_t *read_data, uint32_t read_len);
 
+
+uint8_t spi_lock(spi_dev_e dev);
+
+uint8_t spi_unlock(spi_dev_e dev);
+
+
+/**
+ * @brief Sleeps the task until it is notified by DMA interrupt
+ * 
+ * 
+ */
+uint32_t spi_wait(spi_dev_e dev);
 
 #endif

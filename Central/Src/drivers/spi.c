@@ -1,11 +1,19 @@
+#include "../../../FreeRTOS_WrkSpace/include/FreeRTOS.h"
+#include "../../../FreeRTOS_WrkSpace/include/semphr.h"
 #include "stm32f4xx.h"
 #include "../../Inc/drivers/spi.h"
 
+
 typedef struct {
+    uint8_t curr_dev;
     SPI_HandleTypeDef hspi;
     DMA_HandleTypeDef hdmatx;
     DMA_HandleTypeDef hdmarx;
-    uint8_t curr_dev;
+
+    BaseType_t hpt_trigger;
+    SemaphoreHandle_t mutx;
+    StaticSemaphore_t _mutx;
+    TaskHandle_t curr_task;
 } spi_conf_t;
 
 /*****************
@@ -15,8 +23,8 @@ static void spi1_configure(void);
 static void spi2_configure(void);
 
 
-static spi_conf_t spi_eth_disp;
-static spi_conf_t spi_tag_sd;
+static spi_conf_t spi1;
+static spi_conf_t spi2;
 /*************
  * PUB APIs
  **************/
@@ -28,9 +36,14 @@ static uint8_t initialized = 0;
  * 
  */
 void spi_init(void) {
-    spi1_configure();
-    spi2_configure();
-    initialized = 1;
+    if (!initialized) {
+        spi1_configure();
+        spi2_configure();
+
+        spi1.mutx = xSemaphoreCreateMutexStatic(&spi1._mutx);
+        spi2.mutx = xSemaphoreCreateMutexStatic(&spi2._mutx);
+        initialized = 1;
+    }
 }
 
 /**
@@ -39,13 +52,13 @@ void spi_init(void) {
 uint8_t spi_transmit(spi_dev_e dev, uint8_t *data, uint32_t len) {
     uint16_t retry = 500;
     SPI_HandleTypeDef *spix;
-    if (dev == DEV_ETH || dev == DEV_DISP) {
-        spix = &spi_eth_disp.hspi;
-        spi_eth_disp.curr_dev = dev;
+    if (dev == DEV_DISP || dev == DEV_SD) {
+        spix = &spi1.hspi;
+        spi1.curr_dev = dev;
     }
     else {
-        spix = &spi_tag_sd.hspi;
-        spi_tag_sd.curr_dev = dev;
+        spix = &spi2.hspi;
+        spi2.curr_dev = dev;
     }
 
     for (uint32_t i = 0; i < len; ++i) {
@@ -66,13 +79,13 @@ uint8_t spi_receive(spi_dev_e dev, uint8_t *read_data, uint32_t read_len) {
     uint8_t dummy = 0xFF;
     SPI_HandleTypeDef *spix;
     uint16_t retry = 500;
-    if (dev == DEV_ETH || dev == DEV_DISP) {
-        spix = &spi_eth_disp.hspi;
-        spi_eth_disp.curr_dev = dev;
+    if (dev == DEV_DISP || dev == DEV_SD) {
+        spix = &spi1.hspi;
+        spi1.curr_dev = dev;
     }
     else {
-        spix = &spi_tag_sd.hspi;
-        spi_tag_sd.curr_dev = dev;
+        spix = &spi2.hspi;
+        spi2.curr_dev = dev;
     }
 
     for (uint32_t i = 0; i < read_len; ++i) {
@@ -92,18 +105,24 @@ uint8_t spi_receive(spi_dev_e dev, uint8_t *read_data, uint32_t read_len) {
 
 
 /**
- * @brief
+ * @brief Thread-safe spi transmit dma implementation
+ * 
+ * This function assumes that the SPI bus corresponding
+ * to the SPI device has been locked before calling...
+ * 
  */
 uint8_t spi_transmit_dma(spi_dev_e dev, uint8_t *data, uint32_t len) {
     uint8_t status = HAL_OK;
     SPI_HandleTypeDef *spix;
-    if (dev == DEV_ETH || dev == DEV_DISP) {
-        spix = &spi_eth_disp.hspi;
-        spi_eth_disp.curr_dev = dev;
+    if (dev == DEV_DISP || dev == DEV_SD) {
+        spix = &spi1.hspi;
+        spi1.curr_dev = dev;
+        spi1.curr_task = xTaskGetCurrentTaskHandle();
     }
     else {
-        spix = &spi_tag_sd.hspi;
-        spi_tag_sd.curr_dev = dev;
+        spix = &spi2.hspi;
+        spi2.curr_dev = dev;
+        spi2.curr_task = xTaskGetCurrentTaskHandle();
     }
 
     status = HAL_SPI_Transmit_DMA(spix, data, len);
@@ -111,24 +130,69 @@ uint8_t spi_transmit_dma(spi_dev_e dev, uint8_t *data, uint32_t len) {
 }
 
 /**
- * @brief 
+ * @brief Thread-safe spi receive dma implementation
  */
 uint8_t spi_receive_dma(spi_dev_e dev, uint8_t *read_data, uint32_t read_len) {
     uint8_t status = HAL_OK;
     SPI_HandleTypeDef *spix;
-    if (dev == DEV_ETH || dev == DEV_DISP) {
-        spix = &spi_eth_disp.hspi;
-        spi_eth_disp.curr_dev = dev;
+    if (dev == DEV_DISP || dev == DEV_SD) {
+        spix = &spi1.hspi;
+        spi1.curr_dev = dev;
+        spi1.curr_task = xTaskGetCurrentTaskHandle();
     }
     else {
-        spix = &spi_tag_sd.hspi;
-        spi_tag_sd.curr_dev = dev;
+        spix = &spi2.hspi;
+        spi2.curr_dev = dev;
+        spi2.curr_task = xTaskGetCurrentTaskHandle();
     }
 
     status = HAL_SPI_Receive_DMA(spix, read_data, read_len);
     return status;
 }
 
+
+/**
+ * @brief Sleeps the thread until the lock is obtained for the device
+ * 
+ * 
+ * 
+ */
+uint8_t spi_lock(spi_dev_e dev) {
+    BaseType_t lock_obtained = pdFALSE;
+    if (dev == DEV_DISP || dev == DEV_SD)
+        lock_obtained = xSemaphoreTake(spi1.mutx, portMAX_DELAY);
+    else
+        lock_obtained = xSemaphoreTake(spi2.mutx, portMAX_DELAY);
+    
+    return lock_obtained;
+}
+
+
+/**
+ * @brief Release the lock associated with the SPI device
+ * 
+ * 
+ * 
+ */
+uint8_t spi_unlock(spi_dev_e dev) {
+    BaseType_t lock_release = pdFALSE;
+    if (dev == DEV_DISP || dev == DEV_SD)
+        lock_release = xSemaphoreGive(&spi1.mutx);
+    else
+        lock_release = xSemaphoreGive(&spi2.mutx);
+    
+    return lock_release;
+}
+
+
+/**
+ * @brief Sleeps the task until it is notified by DMA interrupt
+ * 
+ * 
+ */
+uint32_t spi_wait(spi_dev_e dev) {
+    return ulTaskNotifyTake(pdFALSE, portMAX_DELAY);
+}
 
 /*****************
  * STATIC DEFS
@@ -139,47 +203,47 @@ uint8_t spi_receive_dma(spi_dev_e dev, uint8_t *read_data, uint32_t read_len) {
  */
 static void spi1_configure(void) {
     /************* CONFIGURE SPI TX DMA *******************/
-    spi_eth_disp.hdmatx.Instance = DMA1_Stream2;
-    spi_eth_disp.hdmatx.Init.Channel = DMA_CHANNEL_2;
-    spi_eth_disp.hdmatx.Init.Direction = DMA_MEMORY_TO_PERIPH;
-    spi_eth_disp.hdmatx.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
-    spi_eth_disp.hdmatx.Init.MemDataAlignment = DMA_MDATAALIGN_BYTE;
-    spi_eth_disp.hdmatx.Init.MemInc = DMA_MINC_ENABLE;
-    spi_eth_disp.hdmatx.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
-    spi_eth_disp.hdmatx.Init.PeriphInc = DMA_PINC_ENABLE;
-    spi_eth_disp.hdmatx.Init.Mode = DMA_NORMAL;
+    spi1.hdmatx.Instance = DMA1_Stream2;
+    spi1.hdmatx.Init.Channel = DMA_CHANNEL_2;
+    spi1.hdmatx.Init.Direction = DMA_MEMORY_TO_PERIPH;
+    spi1.hdmatx.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
+    spi1.hdmatx.Init.MemDataAlignment = DMA_MDATAALIGN_BYTE;
+    spi1.hdmatx.Init.MemInc = DMA_MINC_ENABLE;
+    spi1.hdmatx.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
+    spi1.hdmatx.Init.PeriphInc = DMA_PINC_ENABLE;
+    spi1.hdmatx.Init.Mode = DMA_NORMAL;
 
     /************* CONFIGURE SPI RX DMA *******************/
-    spi_eth_disp.hdmatx.Instance = DMA1_Stream0;
-    spi_eth_disp.hdmatx.Init.Channel = DMA_CHANNEL_3;
-    spi_eth_disp.hdmatx.Init.Direction = DMA_PERIPH_TO_MEMORY;
-    spi_eth_disp.hdmatx.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
-    spi_eth_disp.hdmatx.Init.MemDataAlignment = DMA_MDATAALIGN_BYTE;
-    spi_eth_disp.hdmatx.Init.MemInc = DMA_MINC_ENABLE;
-    spi_eth_disp.hdmatx.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
-    spi_eth_disp.hdmatx.Init.PeriphInc = DMA_PINC_ENABLE;
-    spi_eth_disp.hdmatx.Init.Mode = DMA_NORMAL;
+    spi1.hdmatx.Instance = DMA1_Stream0;
+    spi1.hdmatx.Init.Channel = DMA_CHANNEL_3;
+    spi1.hdmatx.Init.Direction = DMA_PERIPH_TO_MEMORY;
+    spi1.hdmatx.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
+    spi1.hdmatx.Init.MemDataAlignment = DMA_MDATAALIGN_BYTE;
+    spi1.hdmatx.Init.MemInc = DMA_MINC_ENABLE;
+    spi1.hdmatx.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
+    spi1.hdmatx.Init.PeriphInc = DMA_PINC_ENABLE;
+    spi1.hdmatx.Init.Mode = DMA_NORMAL;
 
     /************** CONFIGURE SPI PERIPH ***************/
-    spi_eth_disp.hspi.Instance = SPI1;
-    spi_eth_disp.hspi.Init.CLKPolarity = SPI_POLARITY_LOW;
-    spi_eth_disp.hspi.Init.CLKPhase = SPI_PHASE_1EDGE;
-    spi_eth_disp.hspi.Init.Mode = SPI_MODE_MASTER;
-    spi_eth_disp.hspi.Init.DataSize = SPI_DATASIZE_8BIT;
-    spi_eth_disp.hspi.Init.FirstBit = SPI_FIRSTBIT_MSB;
-    spi_eth_disp.hspi.Init.NSS = SPI_NSS_SOFT;
-    spi_eth_disp.hspi.Init.TIMode = SPI_TIMODE_DISABLE;
-    spi_eth_disp.hspi.Init.Direction = SPI_DIRECTION_2LINES;
-    spi_eth_disp.hspi.Init.CRCPolynomial = SPI_CRCCALCULATION_DISABLE;
-    spi_eth_disp.hspi.Init.CRCPolynomial = SPI_CRCCALCULATION_DISABLE;
-    spi_eth_disp.hspi.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_8;
+    spi1.hspi.Instance = SPI1;
+    spi1.hspi.Init.CLKPolarity = SPI_POLARITY_LOW;
+    spi1.hspi.Init.CLKPhase = SPI_PHASE_1EDGE;
+    spi1.hspi.Init.Mode = SPI_MODE_MASTER;
+    spi1.hspi.Init.DataSize = SPI_DATASIZE_8BIT;
+    spi1.hspi.Init.FirstBit = SPI_FIRSTBIT_MSB;
+    spi1.hspi.Init.NSS = SPI_NSS_SOFT;
+    spi1.hspi.Init.TIMode = SPI_TIMODE_DISABLE;
+    spi1.hspi.Init.Direction = SPI_DIRECTION_2LINES;
+    spi1.hspi.Init.CRCPolynomial = SPI_CRCCALCULATION_DISABLE;
+    spi1.hspi.Init.CRCPolynomial = SPI_CRCCALCULATION_DISABLE;
+    spi1.hspi.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_8;
 
-    HAL_DMA_Init(&spi_eth_disp.hdmatx);
-    HAL_DMA_Init(&spi_eth_disp.hdmarx);
-    HAL_SPI_Init(&spi_eth_disp.hspi);
+    HAL_DMA_Init(&spi1.hdmatx);
+    HAL_DMA_Init(&spi1.hdmarx);
+    HAL_SPI_Init(&spi1.hspi);
 
-    __HAL_LINKDMA(&spi_eth_disp.hspi, hdmatx, spi_eth_disp.hdmatx);
-    __HAL_LINKDMA(&spi_eth_disp.hspi, hdmatx, spi_eth_disp.hdmarx);
+    __HAL_LINKDMA(&spi1.hspi, hdmatx, spi1.hdmatx);
+    __HAL_LINKDMA(&spi1.hspi, hdmatx, spi1.hdmarx);
 }
 
 
@@ -189,47 +253,47 @@ static void spi1_configure(void) {
  */
 static void spi2_configure(void) {
     /************* CONFIGURE SPI TX DMA *******************/
-    spi_eth_disp.hdmatx.Instance = DMA2_Stream4;
-    spi_eth_disp.hdmatx.Init.Channel = DMA_CHANNEL_0;
-    spi_eth_disp.hdmatx.Init.Direction = DMA_MEMORY_TO_PERIPH;
-    spi_eth_disp.hdmatx.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
-    spi_eth_disp.hdmatx.Init.MemDataAlignment = DMA_MDATAALIGN_BYTE;
-    spi_eth_disp.hdmatx.Init.MemInc = DMA_MINC_ENABLE;
-    spi_eth_disp.hdmatx.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
-    spi_eth_disp.hdmatx.Init.PeriphInc = DMA_PINC_ENABLE;
-    spi_eth_disp.hdmatx.Init.Mode = DMA_NORMAL;
+    spi2.hdmatx.Instance = DMA2_Stream4;
+    spi2.hdmatx.Init.Channel = DMA_CHANNEL_0;
+    spi2.hdmatx.Init.Direction = DMA_MEMORY_TO_PERIPH;
+    spi2.hdmatx.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
+    spi2.hdmatx.Init.MemDataAlignment = DMA_MDATAALIGN_BYTE;
+    spi2.hdmatx.Init.MemInc = DMA_MINC_ENABLE;
+    spi2.hdmatx.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
+    spi2.hdmatx.Init.PeriphInc = DMA_PINC_ENABLE;
+    spi2.hdmatx.Init.Mode = DMA_NORMAL;
 
     /************* CONFIGURE SPI RX DMA *******************/
-    spi_eth_disp.hdmatx.Instance = DMA2_Stream3;
-    spi_eth_disp.hdmatx.Init.Channel = DMA_CHANNEL_0;
-    spi_eth_disp.hdmatx.Init.Direction = DMA_PERIPH_TO_MEMORY;
-    spi_eth_disp.hdmatx.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
-    spi_eth_disp.hdmatx.Init.MemDataAlignment = DMA_MDATAALIGN_BYTE;
-    spi_eth_disp.hdmatx.Init.MemInc = DMA_MINC_ENABLE;
-    spi_eth_disp.hdmatx.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
-    spi_eth_disp.hdmatx.Init.PeriphInc = DMA_PINC_ENABLE;
-    spi_eth_disp.hdmatx.Init.Mode = DMA_NORMAL;
+    spi2.hdmatx.Instance = DMA2_Stream3;
+    spi2.hdmatx.Init.Channel = DMA_CHANNEL_0;
+    spi2.hdmatx.Init.Direction = DMA_PERIPH_TO_MEMORY;
+    spi2.hdmatx.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
+    spi2.hdmatx.Init.MemDataAlignment = DMA_MDATAALIGN_BYTE;
+    spi2.hdmatx.Init.MemInc = DMA_MINC_ENABLE;
+    spi2.hdmatx.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
+    spi2.hdmatx.Init.PeriphInc = DMA_PINC_ENABLE;
+    spi2.hdmatx.Init.Mode = DMA_NORMAL;
 
     /************** CONFIGURE SPI PERIPH ***************/
-    spi_eth_disp.hspi.Instance = SPI2;
-    spi_eth_disp.hspi.Init.CLKPolarity = SPI_POLARITY_LOW;
-    spi_eth_disp.hspi.Init.CLKPhase = SPI_PHASE_1EDGE;
-    spi_eth_disp.hspi.Init.Mode = SPI_MODE_MASTER;
-    spi_eth_disp.hspi.Init.DataSize = SPI_DATASIZE_8BIT;
-    spi_eth_disp.hspi.Init.FirstBit = SPI_FIRSTBIT_MSB;
-    spi_eth_disp.hspi.Init.NSS = SPI_NSS_SOFT;
-    spi_eth_disp.hspi.Init.TIMode = SPI_TIMODE_DISABLE;
-    spi_eth_disp.hspi.Init.Direction = SPI_DIRECTION_2LINES;
-    spi_eth_disp.hspi.Init.CRCPolynomial = SPI_CRCCALCULATION_DISABLE;
-    spi_eth_disp.hspi.Init.CRCPolynomial = SPI_CRCCALCULATION_DISABLE;
-    spi_eth_disp.hspi.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;
+    spi2.hspi.Instance = SPI2;
+    spi2.hspi.Init.CLKPolarity = SPI_POLARITY_LOW;
+    spi2.hspi.Init.CLKPhase = SPI_PHASE_1EDGE;
+    spi2.hspi.Init.Mode = SPI_MODE_MASTER;
+    spi2.hspi.Init.DataSize = SPI_DATASIZE_8BIT;
+    spi2.hspi.Init.FirstBit = SPI_FIRSTBIT_MSB;
+    spi2.hspi.Init.NSS = SPI_NSS_SOFT;
+    spi2.hspi.Init.TIMode = SPI_TIMODE_DISABLE;
+    spi2.hspi.Init.Direction = SPI_DIRECTION_2LINES;
+    spi2.hspi.Init.CRCPolynomial = SPI_CRCCALCULATION_DISABLE;
+    spi2.hspi.Init.CRCPolynomial = SPI_CRCCALCULATION_DISABLE;
+    spi2.hspi.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;
 
-    HAL_DMA_Init(&spi_eth_disp.hdmatx);
-    HAL_DMA_Init(&spi_eth_disp.hdmarx);
-    HAL_SPI_Init(&spi_eth_disp.hspi);
+    HAL_DMA_Init(&spi2.hdmatx);
+    HAL_DMA_Init(&spi2.hdmarx);
+    HAL_SPI_Init(&spi2.hspi);
 
-    __HAL_LINKDMA(&spi_eth_disp.hspi, hdmatx, spi_eth_disp.hdmatx);
-    __HAL_LINKDMA(&spi_eth_disp.hspi, hdmatx, spi_eth_disp.hdmarx);
+    __HAL_LINKDMA(&spi2.hspi, hdmatx, spi2.hdmatx);
+    __HAL_LINKDMA(&spi2.hspi, hdmatx, spi2.hdmarx);
 
 }
 
@@ -239,17 +303,23 @@ static void spi2_configure(void) {
  */
 void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi) {
     if (hspi->Instance == SPI1) {
-        if (spi_eth_disp.curr_dev == DEV_ETH) {
+        spi1.hpt_trigger = pdFALSE;
+        if (spi1.curr_dev == DEV_SD) {
             // handle whatever ETH stufff we need to do
         }
         else {
             // signal flush complete to display
         }
+
+        vTaskNotifyGiveFromISR(spi1.curr_task, &spi1.hpt_trigger);
     }
     else if (hspi->Instance == SPI2) {
-        if (spi_tag_sd.curr_dev == DEV_SD) {
+        spi2.hpt_trigger = pdFALSE;
+        if (spi2.curr_dev == DEV_ETH) {
 
         }
+
+        vTaskNotifyGiveFromISR(spi2.curr_task, &spi2.hpt_trigger);
     }
 }
 
@@ -259,17 +329,21 @@ void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi) {
  */
 void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef *hspi) {
     if (hspi->Instance == SPI1) {
-        if (spi_eth_disp.curr_dev == DEV_ETH) {
+        spi1.hpt_trigger = pdFALSE;
+        if (spi1.curr_dev == DEV_SD) {
             // signal eth controller dk what we receiving rn tbh...
         }
         else {
             // we shouldn't need to receive anything from display
         }
+        vTaskNotifyGiveFromISR(spi1.curr_task, &spi1.hpt_trigger);
     }
     else if (hspi->Instance == SPI2) {
-        if (spi_tag_sd.curr_dev == DEV_SD) {
+        spi2.hpt_trigger = pdFALSE;
+        if (spi2.curr_dev == DEV_ETH) {
 
         }
+        vTaskNotifyGiveFromISR(spi2.curr_task, &spi2.hpt_trigger);
     }
 }
 
@@ -278,7 +352,7 @@ void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef *hspi) {
  * @brief Handler for SPI1 TX (ethernet/display)
  */
 void DMA1_Stream2_IRQHandler(void) {
-    HAL_DMA_IRQHandler(&spi_eth_disp.hdmatx);
+    HAL_DMA_IRQHandler(&spi1.hdmatx);
 }
 
 
@@ -286,20 +360,20 @@ void DMA1_Stream2_IRQHandler(void) {
  * @brief Handler for SPI1 RX
  */
 void DMA1_Stream0_IRQHandler(void) {
-    HAL_DMA_IRQHandler(&spi_eth_disp.hdmarx);
+    HAL_DMA_IRQHandler(&spi1.hdmarx);
 }
 
 /**
  * @brief Handler for SPI2 TX (tag/sd card)
  */
-void DMA2_Stream0_IRQHandler(void) {
-    HAL_DMA_IRQHandler(&spi_tag_sd.hdmatx);
+void DMA2_Stream4_IRQHandler(void) {
+    HAL_DMA_IRQHandler(&spi2.hdmatx);
 }
 
 
 /**
  * @brief Handler for SPI2 RX
  */
-void DMA2_Stream0_IRQHandler(void) {
-    HAL_DMA_IRQHandler(&spi_tag_sd.hdmatx);
+void DMA2_Stream3_IRQHandler(void) {
+    HAL_DMA_IRQHandler(&spi2.hdmatx);
 }

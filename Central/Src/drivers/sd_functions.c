@@ -14,11 +14,11 @@
  *    You are free to use and modify it for learning and development.
  ******************************************************************************/
 
-
+#define _DEFAULT_SOURCE
 #include "../../Inc/drivers/sd_functions.h"
 #include "../../Inc/drivers/sd_diskio_spi.h"
 #include "../../Inc/drivers/sd_spi.h"
-#include <stdio.h>
+#include "../../Inc/common/printf-stdarg.h"
 #include <string.h>
 #include <stdlib.h>
 #include "ff.h"
@@ -167,12 +167,12 @@ int sd_read_csv(const char *filename, CsvRecord *records, int max_records, int *
 
 	printf("📄 Reading CSV: %s\r\n", filename);
 	while (f_gets(line, sizeof(line), &file) && *record_count < max_records) {
-		char *token = strtok(line, ",");
+		char *token = strsep(&line, ",");
 		if (token)
 			records[*record_count].id = atoi(token);
 		else
 			records[*record_count].id = 0;
-		token = strtok(NULL, ",");
+		token = strsep(&line, ",");
 		if (!token) continue;
 		strncpy(records[*record_count].name, token, sizeof(records[*record_count].name));
 		(*record_count)++;

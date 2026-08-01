@@ -4,17 +4,18 @@
 #include "../../Inc/app/inventory.h"
 #include "../../Inc/app/rfid_tag.h"
 #include "../../Inc/app/client.h"
-#include "ring_buffer.h"
-#include <stdio.h>
+#include "../../Inc/common/printf-stdarg.h"
 
 #include "../../../FreeRTOS_WrkSpace/include/FreeRTOS.h"
 #include "../../../FreeRTOS_WrkSpace/include/task.h"
+#include "../../../FreeRTOS_WrkSpace/include/queue.h"
 
-#define MAX_PENDING_MSGS    (15U)
+#define MAX_PENDING_MSGS    (2U)
 #define MAX_PEER_NODE_CNT   (1U)
 
 #define CENTRAL_NODE_STACK_DEPTH    (2048U)
 #define CENTRAL_NODE_PRIO           (3U)
+#define RX_TIMEOUT_TICKS            (pdMS_TO_TICKS(250))
 
 /*************************
  * STATIC DECLARATIONS
@@ -23,12 +24,14 @@ static uint8_t handle_command_msg(msg* cmd_msg);
 static uint8_t handle_msg(msg *message);
 static uint8_t handle_alert_msg(msg *alert);
 static uint8_t handle_event_msg(msg *event);
+static uint8_t central_node_process(msg *message);
 static void node_poll_complete_cb(void);
-
-static void task_central_node(void);
+static void task_central_node(void *arg);
 
 static node_state_t central_node = {0,0,0};
-STATIC_RING_BUFFER(pending_msgs, MAX_PENDING_MSGS, msg);
+static QueueHandle_t msg_arr_q;
+static StaticQueue_t _msg_arr_q;
+static uint8_t msg_arr_q_buf[MAX_PENDING_MSGS * sizeof(msg_array)];
 /**************
  * PUB APIs
  *************/
@@ -48,9 +51,7 @@ void central_node_init(void) {
     // c_inventory_init();
     
     // NO RECEPTION IN PROGRESS INITIALLY
-    central_node.flags = 0x00;
-    central_node.flags |= (PEER_RX_CPLT_Msk);
-
+    msg_arr_q = xQueueCreateStatic(MAX_PENDING_MSGS, sizeof(msg_array), msg_arr_q_buf, &_msg_arr_q);
     uint8_t stat = xTaskCreate(task_central_node, "Central Node Tsk", CENTRAL_NODE_STACK_DEPTH, 
                 NULL, CENTRAL_NODE_PRIO, NULL);
     
@@ -68,37 +69,73 @@ void central_node_init(void) {
  * a tiemout occurs.
  * 
  */
-uint8_t central_node_poll_peer(void) {
-    uint8_t status = STATUS_ERR;
+// uint8_t central_node_poll_peer(void) {
+//     uint8_t status = STATUS_ERR;
 
-    if (central_node.flags & PEER_RX_CPLT_Msk) {
-        msg cts_msg = msg_init_default;
-        cts_msg.node_id = central_node.curr_node;
-        cts_msg.command = MSG_CMD_CTS;
+//     if (central_node.flags & PEER_RX_CPLT_Msk) {
+//         msg cts_msg = msg_init_default;
+//         cts_msg.node_id = central_node.curr_node;
+//         cts_msg.command = MSG_CMD_CTS;
 
-        status = c_message_send(&cts_msg);
+//         status = c_message_send(&cts_msg);
+//         if (status == STATUS_OK) {
+//             central_node.flags &= ~(PEER_RX_CPLT_Msk); // cleared until RX cplt
+//             status = STATUS_WAIT;
+//         }
+//     }
+
+//     if (central_node.flags & PEER_MSG_READY_Msk) {
+//         msg_array arr = msg_array_init_default;
+//         status = c_message_receive(&arr);
+//         if (status == STATUS_OK) {
+//             if (arr.msgs[arr.msgs_count - 1].command != MSG_CMD_SEND_CPLT)
+//                 status = STATUS_ERR;
+//             for (uint8_t i = 0; i < arr.msgs_count - 1; ++i)
+//                 ring_buffer_push(&pending_msgs, (void *)&arr.msgs[i]);
+//             central_node.pending_msg_cnt = ring_buffer_count(&pending_msgs);
+//         }
+//         central_node.flags |= PEER_RX_CPLT_Msk;
+//         central_node.flags &= ~PEER_MSG_READY_Msk;
+//         central_node.curr_node = (central_node.curr_node + 1) % MAX_PEER_NODE_CNT;
+//     }
+
+//     return status;
+// }
+
+
+
+/*************************
+ * STATIC DECLARATIONS
+ *************************/
+
+/**
+ * @brief This task is responsible for receiving and processing messages
+ * 
+ * This task blocks on a counting sem(?) waiting for messages
+ * sends them to ethernet controller, sd card reader, etc. as 
+ * needed. 
+ */
+static void task_central_node(void *arg) {
+    msg_array arr = msg_array_init_default;
+    msg cts_msg = msg_init_default;
+    uint8_t status = STATUS_OK;
+    cts_msg.node_id = central_node.curr_node;
+    cts_msg.command = MSG_CMD_CTS;
+    
+    for (;;) {
+        status = c_message_post_out(&cts_msg);
         if (status == STATUS_OK) {
-            central_node.flags &= ~(PEER_RX_CPLT_Msk); // cleared until RX cplt
-            status = STATUS_WAIT;
+            if (xQueueReceive(msg_arr_q, (void *)&arr, RX_TIMEOUT_TICKS) == pdTRUE)
+            {
+                if (arr.msgs[arr.msgs_count - 1].command != MSG_CMD_SEND_CPLT)
+                    status = STATUS_ERR;
+                for (uint8_t i = 0; i < arr.msgs_count - 1; ++i)
+                    // logic to send each msg to a different task..
+                    central_node_process(&arr.msgs[i]);  
+            }
         }
-    }
-
-    if (central_node.flags & PEER_MSG_READY_Msk) {
-        msg_array arr = msg_array_init_default;
-        status = c_message_receive(&arr);
-        if (status == STATUS_OK) {
-            if (arr.msgs[arr.msgs_count - 1].command != MSG_CMD_SEND_CPLT)
-                status = STATUS_ERR;
-            for (uint8_t i = 0; i < arr.msgs_count - 1; ++i)
-                ring_buffer_push(&pending_msgs, (void *)&arr.msgs[i]);
-            central_node.pending_msg_cnt = ring_buffer_count(&pending_msgs);
-        }
-        central_node.flags |= PEER_RX_CPLT_Msk;
-        central_node.flags &= ~PEER_MSG_READY_Msk;
         central_node.curr_node = (central_node.curr_node + 1) % MAX_PEER_NODE_CNT;
     }
-
-    return status;
 }
 
 
@@ -114,41 +151,15 @@ uint8_t central_node_poll_peer(void) {
  * @return 0 on success; 1 else
  * 
  */
-uint8_t central_node_process(void) {
+static uint8_t central_node_process(msg *message) {
     uint8_t status = STATUS_ERR;
-    msg curr_msg = msg_init_default;
 
-    if (!ring_buffer_empty(&pending_msgs)) {
-        ring_buffer_pop(&pending_msgs, (void *)&curr_msg);
-        central_node.pending_msg_cnt = ring_buffer_count(&pending_msgs);
-
-        if (curr_msg.command != MSG_CMD_NONE)
-            status = handle_command_msg(&curr_msg);
-        else
-            status = handle_msg(&curr_msg);
-    }
+    if (message->command != MSG_CMD_NONE)
+        status = handle_command_msg(message);
+    else
+        status = handle_msg(message);
 
     return status;
-}
-
-
-/*************************
- * STATIC DECLARATIONS
- *************************/
-
-/**
- * @brief This task is responsible for receiving and processing messages
- * 
- * This task blocks on a counting sem(?) waiting for messages
- * sends them to ethernet controller, sd card reader, etc. as 
- * needed. 
- */
-static void task_central_node(void) {
-    
-    
-    for (;;) {
-
-    }
 }
 
 
@@ -162,7 +173,11 @@ static uint8_t handle_command_msg(msg* cmd_msg) {
     case MSG_CMD_NONE:
         break;
     }
+
+    return status;
 }
+
+
 
 static uint8_t handle_msg(msg *message) {
     uint8_t status = STATUS_OK;
@@ -175,7 +190,7 @@ static uint8_t handle_msg(msg *message) {
         status = handle_event_msg(message);
         break;
     case msg_type_transaction_tag:
-        status = inventory_process_transaction(message);
+        status = inventory_post_event(message);
         break;
     }
 
@@ -259,12 +274,12 @@ static uint8_t handle_event_msg(msg *event) {
     return status;
 }
 
-void timeout_peer_poll(void) {
-    central_node.flags &= ~PEER_MSG_READY_Msk;
-    central_node.flags |= PEER_RX_CPLT_Msk;
-}
+// void timeout_peer_poll(void) {
+//     central_node.flags &= ~PEER_MSG_READY_Msk;
+//     central_node.flags |= PEER_RX_CPLT_Msk;
+// }
 
-static void node_poll_complete_cb(void) {
-    central_node.flags |= (PEER_MSG_READY_Msk);
-}
+// static void node_poll_complete_cb(void) {
+//     central_node.flags |= (PEER_MSG_READY_Msk);
+// }
 

@@ -1,25 +1,42 @@
 #ifndef MBEDTLS_CONFIG_H
 #define MBEDTLS_CONFIG_H
 
+#include "../../../FreeRTOS_WrkSpace/include/FreeRTOS.h"
+
 /************************ macro define ***********************************/
 #define MBEDTLS_SSL_CLI_C   //complie SSL cleint protocols
 
 
 /************************ ssl config *************************************/
 
+/**
+ * MEM MANG MACROS
+ */
+#define MBEDTLS_PLATFORM_C
+#define MBEDTLS_PLATFORM_MEMORY
+#define MBEDTLS_PLATFORM_CALLOC_MACRO	pvPortCalloc
+#define MBEDTLS_PLATFORM_FREE_MACRO		vPortFree
+
+
+/**
+ * REDUCE RAM USAGE
+ */
+#define MBEDTLS_AES_ROM_TABLES
+
+
 /* System supports functions */
 //#define MBEDTLS_FS_IO    //
 
 /* ssl features supports functions */
-#define MBEDTLS_PROTO_TLS1    //supports TLS v1.0
+// #define MBEDTLS_PROTO_TLS1    //supports TLS v1.0
 //#define MBEDTLS_PROTO_TLS1_1  //supports TLS v1.1
 #define MBEDTLS_SSL_PROTO_TLS1_2        //supports TL v1.2
-//#define MBEDTLS_PROTO_SSL3         //supports SSL v3.0
+#define MBEDTLS_PROTO_SSL3         //supports SSL v3.0
 
 #define MBEDTLS_CIPHER_MODE_CBC //Use verify certificate function
 #define MBEDTLS_PKCS1_V15       //define public key padding method
 
-//#define MBEDTLS_SRV_SUPPORT_SSLV2_CLIENT_HELLO //define suppots SSL v2
+#define MBEDTLS_SRV_SUPPORT_SSLV2_CLIENT_HELLO //define suppots SSL v2
 
 /* ssl function supports */
 #define MBEDTLS_CERTS_C             //define to use certication testing function
@@ -30,7 +47,7 @@
 #define MBEDTLS_ECDH_C
 #define MBEDTLS_ECP_C
 #define MBEDTLS_ECP_DP_SECP256R1_ENABLED
-#define MBEDTLS_ECP_DP_SECP384R1_ENABLED
+// #define MBEDTLS_ECP_DP_SECP384R1_ENABLED
 
 //#define #define MBEDTLS_ARC4_C      //define public key encryption method (Using RC4)
 
@@ -79,11 +96,14 @@
 
 //define encryption and discrete methods
 #define MBEDTLS_SSL_CIPHERSUITES	\
-		MBEDTLS_TLS_RSA_WITH_AES_128_GCM_SHA256, \
-        MBEDTLS_TLS_RSA_WITH_AES_256_CBC_SHA256, \
-        MBEDTLS_TLS_RSA_WITH_AES_256_GCM_SHA384, \
-        MBEDTLS_TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA, \
 		MBEDTLS_TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+
+
+// MBEDTLS_TLS_RSA_WITH_AES_128_GCM_SHA256, 
+// MBEDTLS_TLS_RSA_WITH_AES_256_CBC_SHA256, 
+// MBEDTLS_TLS_RSA_WITH_AES_256_GCM_SHA384, 
+// MBEDTLS_TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA, 
+
 //Save RAM 
 #define MBEDTLS_MPI_MAX_SIZE   512
 #define MBEDTLS_ENTROPY_MAX_SOURCES   10
@@ -95,7 +115,7 @@
 #if defined (MBEDTLS_CLIENT_SUPPOR_AILPAY) //defines for alipay
 		#define MBEDTLS_SSL_MAX_CONTENT_LEN   5120   //define SSL client for connection to AILPAY
 #else
-		#define MBEDTLS_SSL_MAX_CONTENT_LEN    4096 //2048
+		#define MBEDTLS_SSL_MAX_CONTENT_LEN    2048 //2048
 #endif
 
 //#define MBEDTLS_X509_ALLOW_UNSUPPORTED_CRITICAL_EXTENSION

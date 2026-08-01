@@ -77,25 +77,25 @@ uint8_t client_init(void);
 
 
 
-/**
- * @brief Establish a connection to the Telegram bot API
- * 
- * 
- * @param server domain name of the server to connect to
- */
-uint8_t client_connect(void);
+// /**
+//  * @brief Establish a connection to the Telegram bot API
+//  * 
+//  * 
+//  * @param server domain name of the server to connect to
+//  */
+// uint8_t client_connect(void);
 
 
 
-/**
- * @brief Send to server
- * 
- * 
- * @param
- * @param
- * @return 0 on success; else 1
- */
-uint8_t client_send(void);
+// /**
+//  * @brief Send to server
+//  * 
+//  * 
+//  * @param
+//  * @param
+//  * @return 0 on success; else 1
+//  */
+// uint8_t client_send(void);
 
 
 
@@ -111,30 +111,30 @@ uint8_t client_send(void);
 uint8_t client_post_message(uint8_t *msg, uint16_t len);
 
 
-/**
- * @brief Receive from server 
- * 
- * 
- * 
- * @param 
- * @param 
- * @return 0 on success; else 1
- */
-uint8_t client_receive(void);
+// /**
+//  * @brief Receive from server 
+//  * 
+//  * 
+//  * 
+//  * @param 
+//  * @param 
+//  * @return 0 on success; else 1
+//  */
+// uint8_t client_receive(void);
 
 
 
-/**
- * @brief GETs HTTPS body text if any has been received
- * 
- * 
- * @param
- * @param
- * 
- * @return 0 if success i.e. message has been receieve and buffered recently; else 1
- * no messages have been received recently, internal message buffer is empty
- */
-uint8_t client_retrieve_message(uint8_t *msg, uint16_t *len);
+// /**
+//  * @brief GETs HTTPS body text if any has been received
+//  * 
+//  * 
+//  * @param
+//  * @param
+//  * 
+//  * @return 0 if success i.e. message has been receieve and buffered recently; else 1
+//  * no messages have been received recently, internal message buffer is empty
+//  */
+// uint8_t client_retrieve_message(uint8_t *msg, uint16_t *len);
 
 
 

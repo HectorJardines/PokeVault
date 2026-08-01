@@ -1,8 +1,12 @@
-#include "./spi.h"
+#include "../../Inc/drivers/spi.h"
+#include "../../Inc/drivers/io.h"
+
 #include "../../Inc/drivers/w5500_ethernet.h"
 #include "../../../Drivers/w5500_eth/DHCP/dhcp.h"
 #include "../../../Drivers/w5500_eth/DNS/dns.h"
-#include <stdio.h>
+#include "../../Inc/common/printf-stdarg.h"
+#include "../../../FreeRTOS_WrkSpace/include/FreeRTOS.h"
+#include "../../../FreeRTOS_WrkSpace/include/task.h"
 
 #define DHCP_DISABLED   (0U)
 #define DHCP_ENABLED    (1U)
@@ -53,7 +57,7 @@ static uint8_t dns_buffer[MAX_DNS_BUF_SIZE];
  */
 static uint8_t initialized = 0;
 uint8_t w5500_init(void) {
-    spi_init(SPI_DEVICE_W5500);
+    spi_init();
 
     // register chip select callback functions
     reg_wizchip_cs_cbfunc(w5500_cs_low, w5500_cs_high);
@@ -61,14 +65,15 @@ uint8_t w5500_init(void) {
     // register spi read/write byte/burst callback functions
     reg_wizchip_spi_cbfunc(w5500_spi_read_byte, w5500_spi_write_byte);
     reg_wizchip_spiburst_cbfunc(w5500_spi_burst_read, w5500_spi_burst_write);
-
-    // reset wizchip
-    ctlwizchip(CW_RESET_WIZCHIP, NULL);
+    reg_wizchip_cris_cbfunc(vPortEnterCritical, vPortExitCritical);
 
     initialized = 1;
 }
 
 uint8_t w5500_configure(void) {
+    // reset wizchip
+    ctlwizchip(CW_RESET_WIZCHIP, NULL);
+    
     w5500_status_e status = W5500_OK;
     // used to set the TX and RX socket sizes
     uint8_t w5500_mem_size[2][8] = {{2,2,2,2,2,2,2,2}, {2,2,2,2,2,2,2,2}};
@@ -166,20 +171,20 @@ static void w5500_cs_high(void) {
 
 static uint8_t w5500_spi_read_byte(void) {
     uint8_t byte = 0x00;
-    spi_receive(&byte, 1);
+    spi_receive(DEV_ETH, &byte, 1);
     return byte;
 }
 
 static void w5500_spi_write_byte(uint8_t data) {
-    spi_transmit(&data, 1);
+    spi_transmit(DEV_ETH, &data, 1);
 }
 
 static void w5500_spi_burst_read(uint8_t *data, uint16_t len) {
-    spi_receive(data, (uint32_t) len);
+    spi_receive_dma(DEV_ETH, data, (uint32_t)len);
 }
 
 static void w5500_spi_burst_write(uint8_t *data, uint16_t len) {
-    spi_transmit(data, (uint32_t) len);
+    spi_transmit_dma(DEV_ETH, data, (uint32_t)len);
 }
 
 static void w5500_dhcp_ip_set(void) {

@@ -26,7 +26,7 @@
  *====================*/
 
 /** Color depth: 1 (I1), 8 (L8), 16 (RGB565), 24 (RGB888), 32 (XRGB8888) */
-#define LV_COLOR_DEPTH 1
+#define LV_COLOR_DEPTH 16
 
 /*=========================
    STDLIB WRAPPER SETTINGS
@@ -686,8 +686,8 @@
  * https://fonts.google.com/specimen/Montserrat */
 #define LV_FONT_MONTSERRAT_8  1
 #define LV_FONT_MONTSERRAT_10 0
-#define LV_FONT_MONTSERRAT_12 0
-#define LV_FONT_MONTSERRAT_14 0
+#define LV_FONT_MONTSERRAT_12 1
+#define LV_FONT_MONTSERRAT_14 1
 #define LV_FONT_MONTSERRAT_16 0
 #define LV_FONT_MONTSERRAT_18 0
 #define LV_FONT_MONTSERRAT_20 0
@@ -810,9 +810,9 @@
 
 #define LV_USE_BAR        0
 
-#define LV_USE_BUTTON        0
+#define LV_USE_BUTTON        1
 
-#define LV_USE_BUTTONMATRIX  0
+#define LV_USE_BUTTONMATRIX  1
 
 #define LV_USE_CALENDAR   0
 #if LV_USE_CALENDAR
@@ -839,9 +839,9 @@
 
 #define LV_USE_IMAGE      1   /**< Requires: lv_label */
 
-#define LV_USE_IMAGEBUTTON     1
+#define LV_USE_IMAGEBUTTON     0
 
-#define LV_USE_KEYBOARD   0
+#define LV_USE_KEYBOARD   1
 
 #define LV_USE_LABEL      1
 #if LV_USE_LABEL
@@ -884,7 +884,7 @@
 
 #define LV_USE_TABVIEW    0
 
-#define LV_USE_TEXTAREA   0   /**< Requires: lv_label */
+#define LV_USE_TEXTAREA   1   /**< Requires: lv_label */
 #if LV_USE_TEXTAREA != 0
     #define LV_TEXTAREA_DEF_PWD_SHOW_TIME 1500    /**< [ms] */
 #endif

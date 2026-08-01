@@ -33,32 +33,32 @@ typedef struct {
 void central_node_init(void);
 
 
-/**
- * @brief Polls the peer nodes for any pending messages
- * 
- * This function polls one peer node and returns. Should not be 
- * called again until the peer node has sent it's pending messages or 
- * a tiemout occurs.
- * 
- */
-uint8_t central_node_poll_peer(void);
+// /**
+//  * @brief Polls the peer nodes for any pending messages
+//  * 
+//  * This function polls one peer node and returns. Should not be 
+//  * called again until the peer node has sent it's pending messages or 
+//  * a tiemout occurs.
+//  * 
+//  */
+// uint8_t central_node_poll_peer(void);
 
 
-/**
- * @brief Processes a single pending message
- * 
- * This function retrieves and processes a message received
- * from a peer node. E.g. if the buffered message contains 
- * a security breach alert, the central node will send
- * the alert via the ethernet module to the mobile device.
- * 
- * @return 0 on success; 1 else
- * 
- */
-uint8_t central_node_process(void);
+// /**
+//  * @brief Processes a single pending message
+//  * 
+//  * This function retrieves and processes a message received
+//  * from a peer node. E.g. if the buffered message contains 
+//  * a security breach alert, the central node will send
+//  * the alert via the ethernet module to the mobile device.
+//  * 
+//  * @return 0 on success; 1 else
+//  * 
+//  */
+// uint8_t central_node_process(void);
 
 
-void timeout_peer_poll(void);
+// void timeout_peer_poll(void);
 
 
 #endif

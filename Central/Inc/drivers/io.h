@@ -115,7 +115,7 @@ typedef enum
   IO_UNUSED_15 = IO_A15,
 
   IO_DISP_CTL = IO_B0,
-  IO_PIR_RCV = IO_B1,
+  IO_SPI_CS_TOUCH = IO_B1,
   IO_UNUSED_18 = IO_B2,
   IO_SPI1_SCK = IO_B3,
   IO_SPI1_MISO = IO_B4,

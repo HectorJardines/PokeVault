@@ -18,6 +18,7 @@
 
 #include "stm32f4xx.h"
 #include <stdint.h>
+#include "./spi.h"
 
 #define CMD0  (0)
 #define CMD8  (8)

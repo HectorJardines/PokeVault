@@ -1,15 +1,37 @@
 #include "../../Inc/common/log.h"
 #include "../../Inc/common/defines.h"
 #include "../../Inc/drivers/rtc.h"
-#include "spi.h"
-#include <stdio.h>
+#include "../../Inc/drivers/spi.h"
+
+#include "../../Inc/common/printf-stdarg.h"
+#include "../../../FreeRTOS_WrkSpace/include/FreeRTOS.h"
+#include "../../../FreeRTOS_WrkSpace/include/task.h"
+#include "../../../FreeRTOS_WrkSpace/include/queue.h"
+
 #include <string.h>
+
+
+/*******************
+ * MACRO/TYPEDEFS
+ *******************/
+#define FPATH_LOGS      ("logs.txt")
+#define FPATH_TRANS     ("trans.txt")
+#define FPATH_EVENTS    ("events.txt")
+
+
+#define MAX_LOG_CNT             (10U)
+#define FILE_SYNC_PERIOD        (pdMS_TO_TICKS(500))
+#define LOG_TASK_STACK_DEPTH    (1024U)
+#define LOG_TASK_PRIO           (5U)
+#define LOG_ENQ_TIMEOUT         (pdMS_TO_TICKS(50))
+#define LOG_DEQ_TIMEOUT         (pdMS_TO_TICKS(10))
 
 typedef struct {
     uint8_t log_type;
     uint8_t len;
     uint8_t msg[MAX_LOG_BODY_LEN];
 } log_t;
+
 
 /***********************
  * STATIC DECLARATIONS
@@ -23,9 +45,16 @@ typedef struct {
  * @param[in] type
  */
 static void create_log_msg(char *fmt_msg, const char *msg_body, log_level_e type);
+static void task_logging(void *arg);
+static void log_write_to_file(log_t *log);
 
-STATIC_RING_BUFFER(log_queue, MAX_MSG_CNT, log_t);
+
+// STATIC_RING_BUFFER(log_queue, MAX_MSG_CNT, log_t);
 static log_t active_log;
+
+static QueueHandle_t log_q;
+static StaticQueue_t _log_q;
+static uint8_t log_buf[MAX_LOG_CNT * sizeof(log_t)];
 /*******************
  * USER APIs
  *******************/
@@ -37,8 +66,16 @@ static log_t active_log;
  */
 void log_init(void) {
     uint8_t status = STATUS_OK;
-    // spi_init(SPI_DEVICE_BMI160);
-    // status = sd_mount();
+    spi_init();
+
+    log_q = xQueueCreateStatic(MAX_LOG_CNT, sizeof(log_t), log_buf, &_log_q);
+    BaseType_t stat = xTaskCreate(task_logging, "LOG TASK", LOG_TASK_STACK_DEPTH,
+                NULL, LOG_TASK_PRIO, NULL);
+    
+    if (stat != pdTRUE) {
+        while(1) {}
+    }
+    (void)status;
 }
 
 /**
@@ -55,9 +92,7 @@ uint8_t log_event(const char *event_msg) {
     active_log.log_type = LOG_EVENT;
     printf(event_msg);
     // pops off any log that is taking too long to TX so we don't block
-    ring_buffer_push(&log_queue, (void *)&active_log);
-
-    return STATUS_OK;
+    return !xQueueSendToBack(log_q, (void *)&active_log, LOG_ENQ_TIMEOUT);
 }
 
 
@@ -74,9 +109,7 @@ uint8_t log_transaction(const char *trans_msg) {
     active_log.log_type = LOG_TRANS;
     printf(trans_msg);
     // pops off any log that is taking too long to TX so we don't block
-    ring_buffer_push(&log_queue, (void *)&active_log);
-
-    return STATUS_OK;
+    return !xQueueSendToBack(log_q, (void *)&active_log, LOG_ENQ_TIMEOUT);
 }
 
 
@@ -95,9 +128,7 @@ uint8_t log_warn(const char *warn_msg) {
     active_log.log_type = LOG_ERROR;
     
     // pops off any log that is taking too long to TX so we don't block
-    ring_buffer_push(&log_queue, (void *)&active_log);
-
-    return STATUS_OK;
+    return !xQueueSendToBack(log_q, (void *)&active_log, LOG_ENQ_TIMEOUT);
 }
 
 
@@ -115,10 +146,10 @@ uint8_t log_error(const char *err_msg) {
     active_log.log_type = LOG_ERR;
     printf(err_msg);
     // pops off any log that is taking too long to TX so we don't block
-    ring_buffer_push(&log_queue, (void *)&active_log);
-
-    return STATUS_OK;
+    return !xQueueSendToBack(log_q, (void *)&active_log, LOG_ENQ_TIMEOUT);
 }
+
+
 
 
 /**
@@ -135,9 +166,45 @@ void log_set_level(log_level_e level) {
 }
 
 
+
+
+
 /***********************
  * STATIC DECLARATIONS
  ***********************/
+/**
+ * @brief Processes queue log items
+ */
+static void task_logging(void *arg) {
+    log_t curr_log = {0, 0, {0}};
+    FRESULT res = FR_OK;
+    FIL logs, trans, events;
+    TickType_t prev_sync = 0, curr_sync_tick = 0;
+
+    res |= f_open(&logs, FPATH_LOGS, FA_OPEN_APPEND | FA_WRITE);
+    res |= f_open(&trans, FPATH_TRANS, FA_OPEN_APPEND | FA_WRITE);
+    res |= f_open(&events, FPATH_EVENTS, FA_OPEN_APPEND | FA_WRITE);
+
+    for (;;) {
+        if (xQueueReceive(log_q, (void *)&curr_log, LOG_DEQ_TIMEOUT) == pdTRUE) {
+            // write to file
+            log_write_to_file(&curr_log);
+        }
+
+        curr_sync_tick = xTaskGetTickCount();
+        if (curr_sync_tick - prev_sync >= FILE_SYNC_PERIOD) {
+            f_sync(&logs);
+            f_sync(&trans);
+            f_sync(&events);
+
+            prev_sync = curr_sync_tick;
+        }
+    }
+}
+
+
+
+
 static void create_log_msg(char *fmt_msg, const char *msg_body, log_level_e type) {
     rtc_info_t timestamp;
     const char *type_str;
@@ -157,32 +224,31 @@ static void create_log_msg(char *fmt_msg, const char *msg_body, log_level_e type
     }
 
     rtc_read_timestamp(&timestamp);
-    snprintf(fmt_msg, MAX_LOG_BODY_LEN, "%s:\r\n%02d:%02d:%02d - %02d:%02d:%02d\r\n%s\r\n",
+    snprintf(fmt_msg, MAX_FMT_MSG_LEN, "%s:\r\n%02d:%02d:%02d - %02d:%02d:%02d\r\n%s\r\n",
             type_str, timestamp.day, timestamp.month, timestamp.year,
             timestamp.hours, timestamp.minutes, timestamp.seconds,
             msg_body);
 }
 
 
-static void log_write_to_file(void) {
+static void log_write_to_file(log_t *log) {
     int8_t status = STATUS_OK;
-    char formatted_msg[MAX_LOG_BODY_LEN];
-    log_t log;
-    if (!ring_buffer_empty(&log_queue)) {
-        ring_buffer_pop(&log_queue, (void *)&log);
-        create_log_msg(formatted_msg, log.msg, log.log_type);
+    char formatted_msg[MAX_FMT_MSG_LEN];
 
-        switch (log.log_type) {
-        case LOG_ERR:
-            status = sd_append_file("logs.txt", formatted_msg);
-            break;
-        case LOG_TRANS:
-            status = sd_append_file("trans.txt", formatted_msg);
-            break;
-        case LOG_EVENT:
-            status = sd_append_file("events.txt", formatted_msg);
-            break;
-        }
+    create_log_msg(formatted_msg, log->msg, log->log_type);
+
+    switch (log->log_type) {
+    case LOG_ERR:
+        status = sd_write_file(FPATH_LOGS, formatted_msg);
+        break;
+    case LOG_TRANS:
+        status = sd_write_file(FPATH_TRANS, formatted_msg);
+        break;
+    case LOG_EVENT:
+        status = sd_write_file(FPATH_EVENTS, formatted_msg);
+        break;
     }
+
+    (void)status;
 }
 
