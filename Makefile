@@ -22,7 +22,7 @@ CONTROLLER = poke_vault_ctlr
 # debug build?
 DEBUG = 1
 # optimization
-OPT = -O0 -g
+OPT = -Og
 
 
 #######################################
@@ -105,10 +105,13 @@ Central/Src/main.c \
 Central/Src/stm32f4xx_it.c \
 Central/Src/stm32f4xx_hal_msp.c \
 Central/Src/system_stm32f4xx.c \
+Central/Src/stm32f4xx_hal_timebase_tim.c \
 Central/Src/app/rfid_tag.c \
 Central/Src/app/inventory.c \
 Central/Src/app/central_message.c \
 Central/Src/app/central_node.c \
+Central/Src/app/client.c \
+Central/Src/app/display.c \
 Central/Src/drivers/w5500_ethernet.c \
 Central/Src/drivers/sd_diskio_spi.c \
 Central/Src/drivers/sd_functions.c \
@@ -120,12 +123,13 @@ Central/Src/test_central_node.c \
 Central/Src/common/log.c \
 Central/Src/common/printf-stdarg.c \
 Central/Src/common/private.c \
-Central/Src/app/client.c \
 Central/Src/drivers/io.c \
 Central/Src/drivers/rtc.c \
 Central/Src/drivers/xpt2046.c \
 FreeRTOS_WrkSpace/ARM_CM4F/port.c \
 FreeRTOS_WrkSpace/MemMang/heap_4.c \
+Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_tim.c \
+Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_tim_ex.c \
 
 C_CTLR_SOURCES += $(call rwildcard, FreeRTOS_WrkSpace/source/,*.c)
 C_CTLR_SOURCES += $(call rwildcard, Middlewares/Third_Party/FatFs/src/,*.c)
@@ -245,7 +249,7 @@ C_C_INCLUDES += $(addprefix -I, $(C_INC_DIRS_FILTERED))
 ASFLAGS = $(MCU) $(AS_DEFS) $(AS_INCLUDES) $(OPT) -Wall -fdata-sections -ffunction-sections
 
 P_CFLAGS += $(MCU) $(C_DEFS) $(C_P_INCLUDES) $(OPT) -Wall -fdata-sections -ffunction-sections -DLV_CONF_INCLUDE_SIMPLE=\"Core/Inc/app/lv_conf.h\"
-C_CFLAGS += $(MCU) $(C_DEFS) $(C_C_INCLUDES) $(OPT) -Wall -fdata-sections -ffunction-sections -DLV_CONF_INCLUDE_SIMPLE=\"Central/Inc/drivers/lv_conf.h\"
+C_CFLAGS += $(MCU) $(C_DEFS) $(C_C_INCLUDES) $(OPT) -Wall -fdata-sections -ffunction-sections -DLV_CONF_INCLUDE_SIMPLE=\"Central/Inc/drivers/lv_conf.h\" -fdebug-prefix-map=/=
 
 ifeq ($(DEBUG), 1)
 CFLAGS += -g -gdwarf-2 -fdata-sections -ffunction-sections -g3

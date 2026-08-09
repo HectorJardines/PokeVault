@@ -78,6 +78,14 @@ static uint8_t search_uid(uint8_t *uid, uint8_t *idx);
  */
 static mfrc_status_e tag_scan_and_select(uint8_t *card_buf, uint8_t *card_uid);
 
+
+static void reader_spi_init(void);
+static uint8_t reader_write_byte(uint8_t byte);
+static uint8_t reader_get_byte(void);
+static void reader_cs_low(void);
+static void reader_cs_high(void);
+static uint8_t reader_lock(void);
+static void reader_unlock(void);
 /********************
  * PUBLIC APIs
  *******************/
@@ -89,7 +97,10 @@ static uint8_t initialized = 0;
  */
 uint8_t tag_init(void) {
     if (!initialized) {
-        mfrc522_init();
+        mfrc_reader_t reader = {.init = reader_spi_init, .receive_byte = reader_get_byte, .transmit_byte = reader_write_byte, 
+                                .select = reader_cs_low, .deselect = reader_cs_high,
+                                .req_bus = reader_lock, .rel_bus = reader_unlock};
+        mfrc522_init(&reader);
         initialized = 1;
     }
     return MFRC_OK;
@@ -291,4 +302,35 @@ static mfrc_status_e tag_scan_and_select(uint8_t *card_buf, uint8_t *card_uid) {
     }
 
     return mfrc_stat;
+}
+
+
+
+
+static void reader_spi_init(void) {
+    spi_init(SPI_DEVICE_MFRC522);
+}
+
+
+static uint8_t reader_write_byte(uint8_t byte) {
+    return spi_transmit(&byte, 1);
+}
+
+
+static uint8_t reader_get_byte(void) {
+    uint8_t byte = 0x00;
+    spi_receive(&byte, 1);
+    return byte;
+}
+static void reader_cs_low(void) {
+    io_set_out(IO_SPI_CS_MFRC, LOW);
+}
+static void reader_cs_high(void) {
+    io_set_out(IO_SPI_CS_MFRC, HIGH);
+}
+static uint8_t reader_lock(void) {
+    return 1;
+}
+static void reader_unlock(void) {
+    __NOP();
 }

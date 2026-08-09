@@ -58,7 +58,7 @@ static int8_t send_single_byte_cmd(uint8_t cmd);
 static int8_t send_multi_byte_cmd(uint8_t *cmds, uint8_t len);
 static int8_t send_single_byte_data(uint8_t *data);
 static int8_t send_multi_byte_data(uint8_t *data, uint32_t len);
-
+static void fill_display(void);
 
 /****************************
  *      SSD1306 APIs
@@ -74,6 +74,7 @@ void ssd1306_init(void) {
     set_addressing_scheme();
     ssd1306_pwr_on();
     ssd1306_clear_display();
+    // fill_display();
     initialized = true;
 }
 
@@ -208,8 +209,11 @@ void ssd1306_set_pixels(uint8_t *pixel_map, uint8_t start_x, uint8_t start_y, ui
 }
 
 void ssd1306_clear_display(void) {
-    for (uint16_t i = 0; i < display.buf_len; i++)
-        display.gddr_buf[i] = 0;
+    memset((void *)display.gddr_buf, 0x00, display.buf_len);
+}
+
+static void fill_display(void) {
+    memset((void *)display.gddr_buf, 0xff, display.buf_len);
 }
 
 /*************************
@@ -259,6 +263,8 @@ static uint8_t set_addressing_scheme(void) {
                                 CMD_SET_MEM_ADDRESSING_MODE, 
                                 OPT_ADDR_MODE_HORI};
     int8_t res = send_multi_byte_cmd(hori_addressing, sizeof(hori_addressing));
+    if (res != HAL_OK)
+        send_multi_byte_cmd(hori_addressing, sizeof(hori_addressing));
     uint8_t hori_strt_end_col[] = {SSD1306_CTL_BYTE_CMD, 
                                     CMD_SET_COL_STRT_END_ADDR, 
                                     0x00, // start column

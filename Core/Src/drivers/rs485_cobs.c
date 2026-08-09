@@ -106,10 +106,10 @@ uint8_t rs485_receive(uint8_t *encoded_buf, uint32_t *length) {
         *length = rs485_cobs_decode(tmp_buf.buf, tmp_buf.len, (void *)encoded_buf);
         if (*length <= 1)
             status = RX_ERR;
-        msg_consumed_cb();
+        
     }
     __enable_irq();
-
+    msg_consumed_cb();
     return status;
 }
 

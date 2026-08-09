@@ -108,7 +108,7 @@ unsigned int wiz_tls_init(wiz_tls_context* tlsContext, int* socket_fd)
 	mbedtls_ssl_set_hostname(tlsContext->ssl, sslHostName);
 
 #if defined (MBEDTLS_CERTS_C)
-	printf("cert size[%d] = [%s]\r\n", strlen(CERTIFICATE), CERTIFICATE);
+	printf("cert size[%d] = TELE CERT\r\n", strlen(CERTIFICATE));
 	ret = mbedtls_x509_crt_parse((tlsContext->cacert),(unsigned char *)CERTIFICATE, strlen(CERTIFICATE) + 1);
 #else
 	ret = 1;

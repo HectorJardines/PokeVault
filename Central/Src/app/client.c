@@ -11,6 +11,7 @@
 #include "string.h"
 #include "mbedtls/ssl.h"
 #include "../../Inc/common/printf-stdarg.h"
+// #include <stdio.h>
 
 
 #define TELEGRAM_HOST_NAME  ("api.telegram.org")
@@ -19,7 +20,7 @@
 #define MAX_HTTPS_PKT_LEN   (1024U)
 
 #define CLI_STACK_DEPTH         (2048U) // 2048 units not bytes
-#define CLI_TASK_PRIO           (5U)
+#define CLI_TASK_PRIO           (3U)
 #define CLI_POST_REQ_TIMEOUT    (pdMS_TO_TICKS(25))
 #define CLI_GET_REQ_PERIOD      (pdMS_TO_TICKS(50))
 
@@ -50,11 +51,16 @@ static uint8_t client_send(net_msg_t *msg);
 // STATIC_RING_BUFFER(post_req_q, MAX_QUEUE_LEN, net_msg_t);
 // STATIC_RING_BUFFER(get_req_q, MAX_QUEUE_LEN, net_msg_t);
 static client_context_t client;
+static tls_members_t tls_info;
 
 static void task_client(void *arg);
 static QueueHandle_t request_q;
 static StaticQueue_t _request_q;
 static uint8_t request_q_buf[MAX_QUEUE_LEN * sizeof(net_msg_t)];
+
+static TaskHandle_t cli_tsk;
+static StaticTask_t _cli_tsk;
+static StackType_t cli_tsk_stk[CLI_STACK_DEPTH];
 /***********************
  * PUBLIC APIs
  ***********************/
@@ -70,6 +76,7 @@ uint8_t client_init(void) {
     client_status_e res = CLIENT_OK;
     w5500_init();
 
+    // HTTPS CONNECTION INFORMATION
     memcpy((void *)&client.token, (void *)API_TOKEN, sizeof(client.token));
     memcpy((void *)&client.host_name, (void *)TELEGRAM_HOST_NAME, strlen((const char *)TELEGRAM_HOST_NAME) + 1);
     client.server_port = HTTPS_SERVER_PORT;
@@ -79,10 +86,16 @@ uint8_t client_init(void) {
     client.flags = 0x00;
     client.update_id = 0;
 
+    // INITIALIZE TLS CONTEXT MEMBER STRUCT POINTERS
+    client.tls_context.cacert = &tls_info.cacert;
+    client.tls_context.conf = &tls_info.conf;
+    client.tls_context.ctr_drbg = &tls_info.ctr_drbg;
+    client.tls_context.ssl = &tls_info.ssl;
+
     request_q = xQueueCreateStatic(MAX_QUEUE_LEN, sizeof(net_msg_t), request_q_buf, &_request_q);
-    uint8_t stat = xTaskCreate(task_client, "Client Task", CLI_STACK_DEPTH, 
-                NULL, CLI_TASK_PRIO, NULL);
-    if (stat != pdPASS) {
+    cli_tsk = xTaskCreateStatic(task_client, "Cli Task", CLI_STACK_DEPTH,
+                                    NULL, CLI_TASK_PRIO, cli_tsk_stk, &_cli_tsk);
+    if (cli_tsk == NULL) {
         while (1) {}
     }
 }
@@ -94,8 +107,8 @@ uint8_t client_post_message(uint8_t *msg, uint16_t len) {
     net_msg_t client_msg;
 
     // we'll go with the approach of dropping messages that are taking long to be processed (avoid blocking)
-    memcpy((void *) client_msg.msg_body, (void *)msg, len + 1);
-    client_msg.msg_len = len + 1;
+    memcpy((void *) client_msg.msg_body, (void *)msg, len);
+    client_msg.msg_len = len;
     status = !xQueueSendToBack(request_q, &client_msg, CLI_POST_REQ_TIMEOUT);
 
     return status;
@@ -145,7 +158,8 @@ uint8_t client_connected(void) {
  * 
  */
 uint8_t client_messages_pending(void) {
-    return client.msgs_pending;
+    // return client.msgs_pending;
+    return 0;
 }
 
 /***************************
@@ -161,32 +175,39 @@ uint8_t client_messages_pending(void) {
 static void task_client(void *arg) {
     net_msg_t msg_post;
     net_msg_t msg_get;
-    uint8_t stat = 0;
+    uint8_t ret = 0;
 
     TickType_t prev_getreq_tick = 0;
     TickType_t curr_tick = 0;
 
 
-    w5500_configure();
+    ret = w5500_configure();
+    ret = wiz_tls_init(&client.tls_context, &client.sock_num);
 
     // task body
     for (;;) {
-        while (!client_connected())
+        while (!client_connected()) {
+            taskENTER_CRITICAL();
             client_connect();
+            taskEXIT_CRITICAL();
+        }
         
         if (xQueueReceive(request_q, &msg_post, CLI_POST_REQ_TIMEOUT) == pdTRUE) {
-            stat = client_send(&msg_post);
+            ret = client_send(&msg_post);
         }
 
         curr_tick = xTaskGetTickCount();
         if (curr_tick - prev_getreq_tick >= CLI_GET_REQ_PERIOD) {
-            stat = client_receive(&msg_get);
-            if (stat == 0) {
+            ret = client_receive(&msg_get);
+            if (ret == 0) {
                 // SEND MESSAGE FOR PROCESSING
             }
             prev_getreq_tick = curr_tick;
         }   
 
+
+        UBaseType_t high_stk_usage = uxTaskGetStackHighWaterMark(NULL);
+        // printf("CLI TASK: FREE RAM = %d - %d\r\n", CLI_STACK_DEPTH, high_stk_usage);
     }
 }
 

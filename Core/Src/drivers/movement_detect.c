@@ -60,11 +60,10 @@ uint8_t movement_init(void) {
 uint8_t movement_detected(void) {
     union bmi160_int_status stat;
     uint8_t byte = 0x00;
-    bmi160_get_regs(BMI160_INT_ENABLE_0_ADDR, &byte, 1, &h_imu.conf);
-    printf("INT CONFIG: %x\r\n", byte);
-    bmi160_get_int_status(BMI160_INT_STATUS_0, &stat, &h_imu.conf);
-    
-    printf("INT BIT: %d\r\n", stat.bit.anym);
+    // bmi160_get_regs(BMI160_INT_ENABLE_0_ADDR, &byte, 1, &h_imu.conf);
+    // printf("INT CONFIG: %x\r\n", byte);
+    // bmi160_get_int_status(BMI160_INT_STATUS_0, &stat, &h_imu.conf);
+    // printf("INT BIT: %d\r\n", stat.bit.anym);
     uint8_t movement = unit_movement.motion_detected;
     return movement;
 }

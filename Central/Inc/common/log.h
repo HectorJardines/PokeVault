@@ -21,16 +21,16 @@
  *************/
 typedef enum {
     LOG_DISABLE,
+    LOG_WARN,
     LOG_ERROR,
-    LOG_EVENT,
-    LOG_TRANS,
     LOG_ALL
 } log_level_e;
 
 typedef enum {
-    LOG_OK,
     LOG_ERR,
-} log_status_e;
+    LOG_EVENT,
+    LOG_TRANS,
+} log_type_e;
 
 
 typedef struct {

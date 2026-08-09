@@ -54,7 +54,7 @@ static void SD_TransmitByte(uint8_t data) {
 }
 
 static uint8_t SD_ReceiveByte(void) {
-    uint8_t dummy = 0x00;
+    uint8_t dummy = 0xFF;
     spi_receive(DEV_SD, &dummy, 1);
     return dummy;
 }
@@ -139,8 +139,9 @@ SD_Status SD_SPI_Init(void) {
     uint8_t r7[4];
     uint32_t retry;
 
+    HAL_Delay(2);
     SD_CS_HIGH();
-    for (i = 0; i < 10; i++) SD_TransmitByte(0xFF);
+    for (i = 0; i < 75; i++) SD_TransmitByte(0xFF);
 
     SD_CS_LOW();
     response = SD_SendCommand(CMD0, 0, 0x95);
@@ -192,6 +193,7 @@ SD_Status SD_ReadBlocks(uint8_t *buff, uint32_t sector, uint32_t count) {
     if (!count) return SD_ERROR;
 
     if (count == 1) {
+        // sdhc = 1;
     	if (!sdhc) sector *= 512;
         SD_CS_LOW();
         if (SD_SendCommand(CMD17, sector, 0xFF) != 0x00) {
@@ -210,6 +212,7 @@ SD_Status SD_ReadBlocks(uint8_t *buff, uint32_t sector, uint32_t count) {
             return SD_ERROR;
         }
 
+        memset((void *)buff, 0xFF, 512);
         SD_ReceiveBuffer(buff, 512);
         SD_ReceiveByte();  // CRC
         SD_ReceiveByte();

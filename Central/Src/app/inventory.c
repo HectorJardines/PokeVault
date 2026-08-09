@@ -1,5 +1,6 @@
 #include "../../Inc/app/inventory.h"
-#include "../../Inc/common/printf-stdarg.h"
+// #include "../../Inc/common/printf-stdarg.h"
+#include <stdio.h>
 #include "../../Inc/app/client.h"
 #include "../../../Core/Inc/common/ring_buffer.h"
 #include "../../Inc/common/defines.h"
@@ -7,7 +8,7 @@
 #include "../../Inc/app/rfid_tag.h"
 
 #include "../../../FreeRTOS_WrkSpace/include/FreeRTOS.h"
-#include "../../../FreeRTOS_WrkSpace/include/event_groups.h"
+#include "../../../FreeRTOS_WrkSpace/include/task.h"
 
 
 /********************
@@ -18,12 +19,11 @@
 #define MAX_TRANSACTIONS    (10U)
 #define FILE_NAME_LEN       (12U)
 
-
-#define TRANS_PEND_TIMEOUT  (pdMS_TO_TICKS(50))
+#define TRANS_PEND_TIMEOUT  (pdMS_TO_TICKS(4500))
 #define TRANS_POST_TIMEOUT  (pdMS_TO_TICKS(25))
 #define INVENT_FLUSH_PERIOD (pdMS_TO_TICKS(5000)) // flush every 5 seconds
 
-#define INVENTORY_TASK_STK_DEPTH    (1024U)
+#define INVENTORY_TASK_STK_DEPTH    (512U)
 #define INVENTORY_TASK_PRIO         (3U)
 
 
@@ -55,6 +55,10 @@ static uint8_t trans_q_buf[MAX_TRANSACTIONS * sizeof(msg)];
 
 static SemaphoreHandle_t csv_mutx;
 static StaticSemaphore_t csv_mutx_buf;
+
+static TaskHandle_t invent_tsk;
+static StaticTask_t _invent_tsk;
+static StackType_t invent_stk[INVENTORY_TASK_STK_DEPTH];
 /******************
  * PUBLIC APIs
  *****************/
@@ -75,8 +79,8 @@ void c_inventory_init(void) {
     uint8_t status = STATUS_OK;
     csv_mutx = xSemaphoreCreateMutexStatic(&csv_mutx_buf);
     trans_q = xQueueCreateStatic(MAX_TRANSACTIONS, sizeof(msg), trans_q_buf, &_trans_q);
-    status = xTaskCreate(task_inventory, "Invent Task", INVENTORY_TASK_STK_DEPTH,
-                        NULL, INVENTORY_TASK_PRIO, NULL);
+    invent_tsk = xTaskCreateStatic(task_inventory, "Invent Task", INVENTORY_TASK_STK_DEPTH,
+                                        NULL, INVENTORY_TASK_PRIO, invent_stk, &_invent_tsk);
 
     if (status != pdTRUE) {
         while (1) {}
@@ -210,6 +214,9 @@ static void task_inventory(void *arg) {
             stat = inventory_flush_transactions(); // eventually log any errors
             prev_flush_tick = curr_flush_tick;
         }
+
+        UBaseType_t high_stk_usage = uxTaskGetStackHighWaterMark(NULL);
+        // printf("INVENT TASK: FREE RAM = %d - %d\r\n", INVENTORY_TASK_STK_DEPTH, high_stk_usage);
     }
 }
 

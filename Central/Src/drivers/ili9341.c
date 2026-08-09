@@ -1,6 +1,7 @@
 #include "../../Inc/drivers/ili9341.h"
 #include "../../Inc/drivers/spi.h"
 #include "../../Inc/drivers/io.h"
+#include <string.h>
 
 /************
  * MACROS
@@ -39,8 +40,8 @@ void ili9341_send_cmd(lv_display_t * disp, const uint8_t * cmd, size_t cmd_size,
     uint8_t status = 0;
     // sleep thread until spi periph is free
     if (spi_lock(DEV_DISP) == 1) {
-        DISP_CMD_PIN();
         DISP_CS_LOW();
+        DISP_CMD_PIN();
 
         status = spi_transmit(DEV_DISP, cmd, cmd_size);
         if (param_size > 0) {
@@ -64,12 +65,13 @@ void ili9341_send_cmd(lv_display_t * disp, const uint8_t * cmd, size_t cmd_size,
 void ili9341_send_pixels(lv_display_t * disp, const uint8_t * cmd, size_t cmd_size, uint8_t * param, size_t param_size) {
     uint8_t status = 0;
     if (spi_lock(DEV_DISP) == 1) {
-        DISP_CMD_PIN();
         DISP_CS_LOW();
+        DISP_CMD_PIN();
         if (cmd_size > 0)
             status = spi_transmit(DEV_DISP, cmd, cmd_size);
 
         DISP_DATA_PIN();
+        // memset((void *)param, 0, param_size);
         status |= spi_transmit_dma(DEV_DISP, param, param_size);
         spi_wait(DEV_DISP);
 

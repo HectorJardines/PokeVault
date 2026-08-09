@@ -28,6 +28,58 @@
 
 #include <stdarg.h>
 #include "../../Inc/common/printf-stdarg.h"
+#include "../../../FreeRTOS_WrkSpace/include/FreeRTOS.h"
+#include "../../../FreeRTOS_WrkSpace/include/task.h"
+#include "../../../FreeRTOS_WrkSpace/include/queue.h"
+#include "../../../FreeRTOS_WrkSpace/include/semphr.h"
+
+
+#define PRNT_TASK_STK_DEPTH (256U)
+#define PRNT_TASK_PRIO		(5U)
+#define MAX_PRNT_LEN		(128U)
+#define PRNT_BUF_LEN		(4U)
+
+// static TaskHandle_t print_task;
+// static StaticTask_t _print_task;
+// static StackType_t print_task_stk[PRNT_TASK_STK_DEPTH];
+
+// static QueueHandle_t print_q;
+// static StaticQueue_t _print_q;
+// static uint8_t print_buf[MAX_PRNT_LEN * PRNT_BUF_LEN];
+
+
+static SemaphoreHandle_t print_lock;
+static StaticSemaphore_t _print_lock;
+
+
+/**
+ * PRINTF DEBUG TASK
+ */
+// static void task_print(void *arg) {
+// 	static uint8_t msg[MAX_PRNT_LEN];
+// 	while(1) {
+// 		if (xQueueReceive(print_q, msg, portMAX_DELAY) == pdTRUE) {
+
+// 		}
+// 	}
+// }
+
+#ifdef SMALL_PRINTF
+
+void init_print(void) {
+	// print_q = xQueueCreateStatic(PRNT_BUF_LEN, MAX_PRNT_LEN, &_print_q, print_buf);
+	// print_task = xTaskCreateStatic(task_print, "Tsk Prnt", PRNT_TASK_STK_DEPTH,
+	// 								NULL, PRNT_TASK_PRIO, print_task_stk, &_print_task);
+	// if (print_task == NULL) {
+	// 	while(1) {}
+	// }
+	print_lock = xSemaphoreCreateMutexStatic(&_print_lock);
+	if (print_lock == NULL) {
+		while(1) {}
+	}
+}
+
+
 
 static void printchar(char **str, int c)
 {
@@ -119,7 +171,7 @@ static int printi(char **out, int i, int b, int sg, int width, int pad, int letb
 	return pc + prints (out, s, width, pad);
 }
 
-static int print( char **out, const char *format, va_list args )
+static int print( char **out, int size, const char *format, va_list args )
 {
 	register int width, pad;
 	register int pc = 0;
@@ -185,18 +237,23 @@ static int print( char **out, const char *format, va_list args )
 
 int printf(const char *format, ...)
 {
-        va_list args;
-        
-        va_start( args, format );
-        return print( 0, format, args );
+	int ret = 0;
+	if (xSemaphoreTake(print_lock, pdMS_TO_TICKS(50)) == pdTRUE) {
+		va_list args;
+
+		va_start( args, format );
+		ret = print( 0, 0xffffffff, format, args );
+		xSemaphoreGive(print_lock);
+	}
+	return ret;
 }
 
 int sprintf(char *out, const char *format, ...)
 {
-        va_list args;
-        
-        va_start( args, format );
-        return print( &out, format, args );
+	va_list args;
+	
+	va_start( args, format );
+	return print( &out, 0xffffffff, format, args );
 }
 
 
@@ -204,10 +261,10 @@ int snprintf( char *buf, unsigned int count, const char *format, ... )
 {
         va_list args;
         
-        ( void ) count;
-        
-        va_start( args, format );
-        return print( &buf, format, args );
+		// ( void ) count;
+		
+		va_start( args, format );
+		return print( &buf, count, format, args );
 }
 
 
@@ -275,6 +332,7 @@ int main(void)
  * -3: -3   left justif.
  * -3:   -3 right justif.
  */
+#endif
 
 #endif
 

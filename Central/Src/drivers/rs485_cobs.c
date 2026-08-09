@@ -27,7 +27,6 @@
 static void dma_init(void);
 static void usart_init(void);
 static uint8_t transmit_begin(void);
-static void receive_begin(void);
 
 static uint16_t rs485_cobs_encode(void *data, uint32_t length, uint8_t *encoded_buf);
 
@@ -49,7 +48,7 @@ DMA_HandleTypeDef dma_tx = {0};
 DMA_HandleTypeDef dma_rx = {0};
 
 // MESSAGE NOTIFICATION CALLBACKS
-static void(*msg_in_cb)(frame_info_t *frame, uint32_t *hpt) = NULL;
+static void(*msg_in_cb)(uint8_t *frame, uint32_t len, uint32_t *hpt) = NULL;
 static void(*msg_consumed_cb)(void) = NULL;
 /**************
  *   APIs
@@ -64,7 +63,7 @@ static void(*msg_consumed_cb)(void) = NULL;
 uint8_t rs485_init(void) {
     usart_init();
     dma_init();
-    receive_begin();
+    // receive_begin();
     return 0;
 }
 
@@ -83,6 +82,17 @@ uint8_t rs485_transmit(uint8_t *data, uint32_t length) {
     taskEXIT_CRITICAL();
 
     return status;
+}
+
+/**
+ * @brief Begins circular reception of bytes over RS485
+ * 
+ * 
+ * 
+ */
+void receive_begin(void) {
+    memset((void *)rx_buf, 0, sizeof(rx_buf));
+    HAL_UARTEx_ReceiveToIdle_DMA(&huart1, rx_buf, MAX_FRAME_LEN);
 }
 
 
@@ -138,14 +148,14 @@ uint16_t rs485_cobs_decode(uint8_t *encoded_buf, uint32_t length, void *data) {
 
 
 
-void register_msg_in_cb(void(*in_cb)(frame_info_t *frame, uint32_t *hpt)) {
+void register_msg_in_cb(void(*in_cb)(uint8_t *frame, uint32_t len, uint32_t *hpt)) {
     msg_in_cb = in_cb;
 }
 
 
-void register_msg_consumed_cb(void(*consumed_cb)(void)) {
-    msg_consumed_cb = consumed_cb;
-}
+// void register_msg_consumed_cb(void(*consumed_cb)(void)) {
+//     msg_consumed_cb = consumed_cb;
+// }
 
 /***************
  * STATIC DEFS
@@ -160,11 +170,6 @@ static uint8_t transmit_begin(void) {
     return status;
 }
 
-
-static void receive_begin(void) {
-    memset((void *)rx_buf, 0, sizeof(rx_buf));
-    HAL_UARTEx_ReceiveToIdle_DMA(&huart1, rx_buf, MAX_FRAME_LEN);
-}
 
 
 static void dma_init(void) {
@@ -197,6 +202,8 @@ static void dma_init(void) {
     HAL_DMA_Init(&dma_rx);
     HAL_NVIC_EnableIRQ(DMA2_Stream7_IRQn);
     HAL_NVIC_EnableIRQ(DMA2_Stream5_IRQn);
+    HAL_NVIC_SetPriority(DMA2_Stream7_IRQn, 5, 5);
+    HAL_NVIC_SetPriority(DMA2_Stream5_IRQn, 5, 5);
 }
 
 static void usart_init(void) {
@@ -215,6 +222,7 @@ static void usart_init(void) {
 
     HAL_UART_Init(&huart1);
     HAL_NVIC_EnableIRQ(USART1_IRQn);
+    HAL_NVIC_SetPriority(USART1_IRQn, 5, 5);
 }
 
 
@@ -310,7 +318,7 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
 
         if (frame_status == COBS_TERMINATED) {
             uint32_t hpt = pdFALSE;
-            msg_in_cb(&active_rx_buf, &hpt);
+            msg_in_cb(&active_rx_buf.buf, (uint32_t)active_rx_buf.len, &hpt);
             memset((void *)&active_rx_buf, 0, sizeof(active_rx_buf));
             portYIELD_FROM_ISR(hpt);
         }

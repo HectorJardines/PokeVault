@@ -4,6 +4,7 @@
 #include "../../Inc/drivers/spi.h"
 
 #include "../../Inc/common/printf-stdarg.h"
+// #include <stdio.h>
 #include "../../../FreeRTOS_WrkSpace/include/FreeRTOS.h"
 #include "../../../FreeRTOS_WrkSpace/include/task.h"
 #include "../../../FreeRTOS_WrkSpace/include/queue.h"
@@ -21,8 +22,8 @@
 
 #define MAX_LOG_CNT             (10U)
 #define FILE_SYNC_PERIOD        (pdMS_TO_TICKS(500))
-#define LOG_TASK_STACK_DEPTH    (1024U)
-#define LOG_TASK_PRIO           (5U)
+#define LOG_TASK_STACK_DEPTH    (512U)
+#define LOG_TASK_PRIO           (4U)
 #define LOG_ENQ_TIMEOUT         (pdMS_TO_TICKS(50))
 #define LOG_DEQ_TIMEOUT         (pdMS_TO_TICKS(10))
 
@@ -44,9 +45,9 @@ typedef struct {
  * @param[in] msg_body
  * @param[in] type
  */
-static void create_log_msg(char *fmt_msg, const char *msg_body, log_level_e type);
+static void create_log_msg(char *fmt_msg, const char *msg_body, log_type_e type);
 static void task_logging(void *arg);
-static void log_write_to_file(log_t *log);
+static void log_write_to_file(log_t *log, FIL *fp);
 
 
 // STATIC_RING_BUFFER(log_queue, MAX_MSG_CNT, log_t);
@@ -55,6 +56,10 @@ static log_t active_log;
 static QueueHandle_t log_q;
 static StaticQueue_t _log_q;
 static uint8_t log_buf[MAX_LOG_CNT * sizeof(log_t)];
+
+static TaskHandle_t log_task;
+static StaticTask_t _log_task;
+static StackType_t log_stk[LOG_TASK_STACK_DEPTH];
 /*******************
  * USER APIs
  *******************/
@@ -69,10 +74,10 @@ void log_init(void) {
     spi_init();
 
     log_q = xQueueCreateStatic(MAX_LOG_CNT, sizeof(log_t), log_buf, &_log_q);
-    BaseType_t stat = xTaskCreate(task_logging, "LOG TASK", LOG_TASK_STACK_DEPTH,
-                NULL, LOG_TASK_PRIO, NULL);
+    log_task = xTaskCreateStatic(task_logging, "LOG TASK", LOG_TASK_STACK_DEPTH,
+                NULL, LOG_TASK_PRIO, log_stk, &_log_task);
     
-    if (stat != pdTRUE) {
+    if (log_task == NULL) {
         while(1) {}
     }
     (void)status;
@@ -178,18 +183,32 @@ void log_set_level(log_level_e level) {
 static void task_logging(void *arg) {
     log_t curr_log = {0, 0, {0}};
     FRESULT res = FR_OK;
-    FIL logs, trans, events;
+    static FIL logs, trans, events;
     TickType_t prev_sync = 0, curr_sync_tick = 0;
 
+    res = sd_mount();
+    if (res != FR_OK)
+        while (1) {}
     res |= f_open(&logs, FPATH_LOGS, FA_OPEN_APPEND | FA_WRITE);
     res |= f_open(&trans, FPATH_TRANS, FA_OPEN_APPEND | FA_WRITE);
     res |= f_open(&events, FPATH_EVENTS, FA_OPEN_APPEND | FA_WRITE);
 
     for (;;) {
-        if (xQueueReceive(log_q, (void *)&curr_log, LOG_DEQ_TIMEOUT) == pdTRUE) {
+        if (xQueueReceive(log_q, (void *)&curr_log, portMAX_DELAY) == pdTRUE) {
             // write to file
-            log_write_to_file(&curr_log);
+            switch (curr_log.log_type) {
+            case (LOG_ERR):
+                log_write_to_file(&curr_log, &logs);
+                break;
+            case (LOG_EVENT):
+                log_write_to_file(&curr_log, &events);
+                break;
+            case (LOG_TRANS):
+                log_write_to_file(&curr_log, &trans);
+                break;
+            }
         }
+
 
         curr_sync_tick = xTaskGetTickCount();
         if (curr_sync_tick - prev_sync >= FILE_SYNC_PERIOD) {
@@ -199,13 +218,15 @@ static void task_logging(void *arg) {
 
             prev_sync = curr_sync_tick;
         }
+
+        UBaseType_t high_stk_usage = uxTaskGetStackHighWaterMark(NULL);
     }
 }
 
 
 
 
-static void create_log_msg(char *fmt_msg, const char *msg_body, log_level_e type) {
+static void create_log_msg(char *fmt_msg, const char *msg_body, log_type_e type) {
     rtc_info_t timestamp;
     const char *type_str;
     switch (type) {
@@ -218,9 +239,6 @@ static void create_log_msg(char *fmt_msg, const char *msg_body, log_level_e type
     case LOG_EVENT:
         type_str = "EVENT";
         break;
-    case LOG_ALL:
-    case LOG_DISABLE:
-        break;
     }
 
     rtc_read_timestamp(&timestamp);
@@ -231,24 +249,26 @@ static void create_log_msg(char *fmt_msg, const char *msg_body, log_level_e type
 }
 
 
-static void log_write_to_file(log_t *log) {
+static void log_write_to_file(log_t *log, FIL *fp) {
     int8_t status = STATUS_OK;
     char formatted_msg[MAX_FMT_MSG_LEN];
 
     create_log_msg(formatted_msg, log->msg, log->log_type);
 
+    printf("%s\r\n", formatted_msg);
     switch (log->log_type) {
     case LOG_ERR:
-        status = sd_write_file(FPATH_LOGS, formatted_msg);
+        status = sd_write_file(FPATH_LOGS, fp, formatted_msg);
         break;
     case LOG_TRANS:
-        status = sd_write_file(FPATH_TRANS, formatted_msg);
+        status = sd_write_file(FPATH_TRANS, fp, formatted_msg);
         break;
     case LOG_EVENT:
-        status = sd_write_file(FPATH_EVENTS, formatted_msg);
+        status = sd_write_file(FPATH_EVENTS, fp, formatted_msg);
         break;
     }
 
-    (void)status;
+    if (status != STATUS_OK);
+        // lol log that...
 }
 

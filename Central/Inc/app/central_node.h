@@ -13,6 +13,7 @@
 
 
 #include <stdint.h>
+#include "../../../Drivers/nanopb/messages.pb.h"
 
 #define PEER_RX_CPLT_Msk        (0x1)
 #define PEER_MSG_READY_Msk      (0x1 << 1)
@@ -23,6 +24,7 @@ typedef struct {
     uint8_t pending_msg_cnt;
 } node_state_t;
 
+
 /**
  * @brief Initialize the central node subsystems
  * 
@@ -32,6 +34,15 @@ typedef struct {
  */
 void central_node_init(void);
 
+
+
+/**
+ * @brief Posts messages in 
+ * 
+ * 
+ * 
+ */
+uint8_t central_post_msg(msg *message);
 
 // /**
 //  * @brief Polls the peer nodes for any pending messages

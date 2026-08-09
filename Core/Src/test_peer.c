@@ -107,11 +107,14 @@ static void test_ssd1306(void) {
     ssd1306_init();
 
     while(1) {
-
+        ssd1306_draw_pixel(62, 32, COLOR_WHITE);
+        ssd1306_draw_pixel(63, 32, COLOR_WHITE);
         ssd1306_draw_pixel(64, 32, COLOR_WHITE);
+        ssd1306_draw_pixel(65, 32, COLOR_WHITE);
+        ssd1306_draw_pixel(66, 32, COLOR_WHITE);
         ssd1306_display();
         HAL_Delay(500);
-        ssd1306_draw_pixel(64, 32, COLOR_BLACK);
+        ssd1306_draw_pixel(32, 32, COLOR_BLACK);
         ssd1306_display();
         HAL_Delay(500);
     }
@@ -296,7 +299,9 @@ static void test_system_messaging(void) {
 
 
 int main(void) {
-    test_setup();
-    test_movement_sens();
+    SystemClock_Config();
+    IO_Init();
+    trace_init();
+    test_system_messaging();
     return 0;
 }

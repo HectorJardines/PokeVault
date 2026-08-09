@@ -1,4 +1,4 @@
-#include <stdio.h>
+#include "../Inc/common/printf-stdarg.h"
 #include "../Inc/app/central_node.h"
 #include "../Inc/app/rfid_tag.h"
 #include "../Inc/app/central_message.h"
@@ -6,8 +6,57 @@
 #include "../../Core/Inc/common/trace.h"
 #include "../Inc/drivers/io.h"
 #include "../../Core/Inc/common/defines.h"
-#include "../../Core/Inc/app/display.h"
+#include "../Inc/app/display.h"
 #include "main.h"
+# include "../Inc/app/inventory.h"
+#include "../../FreeRTOS_WrkSpace/include/FreeRTOS.h"
+#include "../../FreeRTOS_WrkSpace/include/task.h"
+
+/* Static memory allocation buffers for the Idle Task */
+static StaticTask_t xIdleTaskTCB;
+static StackType_t uxIdleTaskStack[configMINIMAL_STACK_SIZE];
+
+/* Static memory allocation buffers for the Timer Task */
+#if (configUSE_TIMERS == 1)
+static StaticTask_t xTimerTaskTCB;
+static StackType_t uxTimerTaskStack[configTIMER_TASK_STACK_DEPTH];
+#endif
+
+/**
+ * @brief Provides memory for the FreeRTOS Idle Task when configSUPPORT_STATIC_ALLOCATION = 1.
+ */
+void vApplicationGetIdleTaskMemory(StaticTask_t **ppxIdleTaskTCBBuffer,
+                                  StackType_t **ppxIdleTaskStackBuffer,
+                                  uint32_t *pulIdleTaskStackSize)
+{
+    *ppxIdleTaskTCBBuffer = &xIdleTaskTCB;
+    *ppxIdleTaskStackBuffer = uxIdleTaskStack;
+    *pulIdleTaskStackSize = configMINIMAL_STACK_SIZE;
+}
+
+/**
+ * @brief Provides memory for the FreeRTOS Timer Task when configSUPPORT_STATIC_ALLOCATION = 1.
+ */
+void vApplicationGetTimerTaskMemory(StaticTask_t **ppxTimerTaskTCBBuffer,
+                                   StackType_t **ppxTimerTaskStackBuffer,
+                                   uint32_t *pulTimerTaskStackSize)
+{
+    *ppxTimerTaskTCBBuffer = &xTimerTaskTCB;
+    *ppxTimerTaskStackBuffer = uxTimerTaskStack;
+    *pulTimerTaskStackSize = configTIMER_TASK_STACK_DEPTH;
+}
+
+void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName)
+{
+    /* Silence compiler warnings about unused parameters */
+    (void) xTask;
+    (void) pcTaskName;
+
+    /* CRITICAL: The stack has overflowed here. Do not try to recover. */
+    /* Insert code to safely stop your system, log the task name, or reset. */
+    taskDISABLE_INTERRUPTS();
+    for( ;; );
+}
 
 static void test_setup(void) {
     SystemClock_Config();
@@ -74,8 +123,43 @@ static void test_register_tag(void) {
     }
 }
 
+static void test_system_messaging(void) {
+    central_node_init();
+    c_message_init();
+    client_init();
+    init_print();
+    log_init();
+
+    vTaskStartScheduler();
+    while(1) {
+        
+    }
+}
+
+
+static void test_system_display(void) {
+    init_print();
+    display_init();
+
+    vTaskStartScheduler();
+    while(1) {
+        
+    }
+}
+
+
+static void test_log_to_sd(void) {
+    init_print();
+    log_init();
+
+    vTaskStartScheduler();
+    while (1) {
+
+    }
+}
+
 
 int main(void) {
     test_setup();
-    test_register_tag();
+    test_log_to_sd();
 }

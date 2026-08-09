@@ -4,7 +4,8 @@
 #include "../../Inc/drivers/w5500_ethernet.h"
 #include "../../../Drivers/w5500_eth/DHCP/dhcp.h"
 #include "../../../Drivers/w5500_eth/DNS/dns.h"
-#include "../../Inc/common/printf-stdarg.h"
+// #include "../../Inc/common/printf-stdarg.h"
+#include <stdio.h>
 #include "../../../FreeRTOS_WrkSpace/include/FreeRTOS.h"
 #include "../../../FreeRTOS_WrkSpace/include/task.h"
 
@@ -73,7 +74,7 @@ uint8_t w5500_init(void) {
 uint8_t w5500_configure(void) {
     // reset wizchip
     ctlwizchip(CW_RESET_WIZCHIP, NULL);
-    
+
     w5500_status_e status = W5500_OK;
     // used to set the TX and RX socket sizes
     uint8_t w5500_mem_size[2][8] = {{2,2,2,2,2,2,2,2}, {2,2,2,2,2,2,2,2}};
@@ -180,11 +181,11 @@ static void w5500_spi_write_byte(uint8_t data) {
 }
 
 static void w5500_spi_burst_read(uint8_t *data, uint16_t len) {
-    spi_receive_dma(DEV_ETH, data, (uint32_t)len);
+    spi_receive(DEV_ETH, data, (uint32_t)len);
 }
 
 static void w5500_spi_burst_write(uint8_t *data, uint16_t len) {
-    spi_transmit_dma(DEV_ETH, data, (uint32_t)len);
+    spi_transmit(DEV_ETH, data, (uint32_t)len);
 }
 
 static void w5500_dhcp_ip_set(void) {

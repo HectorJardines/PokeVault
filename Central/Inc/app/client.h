@@ -14,8 +14,12 @@
 #define _CLIENT_H
 
 #include "../drivers/w5500_ethernet.h"
-#include "SSLInterface.h"
+#include "../../../Drivers/w5500_eth/TLS/SSLInterface.h"
 
+
+/****************
+ * MACROS
+ ****************/
 #define IPv4_ADDR_LEN           (4U)
 #define MAX_HOST_NAME_LEN       (17U)
 #define API_TOKEN_LEN           (47U)
@@ -33,6 +37,18 @@
 #define CLI_PCN_Msk             (0x01U << 2)
 
 
+/*************
+ * TYPEDEFS
+ ***************/
+
+typedef struct {
+    mbedtls_ctr_drbg_context ctr_drbg;
+	mbedtls_ssl_context ssl;
+	mbedtls_ssl_config conf;
+	mbedtls_x509_crt cacert;
+} tls_members_t;
+
+
 typedef struct {
     uint8_t https_req[MAX_HTTPS_REQ_LEN];
     uint8_t out_buf[MAX_HTTPS_OUTPUT_LEN];
@@ -41,8 +57,8 @@ typedef struct {
     uint8_t token[API_TOKEN_LEN];               /* TELEGRAM BOT API TOKEN */
 
     uint8_t flags;
-    uint8_t msgs_avail;                 /* NUMBER OF MSGS AVAILABLE FOR READ */
-    uint8_t msgs_pending;               /* NUMBER OF MSGS PENDING SEND */
+    // uint8_t msgs_avail;                 /* NUMBER OF MSGS AVAILABLE FOR READ */
+    // uint8_t msgs_pending;               /* NUMBER OF MSGS PENDING SEND */
     uint8_t sock_num;                   /* W5500 SOCKET NUMBER IN USE */
     uint16_t server_port;
     uint32_t chat_id_l;                 /* LOWER 32 BITS OF CHAT ID */
@@ -54,11 +70,6 @@ typedef struct {
 } client_context_t;
 
 typedef enum {
-    DISCONNECT_ERR,
-    DISCONNECT_PCN      /* PEER CLOSE NOTIFY */
-} disc_cause_e;
-
-typedef enum {
     CLIENT_OK,
     CLIENT_DC_ERR,
     CLIENT_DC_PCN,
@@ -67,6 +78,9 @@ typedef enum {
 } client_status_e;
 
 
+/***************
+ * PUB APIs
+ **************/
 
 /**
  * @brief Initialize the underlying Ethernet peripheral, DHCP, DNS, and TLS protocols

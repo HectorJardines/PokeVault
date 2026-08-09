@@ -9,6 +9,10 @@
 #include "../ui/actions.h"
 
 
+/*************
+ * MACROS
+ **************/
+
 #define DISPLAY_BPP         (2U)    // bytes per pixel
 #define DISPLAY_WIDTH       (240U) // px
 #define DISPLAY_HEIGHT      (320U) // px
@@ -17,17 +21,21 @@
 #define DISP_TOUCH_TIMEOUT  (20U) // ms
 #define DISPLAY_PARTIAL_DIV (10U)
 #define FRAME_BUF_SIZE      (((DISPLAY_WIDTH * DISPLAY_HEIGHT) / DISPLAY_PARTIAL_DIV) * DISPLAY_BPP)
-#define DISP_TASK_STK_DEPTH (2048U)
+#define DISP_TASK_STK_DEPTH (1024U)
 #define DISP_TASK_PRIO      (4U)
+#define INPUT_Q_LEN         (5U)
 
 
 #define NODE_ID(node_bits)      ((node_bits) & (0x3U))
 #define NODE_PG_IDX(node_bits)  (((node_bits) & (0x1FU << 2)) >> 2)
 
+
+/******************
+ * TYPEDEFS
+ *****************/
 typedef struct {
-    lv_disp_t *dispp;
+    lv_display_t *dispp;
     lv_indev_t *input;
-    TaskHandle_t task;
     uint8_t buf[FRAME_BUF_SIZE];
 } display_t;
 
@@ -44,6 +52,12 @@ typedef struct {
     unit_record_t units[NODES_PER_SCREEN];
 } units_screen_t;
 
+
+typedef struct {
+    uint32_t x;
+    uint32_t y;
+} touch_coord_t;
+
 /*************
  * STATIC DEC
  **************/
@@ -51,11 +65,23 @@ static void task_display(void *arg);
 static void touch_input_cb(lv_indev_t *in, lv_indev_data_t *data);
 static void update_items(void);
 static void update_units(void);
+static void xpt2046_touch_isr(void);
 
-
-static display_t disp = {{0}};
+// DISPLAY DATA
+static display_t ili_disp;
 static invent_screen_t invent_content;
 static units_screen_t unit_content;
+
+// DISPLAY TASK
+static TaskHandle_t disp_tsk;
+static StaticTask_t _disp_tsk;
+static StackType_t disp_stk[DISP_TASK_STK_DEPTH];
+
+
+// INPUT QUEUE
+static QueueHandle_t input_q;
+static StaticQueue_t _input_q;
+static uint8_t input_buf[INPUT_Q_LEN * sizeof(touch_coord_t)];
 /***************
  * PUBLIC APIs
  *****************/
@@ -66,23 +92,25 @@ static units_screen_t unit_content;
  * 
  */
 void display_init(void) {
+    // INIT SUBMODULES
+    spi_init();
     lv_init();
+    xpt2046_init();
+    lv_tick_set_cb(xTaskGetTickCount);
 
-    // touchscreen input
-    disp.input = lv_indev_create();
-    lv_indev_set_type(disp.input, LV_INDEV_TYPE_POINTER);
-    lv_indev_set_read_cb(disp.input, touch_input_cb);
+    // DISPLAY TOUCH INPUT DEV
+    ili_disp.input = lv_indev_create();
+    lv_indev_set_type(ili_disp.input, LV_INDEV_TYPE_POINTER);
+    lv_indev_set_read_cb(ili_disp.input, touch_input_cb);
 
-    io_configure_interrupt(IO_A0, IO_INTERRUPT_FT, xpt2046_touch_isr);
-    disp.dispp = lv_ili9341_create(DISPLAY_WIDTH, DISPLAY_HEIGHT, 0x00, ili9341_send_cmd, ili9341_send_pixels);
-    lv_display_set_color_format(disp.dispp, LV_COLOR_FORMAT_RGB565);
-    lv_display_set_buffers(disp.dispp, disp.buf, NULL, FRAME_BUF_SIZE, LV_DISP_RENDER_MODE_PARTIAL);
+    // DISPLAY TOUCH INTERRUPT
+    io_set_interrupt_prio(EXTI0_IRQ_NO, 5);
+    io_configure_interrupt(IO_TOUCH_IT, IO_INTERRUPT_FT, xpt2046_touch_isr);
 
-    ui_init();
-    uint8_t stat = xTaskCreate(task_display, "Display Task", DISP_TASK_STK_DEPTH, 
-                NULL, DISP_TASK_PRIO, NULL);
-
-    if (stat != pdPASS) {
+    input_q = xQueueCreateStatic(INPUT_Q_LEN, sizeof(touch_coord_t), input_buf, &_input_q);
+    disp_tsk = xTaskCreateStatic(task_display, "Display Task", DISP_TASK_STK_DEPTH, 
+                                NULL, DISP_TASK_PRIO, disp_stk, &_disp_tsk);
+    if (disp_tsk == NULL || input_q == NULL) {
         while (1) {}
     }
 }
@@ -113,7 +141,8 @@ void action_back_to_main(lv_event_t * e) {
 void action_next_items(lv_event_t * e) {
     // AT MOST 4 ITEMS SCREEN PER NODE (use lower 2 bits)
     // UPPER 5 BITS USED FOR NODE ID
-    uint8_t node_bits = *((uint8_t *)lv_obj_get_user_data(e));    
+    lv_obj_t *obj = lv_event_get_target_obj(e);
+    uint8_t node_bits = *((uint8_t *)lv_obj_get_user_data(obj));    
     
 
     invent_content.valid_records = inventory_get_contents(NODE_ID(node_bits), &invent_content.records, invent_content.pg_idx);
@@ -134,7 +163,8 @@ void action_next_items(lv_event_t * e) {
  * 
  */
 void action_previous_items(lv_event_t * e) {
-    uint8_t node_bits = *((uint8_t *)lv_obj_get_user_data(e));
+    lv_obj_t *obj = lv_event_get_target_obj(e);
+    uint8_t node_bits = *((uint8_t *)lv_obj_get_user_data(obj));
 
     if (invent_content.pg_idx > 0) {
         invent_content.pg_idx--;
@@ -162,7 +192,8 @@ void action_register_prompt(lv_event_t * e) {
  */
 void action_to_inventory(lv_event_t * e) {
     loadScreen(SCREEN_ID_INVENTORY); // gonna need to either block here or sleep the thread    
-    uint8_t node_bits = *((uint8_t *)lv_obj_get_user_data(e));
+    lv_obj_t *obj = lv_event_get_target_obj(e);
+    uint8_t node_bits = *((uint8_t *)lv_obj_get_user_data(obj));
 
     invent_content.valid_records = inventory_get_contents(NODE_ID(node_bits), &invent_content.records, invent_content.pg_idx);
     if (invent_content.valid_records > 0) {
@@ -190,6 +221,8 @@ void product_name_ready(lv_event_t *e) {
         const char *name = lv_textarea_get_text(text_ar);
         stat = inventory_signal_scan(name);
     }
+
+    (void)stat;
 }
 
 
@@ -198,39 +231,48 @@ void product_name_ready(lv_event_t *e) {
  * STATIC DEFS
  *******************/
 static void task_display(void *arg) {
-    uint8_t touch_active = pdFALSE, notif = 0;
-    uint32_t delay = 0;
+    static uint32_t delay = 0, curr_tick;
 
-    disp.task = xTaskGetCurrentTaskHandle();
+    ili_disp.dispp = lv_ili9341_create(DISPLAY_WIDTH, DISPLAY_HEIGHT, 0x00, ili9341_send_cmd, ili9341_send_pixels);
+    lv_display_set_color_format(ili_disp.dispp, LV_COLOR_FORMAT_RGB565);
+    lv_display_set_buffers(ili_disp.dispp, ili_disp.buf, NULL, FRAME_BUF_SIZE, LV_DISPLAY_RENDER_MODE_PARTIAL);
+    lv_display_set_rotation(ili_disp.dispp, LV_DISPLAY_ROTATION_90);
+
     ui_init();
-    io_irq_enable_interrupt(IO_A0);
+    io_irq_enable_interrupt(IO_TOUCH_IT);
 
     for(;;) {
         delay = lv_timer_handler();
-        if (touch_active == pdTRUE) {
-            delay = delay > DISP_TOUCH_TIMEOUT ? DISP_TOUCH_TIMEOUT : delay;
-        }
-        else if (delay == LV_NO_TIMER_READY)
+        if (delay == LV_NO_TIMER_READY)
             delay = LV_DEF_REFR_PERIOD;
 
-        if (xTaskNotifyWait(0x00, 0x01, &notif, pdMS_TO_TICKS(delay)) == pdTRUE)
-            touch_active == pdTRUE;
-
-        if (lv_indev_get_state(disp.input) == LV_INDEV_STATE_RELEASED)
-            touch_active = pdFALSE;
+        curr_tick = xTaskGetTickCount;
+        if (ulTaskNotifyTake(pdFALSE, pdMS_TO_TICKS(delay)) == pdTRUE) {
+            static touch_coord_t input;
+            xpt2046_read_position(&input.x, &input.y);
+            xQueueSendToBack(input_q, &input, 0);
+        }
     }
+
+    UBaseType_t high_stk_usage = uxTaskGetStackHighWaterMark(NULL);
+    // printf("DISPLAY TASK: FREE RAM = %d - %d\r\n", DISP_TASK_STK_DEPTH, high_stk_usage);
 }
 
 
 static void touch_input_cb(lv_indev_t *in, lv_indev_data_t *data) {
-    xpt2046_read_position(&data->point.x, &data->point.y);
-    if (data->point.x == -1 || data->point.y == -1) {
-        data->point.x = 0;
-        data->point.y = 0;
-        data->state = LV_INDEV_STATE_RELEASED;
+    static touch_coord_t touch;
+    if (xQueueReceive(input_q, (void *)&touch, 0) == pdTRUE) {
+        if (touch.x == -1 || touch.y == -1) {
+            data->point.x = 0;
+            data->point.y = 0;
+            data->state = LV_INDEV_STATE_RELEASED;
+        }
+        else {
+            data->point.x = touch.x;
+            data->point.y = touch.y;
+            data->state = LV_INDEV_STATE_PRESSED;
+        }
     }
-    else
-        data->state = LV_INDEV_STATE_PRESSED;
 }
 
 
@@ -276,6 +318,6 @@ static void update_units(void) {
  */
 static void xpt2046_touch_isr(void) {
     BaseType_t hpt_ready = pdFALSE;
-    xTaskNotifyFromISR(disp.task, 0x01, eSetBits, &hpt_ready);
-    portYIELD_FROM_ISR(hpt_ready);
+    vTaskNotifyGiveFromISR(disp_tsk, &hpt_ready);
+    // portYIELD_FROM_ISR(hpt_ready);
 }

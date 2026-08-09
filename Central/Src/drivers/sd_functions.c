@@ -94,14 +94,13 @@ int sd_unmount(void) {
 	return res;
 }
 
-int sd_write_file(const char *filename, const char *text) {
-	FIL file;
+int sd_write_file(const char *filename, FIL* fp, const char *text) {
 	UINT bw;
-	FRESULT res = f_open(&file, filename, FA_CREATE_ALWAYS | FA_WRITE);
-	if (res != FR_OK) return res;
+	// FRESULT res = f_open(&file, filename, FA_CREATE_ALWAYS | FA_WRITE);
+	// if (res != FR_OK) return res;
 
-	res = f_write(&file, text, strlen(text), &bw);
-	f_close(&file);
+	FRESULT res = f_write(fp, text, strlen(text), &bw);
+	// f_close(&file);
 	printf("Write %u bytes to %s\r\n", bw, filename);
 	return (res == FR_OK && bw == strlen(text)) ? FR_OK : FR_DISK_ERR;
 }
@@ -190,6 +189,7 @@ int sd_read_csv(const char *filename, CsvRecord *records, int max_records, int *
 	return FR_OK;
 }
 
+
 int sd_write_csv(const char *filename, CsvRecord *records, int record_count) {
 	FIL file;
 	char line[128];
@@ -221,6 +221,7 @@ int sd_write_csv(const char *filename, CsvRecord *records, int record_count) {
 
 	return res;
 }
+
 
 int sd_delete_file(const char *filename) {
 	FRESULT res = f_unlink(filename);

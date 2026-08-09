@@ -38,7 +38,7 @@ uint8_t i2c_receive(uint8_t dev_addr, uint8_t *rcv_data, uint32_t data_len) {
 }
 
 uint8_t i2c_transmit_dma(uint8_t dev_addr, uint8_t *data, uint16_t data_len) {
-    dev_addr = (dev_addr << 1) | 0x01;
+    dev_addr = (dev_addr << 1);
     uint8_t res = HAL_I2C_Master_Transmit_DMA(&h_i2c1, dev_addr, data, data_len);
     HAL_NVIC_EnableIRQ(I2C1_EV_IRQn);
     HAL_NVIC_EnableIRQ(I2C1_ER_IRQn);
@@ -49,7 +49,7 @@ uint8_t i2c_transmit_dma(uint8_t dev_addr, uint8_t *data, uint16_t data_len) {
 
 uint8_t i2c_write_read(uint8_t dev_addr, uint8_t reg_addr, uint8_t *data_read, uint16_t read_len) {
     uint8_t status = STATUS_OK;
-    uint16_t retry = 500;
+    uint16_t retry = 5000;
     uint8_t tmp = (dev_addr << 1);
 
     if (!LL_I2C_IsEnabled(h_i2c1.Instance))
@@ -61,18 +61,18 @@ uint8_t i2c_write_read(uint8_t dev_addr, uint8_t reg_addr, uint8_t *data_read, u
     if (!retry) return STATUS_ERR;
 
     LL_I2C_TransmitData8(h_i2c1.Instance, tmp);
-    retry = 500;
+    retry = 5000;
     while (--retry && !LL_I2C_IsActiveFlag_ADDR(h_i2c1.Instance));
     if (!retry) return STATUS_ERR;
 
     LL_I2C_ClearFlag_ADDR(h_i2c1.Instance);
 
-    retry = 500;
+    retry = 5000;
     while (--retry && !LL_I2C_IsActiveFlag_TXE(h_i2c1.Instance));
     if (!retry) return STATUS_ERR;
     // send register address
     LL_I2C_TransmitData8(h_i2c1.Instance, reg_addr);
-    retry = 500;
+    retry = 5000;
     while (--retry && !LL_I2C_IsActiveFlag_TXE(h_i2c1.Instance));
     if (!retry) return STATUS_ERR;
 
@@ -80,13 +80,13 @@ uint8_t i2c_write_read(uint8_t dev_addr, uint8_t reg_addr, uint8_t *data_read, u
 
     // generate rep start
     LL_I2C_GenerateStartCondition(h_i2c1.Instance);
-    retry = 500;
+    retry = 5000;
     while (--retry && !LL_I2C_IsActiveFlag_SB(h_i2c1.Instance));
     if (!retry) return STATUS_ERR;
     
     tmp = (dev_addr << 1) | 0x01; 
     LL_I2C_TransmitData8(h_i2c1.Instance, tmp);
-    retry = 500;
+    retry = 5000;
     while (--retry && !LL_I2C_IsActiveFlag_ADDR(h_i2c1.Instance));
     if (!retry) return STATUS_ERR;
 
@@ -101,13 +101,13 @@ uint8_t i2c_write_read(uint8_t dev_addr, uint8_t reg_addr, uint8_t *data_read, u
         LL_I2C_AcknowledgeNextData(h_i2c1.Instance, LL_I2C_NACK);
         LL_I2C_EnableBitPOS(h_i2c1.Instance);
         LL_I2C_ClearFlag_ADDR(h_i2c1.Instance);
-        retry = 500;
+        retry = 5000;
         while (--retry && !LL_I2C_IsActiveFlag_BTF(h_i2c1.Instance));
         if (!retry) return STATUS_ERR;
         LL_I2C_GenerateStopCondition(h_i2c1.Instance);
         
         data_read[0] = LL_I2C_ReceiveData8(h_i2c1.Instance);
-        retry = 500;
+        retry = 5000;
         while (--retry && !LL_I2C_IsActiveFlag_RXNE(h_i2c1.Instance));
         if (!retry) return STATUS_ERR;
         data_read[1] = LL_I2C_ReceiveData8(h_i2c1.Instance);
@@ -119,13 +119,13 @@ uint8_t i2c_write_read(uint8_t dev_addr, uint8_t reg_addr, uint8_t *data_read, u
             while (!LL_I2C_IsActiveFlag_RXNE(h_i2c1.Instance));
             data_read[i] = LL_I2C_ReceiveData8(h_i2c1.Instance);
         }
-        retry = 500;
+        retry = 5000;
         while (--retry && !LL_I2C_IsActiveFlag_BTF(h_i2c1.Instance));
         if (!retry) return STATUS_ERR;
         LL_I2C_AcknowledgeNextData(h_i2c1.Instance, LL_I2C_NACK);
         data_read[i++] = LL_I2C_ReceiveData8(h_i2c1.Instance);
 
-        retry = 500;
+        retry = 5000;
         while (--retry && !LL_I2C_IsActiveFlag_BTF(h_i2c1.Instance));
         if (!retry) return STATUS_ERR;
         LL_I2C_GenerateStopCondition(h_i2c1.Instance);
@@ -135,6 +135,8 @@ uint8_t i2c_write_read(uint8_t dev_addr, uint8_t reg_addr, uint8_t *data_read, u
         data_read[i++] = LL_I2C_ReceiveData8(h_i2c1.Instance);
     }
 
+    LL_I2C_DisableBitPOS(h_i2c1.Instance);
+    LL_I2C_AcknowledgeNextData(h_i2c1.Instance, LL_I2C_NACK);
     return status;
 }
 

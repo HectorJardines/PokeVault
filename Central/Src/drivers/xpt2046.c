@@ -5,8 +5,8 @@
  *****************/
 #define XPT_CS_HIGH()		(io_set_out(IO_SPI_CS_DISP, HIGH))
 #define XPT_CS_LOW()		(io_set_out(IO_SPI_CS_DISP, LOW))
-#define IS_LOW_PENIRQ()		(!io_get_out(IO_A0))
-#define IS_HIGH_PENIRQ()	(io_get_out(IO_A0))
+#define IS_LOW_PENIRQ()		(!io_get_out(IO_TOUCH_IT))
+#define IS_HIGH_PENIRQ()	(io_get_out(IO_TOUCH_IT))
 
 
 /*******************
@@ -41,7 +41,8 @@ void xpt2046_init()
 	ts_Size.height = XPT2046_HEIGHT;
 
 	command = ts_ControlByte.bitMode |  ts_ControlByte.powerMode |ts_ControlByte.reference |ts_ControlByte.channel |ts_ControlByte.startBit;
-	xpt2046_unselect();
+	// xpt2046_unselect();
+	XPT_CS_LOW();
 }
 
 

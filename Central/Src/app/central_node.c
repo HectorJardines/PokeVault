@@ -1,21 +1,20 @@
 #include "../../../Core/Inc/common/defines.h"
 #include "../../Inc/app/central_node.h"
-#include "../../Inc/app/central_message.h"
 #include "../../Inc/app/inventory.h"
-#include "../../Inc/app/rfid_tag.h"
 #include "../../Inc/app/client.h"
 #include "../../Inc/common/printf-stdarg.h"
+// #include <stdio.h>
 
 #include "../../../FreeRTOS_WrkSpace/include/FreeRTOS.h"
 #include "../../../FreeRTOS_WrkSpace/include/task.h"
 #include "../../../FreeRTOS_WrkSpace/include/queue.h"
 
-#define MAX_PENDING_MSGS    (2U)
+#define MAX_PENDING_MSGS    (15U)
 #define MAX_PEER_NODE_CNT   (1U)
 
-#define CENTRAL_NODE_STACK_DEPTH    (2048U)
+#define CENTRAL_NODE_STACK_DEPTH    (1024U)
 #define CENTRAL_NODE_PRIO           (3U)
-#define RX_TIMEOUT_TICKS            (pdMS_TO_TICKS(250))
+#define RX_TIMEOUT_TICKS            (pdMS_TO_TICKS(400))
 
 /*************************
  * STATIC DECLARATIONS
@@ -29,9 +28,15 @@ static void node_poll_complete_cb(void);
 static void task_central_node(void *arg);
 
 static node_state_t central_node = {0,0,0};
+
+
 static QueueHandle_t msg_arr_q;
 static StaticQueue_t _msg_arr_q;
-static uint8_t msg_arr_q_buf[MAX_PENDING_MSGS * sizeof(msg_array)];
+static uint8_t msg_arr_q_buf[MAX_PENDING_MSGS * sizeof(msg)];
+
+static TaskHandle_t central_tsk;
+static StaticTask_t _central_tsk;
+static StackType_t tsk_stk[CENTRAL_NODE_STACK_DEPTH];
 /**************
  * PUB APIs
  *************/
@@ -44,20 +49,21 @@ static uint8_t msg_arr_q_buf[MAX_PENDING_MSGS * sizeof(msg_array)];
  * 
  */
 void central_node_init(void) {
-    register_peer_rx_cplt_cb(node_poll_complete_cb);
-    c_message_init();
-    client_init();
-    tag_init();
-    // c_inventory_init();
-    
     // NO RECEPTION IN PROGRESS INITIALLY
-    msg_arr_q = xQueueCreateStatic(MAX_PENDING_MSGS, sizeof(msg_array), msg_arr_q_buf, &_msg_arr_q);
-    uint8_t stat = xTaskCreate(task_central_node, "Central Node Tsk", CENTRAL_NODE_STACK_DEPTH, 
-                NULL, CENTRAL_NODE_PRIO, NULL);
+    msg_arr_q = xQueueCreateStatic(MAX_PENDING_MSGS, sizeof(msg), msg_arr_q_buf, &_msg_arr_q);
+    central_tsk = xTaskCreateStatic(task_central_node, "Central", CENTRAL_NODE_STACK_DEPTH,
+                                    NULL, CENTRAL_NODE_PRIO, tsk_stk, &_central_tsk);
     
-    if (stat != pdPASS) {
+    if (central_tsk == NULL) {
         while (1) {}
     }
+}
+
+
+uint8_t central_post_msg(msg *message) {
+    uint8_t ret = pdFALSE;
+    ret = xQueueSendToBack(msg_arr_q, (const void *)message, pdMS_TO_TICKS(100)); // will process errors eventually
+    return ret;
 }
 
 
@@ -116,25 +122,25 @@ void central_node_init(void) {
  * needed. 
  */
 static void task_central_node(void *arg) {
-    msg_array arr = msg_array_init_default;
+    msg msg_in = msg_init_default;
     msg cts_msg = msg_init_default;
-    uint8_t status = STATUS_OK;
+    uint8_t ret = STATUS_OK;
     cts_msg.node_id = central_node.curr_node;
     cts_msg.command = MSG_CMD_CTS;
     
     for (;;) {
-        status = c_message_post_out(&cts_msg);
-        if (status == STATUS_OK) {
-            if (xQueueReceive(msg_arr_q, (void *)&arr, RX_TIMEOUT_TICKS) == pdTRUE)
-            {
-                if (arr.msgs[arr.msgs_count - 1].command != MSG_CMD_SEND_CPLT)
-                    status = STATUS_ERR;
-                for (uint8_t i = 0; i < arr.msgs_count - 1; ++i)
-                    // logic to send each msg to a different task..
-                    central_node_process(&arr.msgs[i]);  
-            }
+        ret = c_message_post_out(&cts_msg);
+        if (ret == STATUS_OK) {
+            if (xQueueReceive(msg_arr_q, (void *)&msg_in, RX_TIMEOUT_TICKS) == pdTRUE)
+                ret = central_node_process(&msg_in);
         }
         central_node.curr_node = (central_node.curr_node + 1) % MAX_PEER_NODE_CNT;
+
+        UBaseType_t high_stk_usage = uxTaskGetStackHighWaterMark(NULL);
+        if(high_stk_usage <= 100) {
+            for(;;);
+        }
+        // printf("CENTRAL TASK: FREE RAM = %d - %d\r\n", CENTRAL_NODE_STACK_DEPTH, high_stk_usage);
     }
 }
 
@@ -209,31 +215,31 @@ static uint8_t handle_alert_msg(msg *alert) {
         event.which_payload = msg_type_event_tag;
         event.payload.type_event.type = MSG_EVENT_NO_PRESENCE;
         if (alert->payload.type_alert.value == 1) {
-            len = snprintf((char *)alert_body, MAX_HTTPS_BODY_LEN, "PRESENCE DETECTED: NODE - %d", alert->node_id);
-            status = client_post_message(alert_body, len);
+            snprintf((char *)alert_body, MAX_HTTPS_BODY_LEN, "PRESENCE DETECTED: NODE - %d", alert->node_id);
+            status = client_post_message(alert_body, strlen(alert_body));
             event.payload.type_event.type = MSG_EVENT_PRESENCE;
         }
         status = handle_event_msg(&event);
         break;
     case ALERT_SEC_STATUS_CHANGE:
-        len = snprintf((char *)alert_body, MAX_HTTPS_BODY_LEN, 
+        snprintf((char *)alert_body, MAX_HTTPS_BODY_LEN, 
                 alert->payload.type_alert.value == 0 ? "UNIT %d DISARMED" : "UNIT %d ARMED", 
                 alert->node_id);
-        status = client_post_message(alert_body, len);
+        status = client_post_message(alert_body, strlen(alert_body));
         break;
     case ALERT_SECURITY_BREACH:
-        len = snprintf((char *)alert_body, MAX_HTTPS_BODY_LEN, "URGENT: UNIT %d BREACHED", alert->node_id);
-        status = client_post_message(alert_body, len);
+        snprintf((char *)alert_body, MAX_HTTPS_BODY_LEN, "URGENT: UNIT %d BREACHED", alert->node_id);
+        status = client_post_message(alert_body, strlen(alert_body));
         break;
     case ALERT_SYS_HUM:
-        len = snprintf((char *)alert_body, MAX_HTTPS_BODY_LEN, "WARN: UNIT %d EXCESS HUMIDITITY - %d\%", 
+        snprintf((char *)alert_body, MAX_HTTPS_BODY_LEN, "WARN: UNIT %d EXCESS HUMIDITITY - %d\%", 
                 alert->node_id, alert->payload.type_alert.value);
-        status = client_post_message(alert_body, len);
+        status = client_post_message(alert_body, strlen(alert_body));
         break;
     case ALERT_SYS_TEMP:
-        len = snprintf((char *)alert_body, MAX_HTTPS_BODY_LEN, "WARN: UNIT %d EXCESS TEMP - %dC",
+        snprintf((char *)alert_body, MAX_HTTPS_BODY_LEN, "WARN: UNIT %d EXCESS TEMP - %dC",
                 alert->node_id, alert->payload.type_alert.value);
-        status = client_post_message(alert_body, len);
+        status = client_post_message(alert_body, strlen(alert_body));
         break;
     }
 
@@ -243,6 +249,7 @@ static uint8_t handle_alert_msg(msg *alert) {
 
 static uint8_t handle_event_msg(msg *event) {
     uint8_t log_buf[MAX_LOG_BODY_LEN], len = 0, status = STATUS_OK;
+    memset((void *)log_buf, 0, sizeof(log_buf));
 
     switch (event->payload.type_event.type) {
     case MSG_EVENT_DISARMED:

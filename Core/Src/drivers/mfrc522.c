@@ -544,7 +544,7 @@ static uint8_t read_mfrc_register(uint8_t reg) {
 
         // send register address
         reg = MFRC_ADDR_SET_READ(reg);
-        uint8_t rslt = reader.transmit_byte(reg);
+        rslt = reader.transmit_byte(reg);
         // read bytes from register
         rslt = reader.receive_byte();
 
