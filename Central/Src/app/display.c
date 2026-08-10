@@ -98,11 +98,6 @@ void display_init(void) {
     xpt2046_init();
     lv_tick_set_cb(xTaskGetTickCount);
 
-    // DISPLAY TOUCH INPUT DEV
-    ili_disp.input = lv_indev_create();
-    lv_indev_set_type(ili_disp.input, LV_INDEV_TYPE_POINTER);
-    lv_indev_set_read_cb(ili_disp.input, touch_input_cb);
-
     // DISPLAY TOUCH INTERRUPT
     io_set_interrupt_prio(EXTI0_IRQ_NO, 5);
     io_configure_interrupt(IO_TOUCH_IT, IO_INTERRUPT_FT, xpt2046_touch_isr);
@@ -237,6 +232,10 @@ static void task_display(void *arg) {
     lv_display_set_color_format(ili_disp.dispp, LV_COLOR_FORMAT_RGB565);
     lv_display_set_buffers(ili_disp.dispp, ili_disp.buf, NULL, FRAME_BUF_SIZE, LV_DISPLAY_RENDER_MODE_PARTIAL);
     lv_display_set_rotation(ili_disp.dispp, LV_DISPLAY_ROTATION_90);
+    // DISPLAY TOUCH INPUT DEV
+    ili_disp.input = lv_indev_create();
+    lv_indev_set_type(ili_disp.input, LV_INDEV_TYPE_POINTER);
+    lv_indev_set_read_cb(ili_disp.input, touch_input_cb);
 
     ui_init();
     io_irq_enable_interrupt(IO_TOUCH_IT);
@@ -247,7 +246,7 @@ static void task_display(void *arg) {
             delay = LV_DEF_REFR_PERIOD;
 
         curr_tick = xTaskGetTickCount;
-        if (ulTaskNotifyTake(pdFALSE, pdMS_TO_TICKS(delay)) == pdTRUE) {
+        if (ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(delay)) == pdTRUE) {
             static touch_coord_t input;
             xpt2046_read_position(&input.x, &input.y);
             xQueueSendToBack(input_q, &input, 0);
@@ -260,19 +259,17 @@ static void task_display(void *arg) {
 
 
 static void touch_input_cb(lv_indev_t *in, lv_indev_data_t *data) {
-    static touch_coord_t touch;
-    if (xQueueReceive(input_q, (void *)&touch, 0) == pdTRUE) {
-        if (touch.x == -1 || touch.y == -1) {
-            data->point.x = 0;
-            data->point.y = 0;
-            data->state = LV_INDEV_STATE_RELEASED;
-        }
-        else {
-            data->point.x = touch.x;
-            data->point.y = touch.y;
-            data->state = LV_INDEV_STATE_PRESSED;
-        }
-    }
+    // static touch_coord_t touch;
+    // if (xQueueReceive(input_q, (void *)&touch, 0) == pdTRUE) {
+    //     if (touch.x == -1 || touch.y == -1) {
+    //         data->state = LV_INDEV_STATE_RELEASED;
+    //     }
+    //     else {
+    //         data->point.x = touch.x;
+    //         data->point.y = touch.y;
+    //         data->state = LV_INDEV_STATE_PRESSED;
+    //     }
+    // }
 }
 
 

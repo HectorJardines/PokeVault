@@ -161,5 +161,5 @@ static void test_log_to_sd(void) {
 
 int main(void) {
     test_setup();
-    test_log_to_sd();
+    test_system_display();
 }

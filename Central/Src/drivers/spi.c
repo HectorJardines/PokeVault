@@ -310,7 +310,7 @@ static void spi2_configure(void) {
     spi2.hspi.Init.TIMode = SPI_TIMODE_DISABLE;
     spi2.hspi.Init.Direction = SPI_DIRECTION_2LINES;
     spi2.hspi.Init.CRCPolynomial = SPI_CRCCALCULATION_DISABLE;
-    spi2.hspi.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;
+    spi2.hspi.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_64;
 
     HAL_DMA_Init(&spi2.hdmatx);
     HAL_DMA_Init(&spi2.hdmarx);

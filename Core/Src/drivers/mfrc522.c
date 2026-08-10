@@ -96,7 +96,7 @@ uint8_t mfrc_scan(uint8_t *uid) {
     // send request
     status = mfrc_request(PICC_REQA, uid);
     if (status == MFRC_OK) {
-        status = mfrc_anticollision(uid);
+        status = mfrc_anticollision(uid, MFRC_AC_CL1);
     }
     status = mfrc_halt(); // halt the card 
     return status;
@@ -150,14 +150,16 @@ uint8_t mfrc_request(uint8_t request_type, uint8_t *picc_type) {
 /**
  * @brief 
  */
-uint8_t mfrc_anticollision(uint8_t *uid) {
+uint8_t mfrc_anticollision(uint8_t *uid, mfrc_ac_cl_e CL) {
     uint8_t uid_check = 0;
     uint8_t val = 0x00; // all bits of last byte in TX sequence will be transmitted
     write_mfrc_register(MFRC_BIT_FRAMING, val);
 
     uint16_t uid_len = 0;
-    uid[0] = PICC_ANTICOLL;
+
+    uid[0] = CL == MFRC_AC_CL1 ? PICC_ANTICOLL_CL1 : PICC_ANTICOLL_CL2;
     uid[1] = 0x20; // indicates to nearby PICCs that no part of UID will be sent, just send full UID
+
     mfrc_status_e status = mfrc_send_to_picc(PCD_CMD_TRANSCEIVE, uid, 2, uid, &uid_len); // sent PICC anticolll command and retrieve UID
 
     if (status == MFRC_OK) { // verify that UID is expected
@@ -178,13 +180,13 @@ uint8_t mfrc_anticollision(uint8_t *uid) {
  * 
  * @param uid the UID of the PICC to be selected
  */
-uint8_t mfrc_select_picc(uint8_t *uid) {
+uint8_t mfrc_select_picc(uint8_t *uid, mfrc_sel_cl_e CL) {
     mfrc_status_e status = MFRC_OK;
     uint16_t rx_len;
     // 1 byte picc select cmd, 1 byte NVB, 5 bytes UID, and 2 bytes for CRC checksum
     uint8_t tx_buf[9];
 
-    tx_buf[0] = PICC_SEL_CL1;
+    tx_buf[0] = CL == MFRC_SEL_CL1 ? PICC_SEL_CL1 : PICC_SEL_CL2;
     tx_buf[1] = 0x70; // PCD will send full uid CLn, only after no collisions detected
 
     // copy UID to tx buffer
@@ -275,6 +277,10 @@ uint8_t mfrc_halt(void) {
  * @param picc_addr_block addres of the block to read from
  * @param rcv_data buffer into which data will be read
  * 
+ * @note If the card being read is 4-byte page addressed,
+ * this function will read 4 consecutive pages, i.e. 
+ * 16 bytes.
+ * 
  * @return non-negative number of bits read on successful read; else 1
  */
 uint16_t mfrc_picc_read(uint8_t picc_block_addr, uint8_t *rcv_data) {
@@ -302,20 +308,25 @@ uint16_t mfrc_picc_read(uint8_t picc_block_addr, uint8_t *rcv_data) {
  * 
  * @param 
  */
-uint8_t mfrc_picc_write(uint8_t picc_block_addr, uint8_t *send_data) {
+uint8_t mfrc_picc_write(uint8_t picc_block_addr, uint8_t *send_data, mfrc_wr_type_e wr_type) {
     mfrc_status_e status = MFRC_OK;
     uint8_t buffer[PICC_DB_PAYLOAD_LEN];
     uint16_t rcv_len_bits;
 
-    buffer[0] = PICC_WRITE;
+    buffer[0] = PICC_WRITE_SEC;
     buffer[1] = picc_block_addr;
     mfrc_calculate_crc(buffer, 2, &buffer[2]); // calculate and store checksum
     status = mfrc_send_to_picc(PCD_CMD_TRANSCEIVE, buffer, 4, buffer, &rcv_len_bits); // picc only sends back ACK
     if (status != MFRC_OK || rcv_len_bits != PICC_NUM_ACK_BITS || (buffer[0] & 0x0F) != PICC_ACK)
         return MFRC_ERR;
 
-    for (uint8_t i = 0; i < PICC_DB_LEN_BYTES; ++i)
-        buffer[i] = *(send_data + i);
+    // compatibility for 4-byte page addressed tags
+    for (uint8_t i = 0, wr_idx = 0; i < PICC_DB_LEN_BYTES; ++i) {
+        if (wr_type == MFRC_WR_PAGE && i < PICC_DB_LEN_BYTES - 4)
+            buffer[i] = 0x00;
+        else
+            buffer[i] = *(send_data + wr_idx++);
+    }
 
     mfrc_calculate_crc(buffer, PICC_DB_LEN_BYTES, &buffer[PICC_DB_LEN_BYTES]);
     status = mfrc_send_to_picc(PCD_CMD_TRANSCEIVE, buffer, PICC_DB_PAYLOAD_LEN, buffer, &rcv_len_bits);

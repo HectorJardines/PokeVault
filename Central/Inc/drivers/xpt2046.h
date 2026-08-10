@@ -27,7 +27,7 @@
 #define XPT2046_PD0_ENABLE	(0x01U << 0)
 
 
-#define AVERAGE_POINTS			10
+#define NUM_SAMPLES				5
 #define Z_THRESHOLD_12BIT		40
 #define Z_THRESHOLD_08BIT		7
 
@@ -81,7 +81,7 @@ typedef enum bitModes {
 }XPT2046_BitModes;
 
 typedef enum startBits {
-	XPT2046_NONE			= 0,
+	XPT2046_NONE			= 0x00,
 	XPT2046_START 			= XPT2046_START_BIT
 }XPT2046_StartModes;
 
@@ -127,26 +127,16 @@ typedef struct
 	uint16_t height;
 } TouchScreen_Size;
 
+typedef void(*xpt_transmit)(uint8_t *data, uint16_t len);
+typedef void(*xpt_receive)(uint8_t *data, uint16_t len);
+typedef void(*xpt_select)(void);
+typedef void(*xpt_deselect)(void);
 
 
-void xpt2046_control_byte_update();
-uint16_t xpt2046_max_measurement();
-uint16_t xpt2046_zthreshold();
+
+void xpt2046_init(void);
 void xpt2046_set_size(uint16_t w, uint16_t h);
-void xpt2046_spi(SPI_HandleTypeDef* spi);
-void xpt2046_cs(GPIO_TypeDef* cs_port, uint16_t cs_pin);
-void xpt2046_penirq(GPIO_TypeDef* penirq_port, uint16_t penirq_pin);
-void xpt2046_orientation(TouchScreen_OrientationTypeDef orientation_);
-void xpt2046_init();
-void xpt2046_power_mode(uint8_t p);
-void xpt2046_reference(uint8_t r);
 void xpt2046_bit_mode(uint8_t b);
-void xpt2046_channel(uint8_t c);
-void xpt2046_update();
-void xpt2046_select();
-void xpt2046_unselect();
-uint8_t xpt2046_interruptions_activated();
-uint8_t xpt2046_interrupt();
-uint8_t xpt2046_pressed();
+void xpt2046_update(void);
 void xpt2046_read_position(int32_t* x, int32_t* y);
 #endif

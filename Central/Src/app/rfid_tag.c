@@ -22,9 +22,13 @@
 #define TYPE_BLOCK          ((ITEM_SECTOR * BLOCKS_PER_SECTOR) + TYPE_IDX)
 #define AUTH_BLOCK          ((ITEM_SECTOR * BLOCKS_PER_SECTOR) + TRAIL_IDX)
 
+#define PAGES_PER_WRITE     (4U) // we write 16 byte data into 4 byte pages
+#define NAME_PAGE           (0x07U)
+#define TYPE_PAGE           (0x03U)
+
 typedef struct {
     uint8_t buf[PICC_MEM_BLOCK_LEN];
-    uint8_t uid[UID_LEN_BYTES];
+    uint8_t uid[UID_MAX_LEN];
     uint8_t sec_key[SEC_KEY_LEN];
 } rfid_tag_t;
 
@@ -45,7 +49,10 @@ static uint8_t card_block_buf[PICC_MEM_BLOCK_LEN] = {0xca, 0xfe, 0xbe, 0xef, 0xd
  * @param[in] card_buf
  * @param[out] card_uid
  */
-static mfrc_status_e tag_scan_and_select(uint8_t *card_buf, uint8_t *card_uid);
+static mfrc_status_e tag_scan_and_select(tag_type_e type, uint8_t *card_buf, uint8_t *card_uid);
+static mfrc_status_e tag_write_to_mifare1k(rfid_tag_t *tag, const uint8_t *data);
+static mfrc_status_e tag_write_to_nfc215(const uint8_t *data);
+
 
 static uint8_t mfrc_spi_tx_byte(uint8_t byte);
 static uint8_t mfrc_spi_rx_byte(void);
@@ -74,25 +81,19 @@ tag_status_e tag_init(void) {
 /**
  * @brief Registers a tag and saves its serialnumber for subsequent authorization
  */
-uint8_t tag_register(tag_type_e type, const uint8_t *data_buffer) {
+uint8_t tag_register_card(tag_type_e type, const uint8_t *data_buffer) {
     uint8_t status = STATUS_ERR;
-    rfid_tag_t tag;
+    static rfid_tag_t tag;
 
-    status = tag_scan_and_select(tag.buf, tag.uid);
+    status = tag_scan_and_select(type, tag.buf, tag.uid);
     if (status == STATUS_OK) {
-        status = mfrc522_auth(PICC_AUTH_A, AUTH_BLOCK, default_sec_key, tag.uid);
-        if (status == STATUS_OK) {
-            switch (type) {
-            case TAG_PRODUCT:
-                status = mfrc_picc_write(TYPE_BLOCK, item_block_buf);
-                if (status == STATUS_OK)
-                    status = mfrc_picc_write(NAME_BLOCK, data_buffer);
-                break;
-            case TAG_AUTH_CARD:
-                status = mfrc_picc_write(TYPE_BLOCK, card_block_buf);
-                break;
-            }
-            TM_MFRC522_Crypto_Off();
+        switch (type) {
+        case TAG_PRODUCT:
+            status = tag_write_to_nfc215(data_buffer);
+            break;
+        case TAG_AUTH_CARD:
+            status = tag_write_to_mifare1k(&tag, data_buffer);
+            break;
         }
     }
     mfrc_halt();
@@ -105,24 +106,82 @@ uint8_t tag_register(tag_type_e type, const uint8_t *data_buffer) {
  * STATIC DEFS
  *********************/
 
-static mfrc_status_e tag_scan_and_select(uint8_t *card_buf, uint8_t *card_uid) {
+/**
+ * @brief Writes data to a MIFARE 1K classic tag
+ * 
+ * 
+ * 
+ */
+static mfrc_status_e tag_write_to_mifare1k(rfid_tag_t *tag, const uint8_t *data) {
+    uint8_t status = mfrc522_auth(PICC_AUTH_A, AUTH_BLOCK, default_sec_key, tag->uid);
+    if (status == STATUS_OK) {
+        status = mfrc_picc_write(TYPE_BLOCK, card_block_buf, MFRC_WR_SECTOR);
+        TM_MFRC522_Crypto_Off();
+    }
+    return status;
+}
+
+
+
+/**
+ * @brief Writes data to a NFC215 sticker tag
+ * 
+ * 
+ * 
+ */
+static mfrc_status_e tag_write_to_nfc215(const uint8_t *data) {
+    uint8_t status = MFRC_ERR;
+    
+    for (uint8_t i = 0; i < PAGES_PER_WRITE; ++i)
+        mfrc_picc_write(TYPE_PAGE + i, &item_block_buf[i * PAGES_PER_WRITE], MFRC_WR_PAGE);
+    if (status == STATUS_OK) {
+        for (uint8_t i = 0; i < PAGES_PER_WRITE; ++i)
+            status = mfrc_picc_write(NAME_PAGE + i, &data[i * PAGES_PER_WRITE], MFRC_WR_PAGE);
+    }
+    return status;
+}
+
+
+
+/**
+ * @brief Performs the ISO/IEC14443 POR cycle to select a tag for comm
+ * 
+ * This implementation accomodates 4 and 7-byte UID tags. This is 
+ * necessary as we will use NFC215 sticker tags for our product.
+ * 
+ * 
+ */
+static mfrc_status_e tag_scan_and_select(tag_type_e type, uint8_t *card_buf, uint8_t *card_uid) {
     mfrc_status_e mfrc_stat = MFRC_ERR;
 
     mfrc_stat = mfrc_request(PICC_WUPA, card_buf);
-    if (mfrc_stat == MFRC_OK) {
-        // 2. perform anticollision loop to retrieve id
-        // display_change_screen(NULL, 0); // begins tag scanning screen cycle
-        HAL_Delay(1);
-        mfrc_stat = mfrc_anticollision(card_buf);
-        if (mfrc_stat == MFRC_OK) {
-            for (uint8_t i = 0; i < SER_NUM_LEN_BYTES; ++i)
-                card_uid[i] = card_buf[i];
-            // 3. select tag
-            HAL_Delay(1);
-            mfrc_stat = mfrc_select_picc(card_buf);
-        }
+    if (mfrc_stat != MFRC_OK) goto sel_exit;
+    // 2. perform anticollision loop to retrieve id
+    // display_change_screen(NULL, 0); // begins tag scanning screen cycle
+    HAL_Delay(1);
+    mfrc_stat = mfrc_anticollision(card_buf, MFRC_AC_CL1);
+    if (mfrc_stat != MFRC_OK) goto sel_exit;
+
+    uint8_t uid_idx = 0;
+    for (uint8_t i = 0; i < SER_NUM_LEN_BYTES; ++i) {
+        if (type == TAG_PRODUCT && i == 0) // NFC215 first byte is Cascade Tag
+                continue;
+        card_uid[uid_idx++] = card_buf[i];
+    }
+    // 3. select tag
+    HAL_Delay(1);
+    mfrc_stat = mfrc_select_picc(card_buf, MFRC_SEL_CL1);
+
+    if (mfrc_stat == MFRC_OK && type == TAG_PRODUCT) {
+        mfrc_stat = mfrc_anticollision(&card_buf, MFRC_AC_CL2); // read next 4 bytes of UID
+        if (mfrc_stat != MFRC_OK) goto sel_exit;
+        for (uint8_t i = 0; i < SER_NUM_LEN_BYTES; ++i)
+            card_uid[uid_idx++] = card_buf[i];
+        
+        mfrc_stat = mfrc_select_picc(card_buf, MFRC_SEL_CL2);
     }
 
+sel_exit:
     return mfrc_stat;
 }
 

@@ -27,13 +27,16 @@
 // Proximity Inter-Integrated Circuit (PICC) Commands
 #define PICC_REQA       (0x26U) // forces tags in IDLE to respond and enter READY state
 #define PICC_WUPA       (0x52U) // wakes up tags in IDLE/HALT state
-#define PICC_ANTICOLL   (0x93U) 
+#define PICC_ANTICOLL_CL1   (0x93U) 
 #define PICC_SEL_CL1    (0x93U)
+#define PICC_ANTICOLL_CL2   (0x95U)
+#define PICC_SEL_CL2        (0x95U)
 #define PICC_HALT       (0x50U)
 #define PICC_AUTH_A     (0x60U) // auth with Key A
 #define PICC_AUTH_B     (0x61U) // auth with Key B
 #define PICC_READ       (0x30U)
-#define PICC_WRITE      (0xA0U)
+#define PICC_WRITE_SEC   (0xA0U)
+#define PICC_WRITE_PG    (0xA2U)
 #define PICC_DECREMENT  (0xC0U)
 #define PICC_INCREMENT  (0xC1U)
 #define PICC_RESTORE    (0xC2U)
@@ -108,6 +111,21 @@ typedef enum {
     MFRC_TIMEOUT
 } mfrc_status_e;
 
+typedef enum {
+    MFRC_AC_CL1,
+    MFRC_AC_CL2
+} mfrc_ac_cl_e;
+
+typedef enum {
+    MFRC_SEL_CL1,
+    MFRC_SEL_CL2
+} mfrc_sel_cl_e;
+
+
+typedef enum {
+    MFRC_WR_PAGE,
+    MFRC_WR_SECTOR
+} mfrc_wr_type_e;
 
 typedef void(*init_t)(void);
 typedef uint8_t(*transmit_byte_t)(uint8_t byte);
@@ -168,7 +186,7 @@ uint8_t mfrc_request(uint8_t request_type, uint8_t *picc_atqa);
  * @param uid buffer into which uid will be stored
  * @return 0 on succes; else positive num
  */
-uint8_t mfrc_anticollision(uint8_t *uid);
+uint8_t mfrc_anticollision(uint8_t *uid, mfrc_ac_cl_e);
 
 
 
@@ -182,7 +200,7 @@ uint8_t mfrc_anticollision(uint8_t *uid);
  * @param uid the UID of the PICC to be selected
  * @return 0 on success; 1 else
  */
-uint8_t mfrc_select_picc(uint8_t *uid);
+uint8_t mfrc_select_picc(uint8_t *uid, mfrc_sel_cl_e);
 
 
 
@@ -231,7 +249,7 @@ uint8_t mfrc_compare(uint8_t *id, uint8_t *comp_id);
  * @param picc_block_addr address of the block to write to
  * @param send_data buffer of data to write to block
  */
-uint8_t mfrc_picc_write(uint8_t picc_block_addr, uint8_t *send_data);
+uint8_t mfrc_picc_write(uint8_t picc_block_addr, uint8_t *send_data, mfrc_wr_type_e);
 
 
 

@@ -7,6 +7,7 @@
 
 #include "../../../Core/Inc/drivers/mfrc522.h"
 
+#define UID_MAX_LEN         (7U) // accomodate 4 and 7-byte UIDs
 #define UID_LEN_BYTES       (5U) // 4 UID BYTES + 1 BCC
 #define PICC_MEM_BLOCK_LEN  (16U)
 #define SER_NUM_LEN_BYTES   (4U)
