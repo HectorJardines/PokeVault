@@ -51,7 +51,7 @@ void xpt2046_init()
 	ts_ControlByte.reference = XPT2046_DFR_MODE;
 	ts_ControlByte.channel = XPT2046_DFR_X; //by default
 	ts_ControlByte.startBit = XPT2046_START;
-	ts_Orientation = XPT2046_ORIENTATION_PORTRAIT;
+	ts_Orientation = XPT2046_ORIENTATION_PORTRAIT_MIRROR;
 	ts_Size.width = XPT2046_WIDTH;
 	ts_Size.height = XPT2046_HEIGHT;
 
@@ -173,9 +173,9 @@ void xpt2046_update(){
 		// ts_Coordinates.z = ts_CoordinatesRaw.z1;
 		break;
 	case XPT2046_ORIENTATION_PORTRAIT_MIRROR:
-		// ts_Coordinates.x = (ts_Size.width * (ts_CoordinatesRaw.x))/max - XPT2046_X_OFFSET;
-		// ts_Coordinates.y = (ts_Size.height * (max - ts_CoordinatesRaw.y))/max - XPT2046_Y_OFFSET;
-		// ts_Coordinates.z = ts_CoordinatesRaw.z1;
+		ts_Coordinates.x = ts_Size.width - (ts_Size.width * (ts_CoordinatesRaw.x - X_RAW_MIN)) / (X_RAW_MAX - X_RAW_MIN);
+		ts_Coordinates.y = (ts_Size.height * (ts_CoordinatesRaw.y - Y_RAW_MIN))/ (Y_RAW_MAX - Y_RAW_MIN);
+		ts_Coordinates.z = ts_CoordinatesRaw.z1;
 		break;
 	case XPT2046_ORIENTATION_LANDSCAPE_MIRROR:
 		// ts_Coordinates.x = (ts_Size.width *  (ts_CoordinatesRaw.y))/max - XPT2046_Y_OFFSET;

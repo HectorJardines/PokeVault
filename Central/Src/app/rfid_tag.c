@@ -80,8 +80,10 @@ tag_status_e tag_init(void) {
 
 /**
  * @brief Registers a tag and saves its serialnumber for subsequent authorization
+ * 
+ * 
  */
-uint8_t tag_register_card(tag_type_e type, const uint8_t *data_buffer) {
+uint8_t tag_register(tag_type_e type, const uint8_t *data_buffer) {
     uint8_t status = STATUS_ERR;
     static rfid_tag_t tag;
 

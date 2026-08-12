@@ -6,6 +6,7 @@
 #include "../../Inc/common/defines.h"
 #include "../../Inc/common/log.h"
 #include "../../Inc/app/rfid_tag.h"
+#include "../../Inc/app/display.h"
 
 #include "../../../FreeRTOS_WrkSpace/include/FreeRTOS.h"
 #include "../../../FreeRTOS_WrkSpace/include/task.h"
@@ -82,7 +83,7 @@ void c_inventory_init(void) {
     invent_tsk = xTaskCreateStatic(task_inventory, "Invent Task", INVENTORY_TASK_STK_DEPTH,
                                         NULL, INVENTORY_TASK_PRIO, invent_stk, &_invent_tsk);
 
-    if (status != pdTRUE) {
+    if (invent_tsk == NULL || trans_q == NULL) {
         while (1) {}
     }
 }
@@ -191,21 +192,31 @@ static void task_inventory(void *arg) {
     TickType_t prev_flush_tick = 0;
     TickType_t curr_flush_tick = 0;
     msg trans_msg = msg_init_default;
-    uint8_t stat = STATUS_OK;
-
-    stat = load_inventory();
+    uint8_t stat = STATUS_OK, records_ready = 0;
 
     for (;;) {
         if (xQueueReceive(trans_q, (void *)&trans_msg, TRANS_PEND_TIMEOUT) == pdTRUE) {
+            if (!records_ready) {
+                if (trans_msg.command == RECORDS_READY_CMD) {
+                    stat = load_inventory();
+                    records_ready = 1;
+                }
+                else continue;
+            }
+
             if(trans_msg.command == 0)
                 process_transaction(&trans_msg);
-            else if (trans_msg.command == SCAN_PRODUCT_CMD) {
+            else if (trans_msg.command == SCAN_PRODUCT_CMD) { // prob change to a state based approach, dont want to block all other tasks here
                 // scan for product tag
+                display_load_scanning_screen();
                 while (tag_register(TAG_PRODUCT, trans_msg.payload.type_transaction.item_name) != STATUS_OK);
+                display_load_scanned_screen();
             }
             else if (trans_msg.command == SCAN_TAG_CMD) {
                 // scan for key tag
+                display_load_scanning_screen();
                 while (tag_register(TAG_AUTH_CARD, NULL) != STATUS_OK);
+                display_load_scanned_screen();
             }
         }
 
@@ -226,14 +237,22 @@ static uint8_t load_inventory(void) {
     uint8_t status = STATUS_OK;
 
     // load inventory for each unit into RAM
+    FIL fp;
     char node_csv_file[FILE_NAME_LEN];
     for (uint8_t i = 0; i < NUM_UNITS; ++i) {
         memset((void *)node_csv_file, 0, FILE_NAME_LEN);
         snprintf(node_csv_file, FILE_NAME_LEN, "inv%02d.csv", i);
         status |= sd_read_csv(node_csv_file, node_csvs[i].unit_inventory, MAX_ITEMS_PER_UNIT, &node_csvs[i].num_records);
+        if (status == FR_NO_PATH || status == FR_NO_FILE) {
+            f_open(&fp, node_csv_file, FA_OPEN_ALWAYS | FA_WRITE);
+            f_close(&fp);
+            status = STATUS_OK;
+        }
         node_csvs[i].state = CSV_CLEAN;
     }
 
+    if (status = STATUS_OK) 
+        display_first_load_ready();
     return status;
 }
 

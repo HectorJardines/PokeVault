@@ -6,8 +6,8 @@
 /**************
  * MACROS
  **************/
-#define SPI_TX_GET_IRQn(spix)   (spix->Instance == SPI1 ? DMA2_Stream2_IRQn : DMA1_Stream4_IRQn)
-#define SPI_RX_GET_IRQn(spix)   (spix->Instance == SPI1 ? DMA2_Stream0_IRQn : DMA1_Stream3_IRQn)
+#define SPI_TX_GET_IRQn(spix)   ((spix)->Instance == SPI1 ? DMA2_Stream2_IRQn : DMA1_Stream4_IRQn)
+#define SPI_RX_GET_IRQn(spix)   ((spix)->Instance == SPI1 ? DMA2_Stream0_IRQn : DMA1_Stream3_IRQn)
 
 typedef struct {
     uint8_t curr_dev;
@@ -55,6 +55,25 @@ void spi_init(void) {
         initialized = 1;
     }
 }
+
+
+void spi_set_freq(spi_dev_e dev) {
+    if (dev == DEV_DISP || dev == DEV_SD) {
+        while (__HAL_SPI_GET_FLAG(&spi1.hspi, SPI_SR_BSY));
+        spi1.hspi.Instance->CR1 &= ~(SPI_CR1_SPE);
+        spi1.hspi.Instance->CR1 &= ~(SPI_BAUDRATEPRESCALER_256); // clear current BR
+        spi1.hspi.Instance->CR1 |= (SPI_BAUDRATEPRESCALER_4);
+        spi1.hspi.Instance->CR1 |= (SPI_CR1_SPE);
+    }
+    else {
+        while (__HAL_SPI_GET_FLAG(&spi2.hspi, SPI_SR_BSY));
+        spi2.hspi.Instance->CR1 &= ~(SPI_CR1_SPE);
+        spi2.hspi.Instance->CR1 &= ~(SPI_BAUDRATEPRESCALER_256); // clear current BR
+        spi2.hspi.Instance->CR1 |= (SPI_BAUDRATEPRESCALER_2);
+        spi2.hspi.Instance->CR1 |= (SPI_CR1_SPE);
+    }
+}
+
 
 /**
  * @brief 
@@ -144,8 +163,6 @@ uint8_t spi_transmit_dma(spi_dev_e dev, uint8_t *data, uint32_t len) {
     }
 
     status = HAL_SPI_Transmit_DMA(spix, data, len);
-    NVIC_SetPriority(SPI_TX_GET_IRQn(spix), 5);
-    NVIC_EnableIRQ(SPI_TX_GET_IRQn(spix));
     // ulTaskNotifyTake(pdFALSE, portMAX_DELAY);
     // NVIC_DisableIRQ(SPI_RX_GET_IRQn(spix));
     return status;
@@ -169,9 +186,6 @@ uint8_t spi_receive_dma(spi_dev_e dev, uint8_t *read_data, uint32_t read_len) {
     }
 
     status = HAL_SPI_Receive_DMA(spix, read_data, read_len);
-    NVIC_SetPriority(SPI_RX_GET_IRQn(spix), 5);
-    NVIC_EnableIRQ(SPI_RX_GET_IRQn(spix));
-    NVIC_EnableIRQ(SPI_TX_GET_IRQn(spix));
     // ulTaskNotifyTake(pdFALSE, portMAX_DELAY);
     return status;
 }
@@ -185,8 +199,13 @@ uint8_t spi_receive_dma(spi_dev_e dev, uint8_t *read_data, uint32_t read_len) {
  */
 uint8_t spi_lock(spi_dev_e dev) {
     BaseType_t lock_obtained = pdFALSE;
-    if (dev == DEV_DISP || dev == DEV_SD)
+    
+    if (dev == DEV_DISP || dev == DEV_SD) {
+        if (__HAL_SPI_GET_FLAG(&spi1.hspi, SPI_SR_OVR)) {
+            __HAL_SPI_CLEAR_OVRFLAG(&spi1.hspi);
+        }
         lock_obtained = xSemaphoreTake(spi1.mutx, portMAX_DELAY);
+    }
     else
         lock_obtained = xSemaphoreTake(spi2.mutx, portMAX_DELAY);
     
@@ -217,7 +236,13 @@ uint8_t spi_unlock(spi_dev_e dev) {
  * 
  */
 uint32_t spi_wait(spi_dev_e dev) {
-    return ulTaskNotifyTake(pdFALSE, portMAX_DELAY);
+    
+    uint8_t ret = ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    if(dev == DEV_DISP || dev == DEV_SD)
+        while(spi1.hspi.Instance->SR & SPI_SR_BSY);
+    else
+        while(spi2.hspi.Instance->SR & SPI_SR_BSY);
+    return ret;
 }
 
 /*****************
@@ -269,6 +294,10 @@ static void spi1_configure(void) {
 
     __HAL_LINKDMA(&spi1.hspi, hdmatx, spi1.hdmatx);
     __HAL_LINKDMA(&spi1.hspi, hdmarx, spi1.hdmarx);
+    NVIC_SetPriority(SPI_RX_GET_IRQn(&spi1.hspi), 5);
+    NVIC_SetPriority(SPI_TX_GET_IRQn(&spi1.hspi), 5);
+    NVIC_EnableIRQ(SPI_RX_GET_IRQn(&spi1.hspi));
+    NVIC_EnableIRQ(SPI_TX_GET_IRQn(&spi1.hspi));
 }
 
 
@@ -310,7 +339,7 @@ static void spi2_configure(void) {
     spi2.hspi.Init.TIMode = SPI_TIMODE_DISABLE;
     spi2.hspi.Init.Direction = SPI_DIRECTION_2LINES;
     spi2.hspi.Init.CRCPolynomial = SPI_CRCCALCULATION_DISABLE;
-    spi2.hspi.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_64;
+    spi2.hspi.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_128;
 
     HAL_DMA_Init(&spi2.hdmatx);
     HAL_DMA_Init(&spi2.hdmarx);
@@ -318,7 +347,10 @@ static void spi2_configure(void) {
 
     __HAL_LINKDMA(&spi2.hspi, hdmatx, spi2.hdmatx);
     __HAL_LINKDMA(&spi2.hspi, hdmarx, spi2.hdmarx);
-
+    NVIC_SetPriority(SPI_RX_GET_IRQn(&spi2.hspi), 5);
+    NVIC_SetPriority(SPI_TX_GET_IRQn(&spi2.hspi), 5);
+    NVIC_EnableIRQ(SPI_RX_GET_IRQn(&spi2.hspi));
+    NVIC_EnableIRQ(SPI_TX_GET_IRQn(&spi2.hspi));
 }
 
 
@@ -338,6 +370,7 @@ void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi) {
         }
 
         vTaskNotifyGiveFromISR(spi1.curr_task, &spi1.hpt_trigger);
+        portYIELD_FROM_ISR(spi1.hpt_trigger);
     }
     else if (hspi->Instance == SPI2) {
         spi2.hpt_trigger = pdFALSE;
@@ -346,6 +379,7 @@ void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi) {
         }
 
         vTaskNotifyGiveFromISR(spi2.curr_task, &spi2.hpt_trigger);
+        portYIELD_FROM_ISR(spi2.hpt_trigger);
     }
 }
 
@@ -378,8 +412,7 @@ void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef *hspi) {
 
 
 void HAL_SPI_RxCpltCallback(SPI_HandleTypeDef *hspi) {
-    if (hspi->Instance == SPI1)
-        HAL_SPI_TxRxCpltCallback(hspi);
+    HAL_SPI_TxRxCpltCallback(hspi);
 }
 
 /**
@@ -410,5 +443,5 @@ void DMA1_Stream4_IRQHandler(void) {
  * @brief Handler for SPI2 RX
  */
 void DMA1_Stream3_IRQHandler(void) {
-    HAL_DMA_IRQHandler(&spi2.hdmatx);
+    HAL_DMA_IRQHandler(&spi2.hdmarx);
 }

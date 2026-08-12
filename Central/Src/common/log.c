@@ -2,6 +2,7 @@
 #include "../../Inc/common/defines.h"
 #include "../../Inc/drivers/rtc.h"
 #include "../../Inc/drivers/spi.h"
+#include "../../Inc/app/inventory.h"
 
 #include "../../Inc/common/printf-stdarg.h"
 // #include <stdio.h>
@@ -187,8 +188,15 @@ static void task_logging(void *arg) {
     TickType_t prev_sync = 0, curr_sync_tick = 0;
 
     res = sd_mount();
+    spi_set_freq(DEV_SD);
     if (res != FR_OK)
         while (1) {}
+    else {
+        msg records_ready = msg_init_default;
+        records_ready.command = RECORDS_READY_CMD;
+        inventory_post_event(&records_ready);
+    }
+
     res |= f_open(&logs, FPATH_LOGS, FA_OPEN_APPEND | FA_WRITE);
     res |= f_open(&trans, FPATH_TRANS, FA_OPEN_APPEND | FA_WRITE);
     res |= f_open(&events, FPATH_EVENTS, FA_OPEN_APPEND | FA_WRITE);

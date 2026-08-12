@@ -263,6 +263,7 @@ SD_Status SD_ReadMultiBlocks(uint8_t *buff, uint32_t sector, uint32_t count) {
 }
 
 SD_Status SD_WriteBlocks(const uint8_t *buff, uint32_t sector, uint32_t count) {
+    uint32_t timeout;
     if (!count) return SD_ERROR;
 
     if (count == 1) {
@@ -284,9 +285,18 @@ SD_Status SD_WriteBlocks(const uint8_t *buff, uint32_t sector, uint32_t count) {
             return SD_ERROR;
         }
 
-        while (SD_ReceiveByte() == 0);
+        timeout = HAL_GetTick() + 500;
+        do {
+            resp = SD_ReceiveByte();
+        } while(resp == 0 && HAL_GetTick() < timeout); // busy wait
+        if (resp == 0) {
+            SD_CS_HIGH();
+            SD_TransmitByte(0xFF);
+            return SD_ERROR;
+        }
         SD_CS_HIGH();
         SD_TransmitByte(0xFF);
+        
 
         return SD_OK;
     } else {
@@ -295,6 +305,8 @@ SD_Status SD_WriteBlocks(const uint8_t *buff, uint32_t sector, uint32_t count) {
 }
 
 SD_Status SD_WriteMultiBlocks(const uint8_t *buff, uint32_t sector, uint32_t count) {
+    uint8_t resp;
+    uint32_t timeout;
     if (!count) return SD_ERROR;
     if (!sdhc) sector *= 512;
 
@@ -311,21 +323,35 @@ SD_Status SD_WriteMultiBlocks(const uint8_t *buff, uint32_t sector, uint32_t cou
         SD_TransmitByte(0xFF);  // dummy CRC
         SD_TransmitByte(0xFF);
 
-        uint8_t resp = SD_ReceiveByte();
+        
+        resp = SD_ReceiveByte();
         if ((resp & 0x1F) != 0x05) {
             SD_CS_HIGH();
             return SD_ERROR;
         }
 
-        while (SD_ReceiveByte() == 0);  // busy wait
+        timeout = HAL_GetTick() + 500;
+        do {
+            resp = SD_ReceiveByte();
+        } while(resp == 0 && HAL_GetTick() < timeout); // busy wait
+        if (resp == 0) goto cleanup;
         buff += 512;
     }
 
     SD_TransmitByte(0xFD);  // STOP_TRAN token
-    while (SD_ReceiveByte() == 0);  // busy wait
+
+    timeout = HAL_GetTick() + 500;
+    do {
+        resp = SD_ReceiveByte();
+    } while(resp == 0 && HAL_GetTick() < timeout); // busy wait
+    if (resp == 0) goto cleanup;
 
     SD_CS_HIGH();
     SD_TransmitByte(0xFF);
-
     return SD_OK;
+
+cleanup:
+    SD_CS_HIGH();
+    SD_TransmitByte(0xFF);
+    return SD_ERROR;
 }

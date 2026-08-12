@@ -14,7 +14,7 @@
  *    You are free to use and modify it for learning and development.
  ******************************************************************************/
 
-#define _DEFAULT_SOURCE
+#define __DEFAULT_SOURCE
 #include "../../Inc/drivers/sd_functions.h"
 #include "../../Inc/drivers/sd_diskio_spi.h"
 #include "../../Inc/drivers/sd_spi.h"
@@ -155,10 +155,16 @@ int sd_read_file(const char *filename, char *buffer, UINT bufsize, UINT *bytes_r
 
 int sd_read_csv(const char *filename, CsvRecord *records, int max_records, int *record_count) {
 	FIL file;
+	FILINFO info;
 	char line[128];
+	char *line_p;
 	*record_count = 0;
 
-	FRESULT res = f_open(&file, filename, FA_READ);
+	// CHECK IF FILE EXISTS
+	FRESULT res = f_stat(filename, &info);
+	if (res != FR_OK) return res;
+
+	res = f_open(&file, filename, FA_READ);
 	if (res != FR_OK) {
 		printf("Failed to open CSV: %s (%d)", filename, res);
 		return res;
@@ -166,14 +172,15 @@ int sd_read_csv(const char *filename, CsvRecord *records, int max_records, int *
 
 	printf("📄 Reading CSV: %s\r\n", filename);
 	while (f_gets(line, sizeof(line), &file) && *record_count < max_records) {
-		char *token = strsep(&line, ",");
+		line_p = line;
+		char *token = strsep(&line_p, ",");
 		if (token)
 			records[*record_count].id = atoi(token);
 		else
 			records[*record_count].id = 0;
-		token = strsep(&line, ",");
+		token = strsep(&line_p, ",");
 		if (!token) continue;
-		strncpy(records[*record_count].name, token, sizeof(records[*record_count].name));
+		strncpy(records[*record_count].name, token, strlen(token) - 1);
 		(*record_count)++;
 	}
 

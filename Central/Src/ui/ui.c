@@ -20,6 +20,7 @@ void loadScreen(enum ScreensEnum screenId) {
     lv_obj_t *old = lv_screen_active();
     lv_screen_load(small_screen);
     lv_obj_delete(old);
+    uint32_t delay = 0;
 
     currentScreen = screenId - 1;
     switch (screenId)
@@ -38,16 +39,18 @@ void loadScreen(enum ScreensEnum screenId) {
         break;
     case SCREEN_ID_SCANNED:
         create_screen_scanned();
+        delay = 500; // give it a couple ms for UX
         break;
     case SCREEN_ID_SCANNING:
         create_screen_scanning();
+        delay = 500;
         break;
     default:
         break;
     }
 
     lv_obj_t *screen = getLvglObjectFromIndex(currentScreen);
-    lv_screen_load_anim(screen, LV_SCREEN_LOAD_ANIM_NONE, 0, 0, false);
+    lv_screen_load_anim(screen, LV_SCREEN_LOAD_ANIM_NONE, 0, delay, false);
 }
 
 void ui_init() {

@@ -29,6 +29,24 @@ void display_init(void);
  * 
  * 
  */
+void display_load_scanning_screen(void);
 
+
+
+/**
+ * @brief
+ * 
+ * 
+ */
+void display_load_scanned_screen(void);
+
+
+/**
+ * @brief 
+ * 
+ * 
+ * 
+ */
+void display_first_load_ready(void);
 
 #endif

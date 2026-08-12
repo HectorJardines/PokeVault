@@ -159,7 +159,20 @@ static void test_log_to_sd(void) {
 }
 
 
+static void test_tag_register(void) {
+    init_print();
+    log_init();
+    display_init();
+    c_inventory_init();
+
+    vTaskStartScheduler();
+    while(1) {
+
+    }
+}
+
+
 int main(void) {
     test_setup();
-    test_system_display();
+    test_tag_register();
 }

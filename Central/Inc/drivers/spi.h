@@ -55,6 +55,14 @@ uint8_t spi_lock(spi_dev_e dev);
 
 uint8_t spi_unlock(spi_dev_e dev);
 
+/**
+ * @brief Sets the max SPI clock freq for the specified device
+ * 
+ * 
+ * 
+ */
+void spi_set_freq(spi_dev_e dev);
+
 
 /**
  * @brief Sleeps the task until it is notified by DMA interrupt

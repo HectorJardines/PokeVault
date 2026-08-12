@@ -63,29 +63,33 @@ void mfrc522_init(mfrc_reader_t *mfrc) {
 
     // intialize spi peripheral
     reader.init();
-    // reset mfrc522
-    mfrc_reset();
+    
+    if (reader.req_bus() == 1) {
+        // reset mfrc522
+        mfrc_reset();
 
-    //configure mfrc522 timer 15ms delay
-    uint8_t value = 0x8D; //
-    write_mfrc_register(MFRC_TMODER, value);
-    value = 0x3E; //
-    write_mfrc_register(MFRC_TPSCR, value);
-    value = 30; // timer count to 30 ticks
-    write_mfrc_register(MFRC_TRELOADR_L, value);
-    value = 0; // high bits of timer reload cleared
-    write_mfrc_register(MFRC_TRELOADR_H, value);
+        //configure mfrc522 timer 15ms delay
+        uint8_t value = 0x8D; //
+        write_mfrc_register(MFRC_TMODER, value);
+        value = 0x3E; //
+        write_mfrc_register(MFRC_TPSCR, value);
+        value = 30; // timer count to 30 ticks
+        write_mfrc_register(MFRC_TRELOADR_L, value);
+        value = 0; // high bits of timer reload cleared
+        write_mfrc_register(MFRC_TRELOADR_H, value);
 
-    value = 0x70; // 48dB gain
-    write_mfrc_register(MFRC_RFCfgR, value);
+        value = 0x70; // 48dB gain
+        write_mfrc_register(MFRC_RFCfgR, value);
 
-    value = 0x40; // set 100% ASK rate
-    write_mfrc_register(MFRC_TX_ASKR, value);
+        value = 0x40; // set 100% ASK rate
+        write_mfrc_register(MFRC_TX_ASKR, value);
 
-    value = 0x3D; // 
-    write_mfrc_register(MFRC_MODER, value);
+        value = 0x3D; // 
+        write_mfrc_register(MFRC_MODER, value);
 
-    mfrc_antenna_on();
+        mfrc_antenna_on();
+        reader.rel_bus();
+    }
 }
 
 /**
@@ -98,7 +102,7 @@ uint8_t mfrc_scan(uint8_t *uid) {
     if (status == MFRC_OK) {
         status = mfrc_anticollision(uid, MFRC_AC_CL1);
     }
-    status = mfrc_halt(); // halt the card 
+    status = mfrc_halt(); // halt the card
     return status;
 }
 
@@ -135,10 +139,12 @@ uint8_t mfrc_request(uint8_t request_type, uint8_t *picc_type) {
     mfrc_status_e status = MFRC_OK;
 
     uint8_t value = 0x07; // 7 bits of last byte will be transmitted
-    write_mfrc_register(MFRC_BIT_FRAMING, value);
-
-    picc_type[0] = request_type;
-    status = mfrc_send_to_picc(PCD_CMD_TRANSCEIVE, picc_type, 1, picc_type, &rcv_len);
+    if (reader.req_bus() == 1) {
+        write_mfrc_register(MFRC_BIT_FRAMING, value);
+        picc_type[0] = request_type;
+        status = mfrc_send_to_picc(PCD_CMD_TRANSCEIVE, picc_type, 1, picc_type, &rcv_len);
+        reader.rel_bus();
+    }
 
     if (status != MFRC_OK || rcv_len != 0x10) // 16 bit 
         status = MFRC_ERR;
@@ -151,6 +157,7 @@ uint8_t mfrc_request(uint8_t request_type, uint8_t *picc_type) {
  * @brief 
  */
 uint8_t mfrc_anticollision(uint8_t *uid, mfrc_ac_cl_e CL) {
+    mfrc_status_e status = MFRC_OK;
     uint8_t uid_check = 0;
     uint8_t val = 0x00; // all bits of last byte in TX sequence will be transmitted
     write_mfrc_register(MFRC_BIT_FRAMING, val);
@@ -160,7 +167,10 @@ uint8_t mfrc_anticollision(uint8_t *uid, mfrc_ac_cl_e CL) {
     uid[0] = CL == MFRC_AC_CL1 ? PICC_ANTICOLL_CL1 : PICC_ANTICOLL_CL2;
     uid[1] = 0x20; // indicates to nearby PICCs that no part of UID will be sent, just send full UID
 
-    mfrc_status_e status = mfrc_send_to_picc(PCD_CMD_TRANSCEIVE, uid, 2, uid, &uid_len); // sent PICC anticolll command and retrieve UID
+    if (reader.req_bus() == 1) {
+        status = mfrc_send_to_picc(PCD_CMD_TRANSCEIVE, uid, 2, uid, &uid_len); // sent PICC anticolll command and retrieve UID
+        reader.rel_bus();
+    }
 
     if (status == MFRC_OK) { // verify that UID is expected
         for (uint8_t i = 0; i < PICC_UID_LEN_BYTES; i++)
@@ -193,10 +203,12 @@ uint8_t mfrc_select_picc(uint8_t *uid, mfrc_sel_cl_e CL) {
     for (uint8_t i = 0; i < PICC_UID_CLn_LEN; ++i)
         tx_buf[i + 2] = *(uid + i);
 
-    // calculate checksum over buffer contents to transmit as per ISO-IEC 14443
-    mfrc_calculate_crc(tx_buf, 7, &tx_buf[7]);
-
-    status = mfrc_send_to_picc(PCD_CMD_TRANSCEIVE, tx_buf, 9, tx_buf, &rx_len);
+    if (reader.req_bus() == 1) {
+        // calculate checksum over buffer contents to transmit as per ISO-IEC 14443
+        mfrc_calculate_crc(tx_buf, 7, &tx_buf[7]);
+        status = mfrc_send_to_picc(PCD_CMD_TRANSCEIVE, tx_buf, 9, tx_buf, &rx_len);
+        reader.rel_bus();
+    }
 
     return status;
 }
@@ -211,31 +223,36 @@ uint8_t mfrc_select_picc(uint8_t *uid, mfrc_sel_cl_e CL) {
 uint8_t mfrc522_auth(uint8_t auth_type, uint8_t picc_block_addr, uint8_t *sector_key, uint8_t *serial_num) {
     mfrc_status_e status = MFRC_OK;
     uint8_t buffer[MF_AUTH_PAYLOAD_LEN];
-
-    // intialize timer to auto mode, use idleIRq/timerIRq as termination criteria if no card read
-    set_bitmask_on_reg(MFRC_TMODER, 0x80); // timer auto starts at end of transmission
-    clear_bitmask_on_reg(MFRC_TMODER, 0x10); // timer counts down to 0 and sets comIRq bit
-
-    // write auth cmd, block addr, sector key, uid into DR
-    buffer[0] = auth_type;
-    buffer[1] = picc_block_addr;
-    uint8_t i;
-    for (i = 0; i < MF_SECTOR_KEY_LEN; ++i)
-        buffer[i + 2] = *(sector_key + i);
-    for (i = 0; i < MF_SERNUM_LEN; ++i)
-        buffer[i + 8] = *(serial_num + i);
-
-    // activate MFAuthent command
-    status = mfrc_send_to_picc(PCD_CMD_MF_AUTH, buffer, MF_AUTH_PAYLOAD_LEN, NULL, NULL);
-
-    //wait until authentication sequence complete
     uint8_t retries = 0xFF;
     uint8_t status2_reg = 0x00;
-    while (retries > 0) {
-        status2_reg = read_mfrc_register(MFRC_STAT2_REG);
-        if (status2_reg & 0x08) // MFCrypto1On bit set, MFAuthent success
-            break;
-        retries--;
+
+    if (reader.req_bus() == 1) {
+        // intialize timer to auto mode, use idleIRq/timerIRq as termination criteria if no card read
+        set_bitmask_on_reg(MFRC_TMODER, 0x80); // timer auto starts at end of transmission
+        clear_bitmask_on_reg(MFRC_TMODER, 0x10); // timer counts down to 0 and sets comIRq bit
+
+        // write auth cmd, block addr, sector key, uid into DR
+        buffer[0] = auth_type;
+        buffer[1] = picc_block_addr;
+        uint8_t i;
+        for (i = 0; i < MF_SECTOR_KEY_LEN; ++i)
+            buffer[i + 2] = *(sector_key + i);
+        for (i = 0; i < MF_SERNUM_LEN; ++i)
+            buffer[i + 8] = *(serial_num + i);
+
+        // activate MFAuthent command
+        status = mfrc_send_to_picc(PCD_CMD_MF_AUTH, buffer, MF_AUTH_PAYLOAD_LEN, NULL, NULL);
+
+        //wait until authentication sequence complete
+        
+        while (retries > 0) {
+            status2_reg = read_mfrc_register(MFRC_STAT2_REG);
+            if (status2_reg & 0x08) // MFCrypto1On bit set, MFAuthent success
+                break;
+            retries--;
+        }
+
+        reader.rel_bus();
     }
 
     if (retries <= 0 || status != MFRC_OK)
@@ -247,7 +264,10 @@ uint8_t mfrc522_auth(uint8_t auth_type, uint8_t picc_block_addr, uint8_t *sector
 
 
 void TM_MFRC522_Crypto_Off(void) {
-    clear_bitmask_on_reg(MFRC_STAT2_REG, 0x08);
+    if (reader.req_bus() == 1) {
+        clear_bitmask_on_reg(MFRC_STAT2_REG, 0x08);
+        reader.rel_bus();
+    }
 }
 
 
@@ -264,8 +284,11 @@ uint8_t mfrc_halt(void) {
 
     buffer[0] = PICC_HALT;
     buffer[1] = 0x00;
-    mfrc_calculate_crc(buffer, 2, &buffer[2]);
-    status = mfrc_send_to_picc(PCD_CMD_TRANSCEIVE, buffer, PICC_UID_LEN_BYTES + 2, buffer, &rcv_len);
+    if (reader.req_bus() == 1) {
+        mfrc_calculate_crc(buffer, 2, &buffer[2]);
+        status = mfrc_send_to_picc(PCD_CMD_TRANSCEIVE, buffer, PICC_UID_LEN_BYTES + 2, buffer, &rcv_len);
+        reader.rel_bus();
+    }
     return status;
 }
 
@@ -291,9 +314,11 @@ uint16_t mfrc_picc_read(uint8_t picc_block_addr, uint8_t *rcv_data) {
     // setup PICC read command as per MIFARE datasheet
     buffer[0] = PICC_READ;
     buffer[1] = picc_block_addr;
-    mfrc_calculate_crc(buffer, 2, &buffer[2]);
-
-    status = mfrc_send_to_picc(PCD_CMD_TRANSCEIVE, buffer, 4, rcv_data, &rcv_len);
+    if (reader.req_bus() == 1) {
+        mfrc_calculate_crc(buffer, 2, &buffer[2]);
+        status = mfrc_send_to_picc(PCD_CMD_TRANSCEIVE, buffer, 4, rcv_data, &rcv_len);
+        reader.rel_bus();
+    }
     if (status != MFRC_OK || rcv_len != (PICC_DATA_BLOCK_LEN + PICC_CRC_LEN))
         status = MFRC_ERR;
 
@@ -315,22 +340,26 @@ uint8_t mfrc_picc_write(uint8_t picc_block_addr, uint8_t *send_data, mfrc_wr_typ
 
     buffer[0] = PICC_WRITE_SEC;
     buffer[1] = picc_block_addr;
-    mfrc_calculate_crc(buffer, 2, &buffer[2]); // calculate and store checksum
-    status = mfrc_send_to_picc(PCD_CMD_TRANSCEIVE, buffer, 4, buffer, &rcv_len_bits); // picc only sends back ACK
-    if (status != MFRC_OK || rcv_len_bits != PICC_NUM_ACK_BITS || (buffer[0] & 0x0F) != PICC_ACK)
-        return MFRC_ERR;
+    if (reader.req_bus() == 1) {
+        mfrc_calculate_crc(buffer, 2, &buffer[2]); // calculate and store checksum
+        status = mfrc_send_to_picc(PCD_CMD_TRANSCEIVE, buffer, 4, buffer, &rcv_len_bits); // picc only sends back ACK
+        if (status != MFRC_OK || rcv_len_bits != PICC_NUM_ACK_BITS || (buffer[0] & 0x0F) != PICC_ACK) {
+            reader.rel_bus();
+            return MFRC_ERR;
+        }
 
-    // compatibility for 4-byte page addressed tags
-    for (uint8_t i = 0, wr_idx = 0; i < PICC_DB_LEN_BYTES; ++i) {
-        if (wr_type == MFRC_WR_PAGE && i < PICC_DB_LEN_BYTES - 4)
-            buffer[i] = 0x00;
-        else
-            buffer[i] = *(send_data + wr_idx++);
+        // compatibility for 4-byte page addressed tags
+        for (uint8_t i = 0, wr_idx = 0; i < PICC_DB_LEN_BYTES; ++i) {
+            if (wr_type == MFRC_WR_PAGE && i < PICC_DB_LEN_BYTES - 4)
+                buffer[i] = 0x00;
+            else
+                buffer[i] = *(send_data + wr_idx++);
+        }
+
+        mfrc_calculate_crc(buffer, PICC_DB_LEN_BYTES, &buffer[PICC_DB_LEN_BYTES]);
+        status = mfrc_send_to_picc(PCD_CMD_TRANSCEIVE, buffer, PICC_DB_PAYLOAD_LEN, buffer, &rcv_len_bits);
+        reader.rel_bus();
     }
-
-    mfrc_calculate_crc(buffer, PICC_DB_LEN_BYTES, &buffer[PICC_DB_LEN_BYTES]);
-    status = mfrc_send_to_picc(PCD_CMD_TRANSCEIVE, buffer, PICC_DB_PAYLOAD_LEN, buffer, &rcv_len_bits);
-
     if (status != MFRC_OK || rcv_len_bits != PICC_NUM_ACK_BITS || (buffer[0] & 0x0F) != PICC_ACK)
         status = MFRC_ERR;
 
@@ -532,37 +561,30 @@ static uint8_t clear_bitmask_on_reg(uint8_t reg, uint8_t reg_msk) {
 
 static uint8_t write_mfrc_register(uint8_t reg, uint8_t data) {
     uint8_t rslt = MFRC_ERR;
-    if (reader.req_bus() == 1) {
-        reader.select();
+    reader.select();
 
-        // send register address
-        reg = MFRC_ADDR_SET_WRITE(reg);
-        rslt = reader.transmit_byte(reg);
-        // send data
-        rslt = reader.transmit_byte(data);
+    // send register address
+    reg = MFRC_ADDR_SET_WRITE(reg);
+    rslt = reader.transmit_byte(reg);
+    // send data
+    rslt = reader.transmit_byte(data);
 
-        reader.deselect();
-        reader.rel_bus();
-    }
+    reader.deselect();
     return rslt;
 }
 
 static uint8_t read_mfrc_register(uint8_t reg) {
     uint8_t rslt = MFRC_ERR;
 
-    if (reader.req_bus() == 1) {
-        reader.select();
+    reader.select();
 
-        // send register address
-        reg = MFRC_ADDR_SET_READ(reg);
-        rslt = reader.transmit_byte(reg);
-        // read bytes from register
-        rslt = reader.receive_byte();
+    // send register address
+    reg = MFRC_ADDR_SET_READ(reg);
+    rslt = reader.transmit_byte(reg);
+    // read bytes from register
+    rslt = reader.receive_byte();
 
-        reader.deselect();
-        reader.rel_bus();
-    }
-
+    reader.deselect();
     return rslt;
 }
 

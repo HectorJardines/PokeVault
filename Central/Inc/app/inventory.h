@@ -23,6 +23,7 @@
 #define SCAN_PRODUCT_CMD    (2U)
 #define CMD_GET_INVENT      (3U)
 #define CMD_GET_NODE_STAT   (4U)
+#define RECORDS_READY_CMD   (5U)
 
 #define ITEMS_PER_SCREEN    (7U)
 #define NODES_PER_SCREEN    (6U)
@@ -51,7 +52,6 @@ typedef struct {
     char id[8];
     char capacity[6];
     uint8_t armed;
-    
 } unit_record_t;
 
 /******************

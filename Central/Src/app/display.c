@@ -28,6 +28,10 @@
 
 #define NODE_ID(node_bits)      ((node_bits) & (0x3U))
 #define NODE_PG_IDX(node_bits)  (((node_bits) & (0x1FU << 2)) >> 2)
+#define TOUCH_Msk               (0x01 << 0)
+#define SCAN_Msk                (0x01 << 1)
+#define SCAN_CPLT_Msk           (0x01 << 2)
+#define INIT_INVENT_LOAD_Msk    (0x01 << 3)
 
 
 /******************
@@ -37,6 +41,7 @@ typedef struct {
     lv_display_t *dispp;
     lv_indev_t *input;
     uint8_t buf[FRAME_BUF_SIZE];
+    uint8_t scan_state;
 } display_t;
 
 typedef struct {
@@ -54,8 +59,8 @@ typedef struct {
 
 
 typedef struct {
-    uint32_t x;
-    uint32_t y;
+    int32_t x;
+    int32_t y;
 } touch_coord_t;
 
 /*************
@@ -66,6 +71,7 @@ static void touch_input_cb(lv_indev_t *in, lv_indev_data_t *data);
 static void update_items(void);
 static void update_units(void);
 static void xpt2046_touch_isr(void);
+static void load_screen_cb(lv_event_t *e);
 
 // DISPLAY DATA
 static display_t ili_disp;
@@ -137,10 +143,10 @@ void action_next_items(lv_event_t * e) {
     // AT MOST 4 ITEMS SCREEN PER NODE (use lower 2 bits)
     // UPPER 5 BITS USED FOR NODE ID
     lv_obj_t *obj = lv_event_get_target_obj(e);
-    uint8_t node_bits = *((uint8_t *)lv_obj_get_user_data(obj));    
+    uint8_t node_bits = *((uint8_t *)lv_obj_get_user_data(obj)); 
     
 
-    invent_content.valid_records = inventory_get_contents(NODE_ID(node_bits), &invent_content.records, invent_content.pg_idx);
+    invent_content.valid_records = inventory_get_contents(NODE_ID(node_bits), invent_content.records, invent_content.pg_idx);
     if (invent_content.valid_records > 0) {
         update_items();
         invent_content.pg_idx++;
@@ -190,7 +196,7 @@ void action_to_inventory(lv_event_t * e) {
     lv_obj_t *obj = lv_event_get_target_obj(e);
     uint8_t node_bits = *((uint8_t *)lv_obj_get_user_data(obj));
 
-    invent_content.valid_records = inventory_get_contents(NODE_ID(node_bits), &invent_content.records, invent_content.pg_idx);
+    invent_content.valid_records = inventory_get_contents(NODE_ID(node_bits), invent_content.records, invent_content.pg_idx);
     if (invent_content.valid_records > 0) {
         update_items();
     }
@@ -202,9 +208,10 @@ void action_to_inventory(lv_event_t * e) {
  * 
  */
 void action_scan_prompt(lv_event_t * e) {
-    loadScreen(SCREEN_ID_SCAN_PROMPT);
     // signal to inventory task to scan for tag
+    loadScreen(SCREEN_ID_SCAN_PROMPT);
     inventory_signal_scan(NULL);
+    ili_disp.scan_state = 1;
 }
 
 
@@ -213,11 +220,26 @@ void product_name_ready(lv_event_t *e) {
     lv_event_code_t code = lv_event_get_code(e);
     lv_obj_t *text_ar = lv_event_get_target(e);
     if (code == LV_EVENT_READY) {
+        loadScreen(SCREEN_ID_SCAN_PROMPT);
         const char *name = lv_textarea_get_text(text_ar);
         stat = inventory_signal_scan(name);
+        ili_disp.scan_state = 1;
     }
 
     (void)stat;
+}
+
+
+void display_load_scanned_screen(void) {
+    xTaskNotify(disp_tsk, SCAN_CPLT_Msk, eSetBits);
+}
+
+void display_load_scanning_screen(void) {
+    xTaskNotify(disp_tsk, SCAN_Msk, eSetBits);
+}
+
+void display_first_load_ready(void) {
+    xTaskNotify(disp_tsk, INIT_INVENT_LOAD_Msk, eSetBits);
 }
 
 
@@ -226,8 +248,10 @@ void product_name_ready(lv_event_t *e) {
  * STATIC DEFS
  *******************/
 static void task_display(void *arg) {
-    static uint32_t delay = 0, curr_tick;
+    static uint32_t delay = 0, curr_tick = 0, notif = 0;
 
+
+    // CONFIGURE DISPLAY SETTINGS
     ili_disp.dispp = lv_ili9341_create(DISPLAY_WIDTH, DISPLAY_HEIGHT, 0x00, ili9341_send_cmd, ili9341_send_pixels);
     lv_display_set_color_format(ili_disp.dispp, LV_COLOR_FORMAT_RGB565);
     lv_display_set_buffers(ili_disp.dispp, ili_disp.buf, NULL, FRAME_BUF_SIZE, LV_DISPLAY_RENDER_MODE_PARTIAL);
@@ -236,6 +260,7 @@ static void task_display(void *arg) {
     ili_disp.input = lv_indev_create();
     lv_indev_set_type(ili_disp.input, LV_INDEV_TYPE_POINTER);
     lv_indev_set_read_cb(ili_disp.input, touch_input_cb);
+    lv_display_add_event_cb(ili_disp.dispp, load_screen_cb, LV_EVENT_SCREEN_LOADED, &ili_disp.scan_state);
 
     ui_init();
     io_irq_enable_interrupt(IO_TOUCH_IT);
@@ -246,10 +271,21 @@ static void task_display(void *arg) {
             delay = LV_DEF_REFR_PERIOD;
 
         curr_tick = xTaskGetTickCount;
-        if (ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(delay)) == pdTRUE) {
-            static touch_coord_t input;
-            xpt2046_read_position(&input.x, &input.y);
-            xQueueSendToBack(input_q, &input, 0);
+        static touch_coord_t input;
+        if (xTaskNotifyWait(0x00, (SCAN_CPLT_Msk | TOUCH_Msk | INIT_INVENT_LOAD_Msk | SCAN_Msk), &notif, pdMS_TO_TICKS(delay)) == pdTRUE) {
+            if (notif & INIT_INVENT_LOAD_Msk)
+                update_units();
+            if (notif & TOUCH_Msk) {
+                xpt2046_read_position(&input.x, &input.y);
+                xQueueSendToBack(input_q, &input, 0);
+            } else {
+                input.x = -1; input.y = -1;
+                xQueueSendToBack(input_q, &input, 0);
+            }
+            if (notif & SCAN_Msk)
+                ili_disp.scan_state = 2;
+            if (notif & SCAN_CPLT_Msk)
+                ili_disp.scan_state = 3;
         }
     }
 
@@ -258,18 +294,37 @@ static void task_display(void *arg) {
 }
 
 
+static void load_screen_cb(lv_event_t *e) {
+    lv_event_code_t code = lv_event_get_code(e);
+    lv_obj_t *d = lv_event_get_current_target_obj(e);
+    uint8_t *load_state = ((uint8_t *)lv_obj_get_user_data(d));
+
+    if (code == LV_EVENT_SCREEN_LOADED && *load_state > 1) {
+        if (*load_state == 2) {
+            loadScreen(SCREEN_ID_SCANNING);
+        } else if (*load_state == 3) {
+            loadScreen(SCREEN_ID_SCANNED);
+            *load_state = 4;
+        } else if (*load_state == 4) {
+            loadScreen(SCREEN_ID_MAIN);
+            *load_state = 0;
+        }
+    }
+}
+
+
 static void touch_input_cb(lv_indev_t *in, lv_indev_data_t *data) {
-    // static touch_coord_t touch;
-    // if (xQueueReceive(input_q, (void *)&touch, 0) == pdTRUE) {
-    //     if (touch.x == -1 || touch.y == -1) {
-    //         data->state = LV_INDEV_STATE_RELEASED;
-    //     }
-    //     else {
-    //         data->point.x = touch.x;
-    //         data->point.y = touch.y;
-    //         data->state = LV_INDEV_STATE_PRESSED;
-    //     }
-    // }
+    static touch_coord_t touch;
+    if (xQueueReceive(input_q, (void *)&touch, 0) == pdTRUE) {
+        if (touch.x == -1 || touch.y == -1) {
+            data->state = LV_INDEV_STATE_RELEASED;
+        }
+        else {
+            data->point.x = touch.x;
+            data->point.y = touch.y;
+            data->state = LV_INDEV_STATE_PRESSED;
+        }
+    }
 }
 
 
@@ -288,7 +343,6 @@ static void update_items(void) {
 }
 
 
-
 static void update_units(void) {
     lv_obj_t *button = NULL;
     lv_obj_t *label;
@@ -296,6 +350,7 @@ static void update_units(void) {
         button = lv_group_get_obj_by_index(groups.grp_units, i);
         label = lv_obj_get_child(button, 0); // UNIT ID
         lv_label_set_text_static(label, unit_content.units[i].id);
+        lv_obj_set_user_data(button, &unit_content.units[i].id);
         label = lv_obj_get_child(button, 1);
         if (unit_content.units[i].armed == 0)
             lv_label_set_text_static(label, "ARMED");
