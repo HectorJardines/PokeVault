@@ -3,6 +3,7 @@
 #include "../../Inc/app/inventory.h"
 #include "../../Inc/drivers/ili9341.h"
 #include "../../Inc/drivers/xpt2046.h"
+#include "../../Inc/common/log.h"
 #include "../../../Drivers/lvgl-master/include/lvgl/drivers/display/lv_ili9341.h"
 #include "../../../FreeRTOS_WrkSpace/include/FreeRTOS.h"
 #include "../../../FreeRTOS_WrkSpace/include/task.h"
@@ -101,7 +102,7 @@ void display_init(void) {
     // INIT SUBMODULES
     spi_init();
     lv_init();
-    xpt2046_init();
+    // xpt2046_init();
     lv_tick_set_cb(xTaskGetTickCount);
 
     // DISPLAY TOUCH INTERRUPT
@@ -243,27 +244,40 @@ void display_first_load_ready(void) {
 }
 
 
-
-/******************
- * STATIC DEFS
- *******************/
-static void task_display(void *arg) {
-    static uint32_t delay = 0, curr_tick = 0, notif = 0;
-
-
-    // CONFIGURE DISPLAY SETTINGS
+/**
+ * Performs all SPI initialization for the display task
+ */
+void display_configure(void) {
     ili_disp.dispp = lv_ili9341_create(DISPLAY_WIDTH, DISPLAY_HEIGHT, 0x00, ili9341_send_cmd, ili9341_send_pixels);
     lv_display_set_color_format(ili_disp.dispp, LV_COLOR_FORMAT_RGB565);
     lv_display_set_buffers(ili_disp.dispp, ili_disp.buf, NULL, FRAME_BUF_SIZE, LV_DISPLAY_RENDER_MODE_PARTIAL);
     lv_display_set_rotation(ili_disp.dispp, LV_DISPLAY_ROTATION_90);
+
     // DISPLAY TOUCH INPUT DEV
     ili_disp.input = lv_indev_create();
     lv_indev_set_type(ili_disp.input, LV_INDEV_TYPE_POINTER);
     lv_indev_set_read_cb(ili_disp.input, touch_input_cb);
     lv_display_add_event_cb(ili_disp.dispp, load_screen_cb, LV_EVENT_SCREEN_LOADED, &ili_disp.scan_state);
 
-    ui_init();
     io_irq_enable_interrupt(IO_TOUCH_IT);
+}
+
+/******************
+ * STATIC DEFS
+ *******************/
+static void task_display(void *arg) {
+    static uint32_t delay = 0, curr_tick = 0, notif = 0;
+    // CONFIGURE DISPLAY SETTINGS
+    // vTaskDelay(pdMS_TO_TICKS(200));
+    
+    if (spi1_wait_init() == HAL_OK);
+    display_configure();
+    ui_init();
+    do {
+        xTaskNotifyWait(0x00, INIT_INVENT_LOAD_Msk, &notif, portMAX_DELAY);
+    } while (!(notif & INIT_INVENT_LOAD_Msk));
+    unit_content.valid_units = inventory_get_unit_stats(&unit_content.units, unit_content.pg_idx);
+    update_units();
 
     for(;;) {
         delay = lv_timer_handler();
@@ -272,9 +286,7 @@ static void task_display(void *arg) {
 
         curr_tick = xTaskGetTickCount;
         static touch_coord_t input;
-        if (xTaskNotifyWait(0x00, (SCAN_CPLT_Msk | TOUCH_Msk | INIT_INVENT_LOAD_Msk | SCAN_Msk), &notif, pdMS_TO_TICKS(delay)) == pdTRUE) {
-            if (notif & INIT_INVENT_LOAD_Msk)
-                update_units();
+        if (xTaskNotifyWait(0x00, (SCAN_CPLT_Msk | TOUCH_Msk | SCAN_Msk), &notif, pdMS_TO_TICKS(delay)) == pdTRUE) {
             if (notif & TOUCH_Msk) {
                 xpt2046_read_position(&input.x, &input.y);
                 xQueueSendToBack(input_q, &input, 0);
@@ -370,6 +382,6 @@ static void update_units(void) {
  */
 static void xpt2046_touch_isr(void) {
     BaseType_t hpt_ready = pdFALSE;
-    vTaskNotifyGiveFromISR(disp_tsk, &hpt_ready);
-    // portYIELD_FROM_ISR(hpt_ready);
+    xTaskNotifyFromISR(disp_tsk, TOUCH_Msk, eSetBits, &hpt_ready);
+    portYIELD_FROM_ISR(hpt_ready);
 }

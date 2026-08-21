@@ -9,6 +9,7 @@
 #include "../../../FreeRTOS_WrkSpace/include/FreeRTOS.h"
 #include "../../../FreeRTOS_WrkSpace/include/task.h"
 #include "../../../FreeRTOS_WrkSpace/include/queue.h"
+#include "../../../FreeRTOS_WrkSpace/include/semphr.h"
 
 #include <string.h>
 
@@ -58,6 +59,9 @@ static QueueHandle_t log_q;
 static StaticQueue_t _log_q;
 static uint8_t log_buf[MAX_LOG_CNT * sizeof(log_t)];
 
+static SemaphoreHandle_t sem_mounted;
+static StaticSemaphore_t _sem_mounted;
+
 static TaskHandle_t log_task;
 static StaticTask_t _log_task;
 static StackType_t log_stk[LOG_TASK_STACK_DEPTH];
@@ -74,6 +78,7 @@ void log_init(void) {
     uint8_t status = STATUS_OK;
     spi_init();
 
+    sem_mounted = xSemaphoreCreateBinaryStatic(&_sem_mounted);
     log_q = xQueueCreateStatic(MAX_LOG_CNT, sizeof(log_t), log_buf, &_log_q);
     log_task = xTaskCreateStatic(task_logging, "LOG TASK", LOG_TASK_STACK_DEPTH,
                 NULL, LOG_TASK_PRIO, log_stk, &_log_task);
@@ -173,7 +178,18 @@ void log_set_level(log_level_e level) {
 
 
 
+void log_configure(void) {
+    uint8_t res;
+    // will only complete once SPI task has finished intialization of SD
+    res = sd_mount();
+    if (res != FR_OK)
+        while (1) {}
+    xSemaphoreGive(sem_mounted);
+}
 
+uint8_t sd_wait_ready(void) {
+    return xSemaphoreTake(sem_mounted, portMAX_DELAY);
+}
 
 /***********************
  * STATIC DECLARATIONS
@@ -187,21 +203,19 @@ static void task_logging(void *arg) {
     static FIL logs, trans, events;
     TickType_t prev_sync = 0, curr_sync_tick = 0;
 
-    res = sd_mount();
-    spi_set_freq(DEV_SD);
-    if (res != FR_OK)
-        while (1) {}
-    else {
-        msg records_ready = msg_init_default;
-        records_ready.command = RECORDS_READY_CMD;
-        inventory_post_event(&records_ready);
-    }
+    log_configure();
 
     res |= f_open(&logs, FPATH_LOGS, FA_OPEN_APPEND | FA_WRITE);
     res |= f_open(&trans, FPATH_TRANS, FA_OPEN_APPEND | FA_WRITE);
     res |= f_open(&events, FPATH_EVENTS, FA_OPEN_APPEND | FA_WRITE);
 
+    if (res != FR_OK)
+        while(1);
+
     for (;;) {
+        f_sync(&logs);
+        f_sync(&trans);
+        f_sync(&events);
         if (xQueueReceive(log_q, (void *)&curr_log, portMAX_DELAY) == pdTRUE) {
             // write to file
             switch (curr_log.log_type) {

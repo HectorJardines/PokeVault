@@ -19,6 +19,7 @@
 #include "../../Inc/drivers/sd_diskio_spi.h"
 #include "../../Inc/drivers/sd_spi.h"
 #include "../../Inc/common/printf-stdarg.h"
+#include "../../../FreeRTOS_WrkSpace/include/FreeRTOS.h"
 #include <string.h>
 #include <stdlib.h>
 #include "ff.h"
@@ -71,6 +72,7 @@ int sd_mount(void) {
 	}
 
 	printf("Attempting mount at %s...\r\n", sd_path);
+	// portENTER_CRITICAL();
 	res = f_mount(&fs, sd_path, 1); // OPT = 1 MOUNT DRIVE IMMEDIATELY
 	if (res == FR_OK)
 	{
@@ -174,25 +176,18 @@ int sd_read_csv(const char *filename, CsvRecord *records, int max_records, int *
 	while (f_gets(line, sizeof(line), &file) && *record_count < max_records) {
 		line_p = line;
 		char *token = strsep(&line_p, ",");
-		if (token)
-			records[*record_count].id = atoi(token);
-		else
-			records[*record_count].id = 0;
+		if (!token) continue;
+		strncpy(records[*record_count].name, token, strlen(token));
 		token = strsep(&line_p, ",");
 		if (!token) continue;
-		strncpy(records[*record_count].name, token, strlen(token) - 1);
+		strncpy(records[*record_count].condition, token, strlen(token));
+		token = strsep(&line_p, ",");
+		if (!token) continue;
+		records[*record_count].qty = atoi(token);
 		(*record_count)++;
 	}
 
 	f_close(&file);
-
-	// Print parsed data
-	for (int i = 0; i < *record_count; i++) {
-		printf("[%d] %d | %s", i,
-				records[i].id,
-				records[i].name);
-	}
-
 	return FR_OK;
 }
 
@@ -213,11 +208,9 @@ int sd_write_csv(const char *filename, CsvRecord *records, int record_count) {
 	res = f_write(&file, line, strlen(line), &bw);
 	if (res == FR_OK) {
 		for (int i = 0; i < record_count; ++i) {
-			if (records[i].id == 0) continue;
 			memset((void *)line, 0, sizeof(line));
-			snprintf(line, sizeof(line), "%d,%s\r\n", records[i].id, records[i].name);
+			snprintf(line, sizeof(line), "%s,%s,%d\r\n", records[i].name, records[i].condition, records[i].qty);
 			res = f_write(&file, line, strlen(line), &bw);
-			
 			if (res != FR_OK)
 				break;
 		}

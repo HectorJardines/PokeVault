@@ -43,6 +43,8 @@ typedef struct {
  * PUBLIC APIs
  *****************/
 
+void log_configure(void);
+
 /**
  * @brief Initiliaze the serial peripheral for logging
  * 
@@ -99,5 +101,8 @@ uint8_t log_error(const char *err_msg);
  * @param level the level of log messages perimitted
  */
 void log_set_level(log_level_e level);
+
+
+uint8_t sd_wait_ready(void);
 
 #endif

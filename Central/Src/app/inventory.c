@@ -27,7 +27,16 @@
 #define INVENTORY_TASK_STK_DEPTH    (512U)
 #define INVENTORY_TASK_PRIO         (3U)
 
+typedef struct {
+    uint8_t state               : 1;    /* DIRTY OR CLEAN : DICTATES WHETHER WE FLUSH CSV UPDATES */
+    uint8_t armed               : 1;    /* ARMED/DISARMED */
+    uint8_t num_records         : 6;    /* MAX OF 64 ITEMS PER UNIT */
+} unit_info_t;
 
+struct unit_csv_t{
+    unit_info_t unit_data;                          /* BITFIELD OF UNIT METADATA, I.E. STATE, NUM ITEMS, ARMED STATUS*/
+    item_info_t unit_inventory[MAX_UNIQUE_ITEMS];
+};
 
 /*********************
  * STATIC DECLARATIONS
@@ -35,16 +44,9 @@
 static uint8_t load_inventory(void);
 static void task_inventory(void *arg);
 static uint8_t inventory_remove_item(uint32_t item_idx, uint8_t node_id);
-static uint8_t inventory_enroll_item(uint32_t item_id, char *item_name, uint8_t node_id);
+static uint8_t inventory_enroll_item(char *item_name, char *item_condition, uint8_t node_id);
 static uint8_t process_transaction(msg *trans);
 static uint8_t inventory_flush_transactions(void);
-
-struct unit_csv_t{
-    uint8_t state; /* DIRTY OR CLEAN : DICTATES WHETHER WE FLUSH CSV UPDATES */
-    uint8_t armed;
-    uint32_t num_records;
-    CsvRecord unit_inventory[MAX_ITEMS_PER_UNIT];
-};
 
 
 static struct unit_csv_t node_csvs[NUM_UNITS];
@@ -138,9 +140,9 @@ uint8_t inventory_get_contents(uint8_t node_id, CsvRecord *records, uint8_t pg_i
     uint8_t records_read = 0;
     // called by display function when screen needs to update (nothing else to do in that thread)
     if (xSemaphoreTake(csv_mutx, portMAX_DELAY) == pdTRUE) {
-        if (node_csvs[node_id].num_records > ITEMS_PER_SCREEN * pg_idx) {
+        if (node_csvs[node_id].unit_data.num_records > ITEMS_PER_SCREEN * pg_idx) {
             uint8_t record_mod = pg_idx == 0 ? ITEMS_PER_SCREEN : ITEMS_PER_SCREEN * pg_idx;
-            records_read = (node_csvs[node_id].num_records % record_mod) * sizeof(CsvRecord);
+            records_read = (node_csvs[node_id].unit_data.num_records % record_mod) * sizeof(CsvRecord);
             memcpy((void *)records, 
                     (const void *)&node_csvs[node_id].unit_inventory[ITEMS_PER_SCREEN * pg_idx],
                     records_read);
@@ -165,9 +167,9 @@ uint8_t inventory_get_unit_stats(unit_record_t *records, uint8_t pg_idx) {
 
             for (uint8_t i = 0; i < records_read; ++i) {
                 snprintf(records[i].capacity, sizeof(records[i].capacity), "%02d/%02d", 
-                        node_csvs[(NODES_PER_SCREEN * pg_idx) + i].num_records, MAX_ITEMS_PER_UNIT);
+                        node_csvs[(NODES_PER_SCREEN * pg_idx) + i].unit_data.num_records, MAX_ITEMS);
                 snprintf(records[i].id, sizeof(records[i].id), "UNIT %d", (NODES_PER_SCREEN * pg_idx) + i);
-                records[i].armed = node_csvs[(NODES_PER_SCREEN * pg_idx) + i].armed;
+                records[i].armed = node_csvs[(NODES_PER_SCREEN * pg_idx) + i].unit_data.armed;
             }
         }
         xSemaphoreGive(csv_mutx);
@@ -194,16 +196,11 @@ static void task_inventory(void *arg) {
     msg trans_msg = msg_init_default;
     uint8_t stat = STATUS_OK, records_ready = 0;
 
+    if (sd_wait_ready() == pdTRUE)
+        load_inventory();
+
     for (;;) {
         if (xQueueReceive(trans_q, (void *)&trans_msg, TRANS_PEND_TIMEOUT) == pdTRUE) {
-            if (!records_ready) {
-                if (trans_msg.command == RECORDS_READY_CMD) {
-                    stat = load_inventory();
-                    records_ready = 1;
-                }
-                else continue;
-            }
-
             if(trans_msg.command == 0)
                 process_transaction(&trans_msg);
             else if (trans_msg.command == SCAN_PRODUCT_CMD) { // prob change to a state based approach, dont want to block all other tasks here
@@ -242,16 +239,19 @@ static uint8_t load_inventory(void) {
     for (uint8_t i = 0; i < NUM_UNITS; ++i) {
         memset((void *)node_csv_file, 0, FILE_NAME_LEN);
         snprintf(node_csv_file, FILE_NAME_LEN, "inv%02d.csv", i);
-        status |= sd_read_csv(node_csv_file, node_csvs[i].unit_inventory, MAX_ITEMS_PER_UNIT, &node_csvs[i].num_records);
+        
+        uint8_t num_records = 0;
+        status |= sd_read_csv(node_csv_file, node_csvs[i].unit_inventory, MAX_ITEMS, &num_records);
         if (status == FR_NO_PATH || status == FR_NO_FILE) {
             f_open(&fp, node_csv_file, FA_OPEN_ALWAYS | FA_WRITE);
             f_close(&fp);
             status = STATUS_OK;
         }
-        node_csvs[i].state = CSV_CLEAN;
+        node_csvs[i].unit_data.num_records = num_records;
+        node_csvs[i].unit_data.state = CSV_CLEAN;
     }
 
-    if (status = STATUS_OK) 
+    if (status == STATUS_OK) 
         display_first_load_ready();
     return status;
 }
@@ -267,20 +267,21 @@ static uint8_t load_inventory(void) {
 static uint8_t inventory_remove_item(uint32_t item_idx, uint8_t node_id) {
     uint8_t status = STATUS_ERR;
 
-    if (node_csvs[node_id].num_records > 0) {
+    if (node_csvs[node_id].unit_data.num_records > 0) {
         memset((void *)trans_msg, 0, MAX_LOG_BODY_LEN);
-        snprintf(trans_msg, MAX_LOG_BODY_LEN, "Item Removed: %s, %d\r\n", 
-            node_csvs[node_id].unit_inventory[item_idx].name, node_csvs[node_id].unit_inventory[item_idx].id);
+        snprintf(trans_msg, MAX_LOG_BODY_LEN, "Item Removed: %s\r\n",
+            node_csvs[node_id].unit_inventory[item_idx].name);
         status = log_transaction(trans_msg);
         if (status == STATUS_OK)
             status = client_post_message(trans_msg, strlen(trans_msg));
 
         // swap item at index and last item when we "remove"
-        CsvRecord temp = node_csvs[node_id].unit_inventory[node_csvs[node_id].num_records - 1];
-        node_csvs[node_id].unit_inventory[item_idx] = temp;
-        memset((void *)&node_csvs[node_id].unit_inventory[node_csvs[node_id].num_records - 1], 0, sizeof(CsvRecord));
-
-        node_csvs[node_id].num_records--;
+        if (--node_csvs[node_id].unit_inventory[item_idx].qty == 0) {
+            CsvRecord temp = node_csvs[node_id].unit_inventory[node_csvs[node_id].unit_data.num_records - 1];
+            node_csvs[node_id].unit_inventory[item_idx] = temp;
+            memset((void *)&node_csvs[node_id].unit_inventory[node_csvs[node_id].unit_data.num_records - 1], 0, sizeof(CsvRecord));
+            node_csvs[node_id].unit_data.num_records--;
+        }
     }
 
     return status;
@@ -289,30 +290,60 @@ static uint8_t inventory_remove_item(uint32_t item_idx, uint8_t node_id) {
 
 
 /**
+ * @brief
+ * 
+ * 
+ * 
+ */
+static int8_t invent_item_is_dupe(char *name, char *condition, uint8_t node_id) {
+    int8_t match_idx = 0xFF;
+    for (uint8_t i = 0; i < node_csvs[node_id].unit_data.num_records; ++i) {
+        if (memcmp((const void *)condition, (const void *)node_csvs[node_id].unit_inventory[i].condition, MAX_ITEM_CND_LEN))
+            continue; // condition doesn't match
+        if (memcmp((const void *)name, (const void *)node_csvs[node_id].unit_inventory[i].name, MAX_ITEM_NAME_LEN))
+            continue; // name doesn't match
+        else {
+            match_idx = i;
+            break;
+        }
+    }
+    return match_idx;
+}
+
+/**
  * @brief Add the item associated with the item_id to the storage unit
  * 
  * 
  * 
  */
-static uint8_t inventory_enroll_item(uint32_t item_id, char *item_name, uint8_t node_id) {
+static uint8_t inventory_enroll_item(char *item_name, char *itm_condition, uint8_t node_id) {
     uint8_t status = STATUS_ERR;
 
-    if (node_csvs[node_id].num_records < MAX_ITEMS_PER_UNIT) {
+    if (node_csvs[node_id].unit_data.num_records < MAX_ITEMS) {
         memset((void *)trans_msg, 0, MAX_LOG_BODY_LEN);
-        snprintf(trans_msg, MAX_LOG_BODY_LEN, "UNIT %02d - Item Added: %s, %d\r\n",
-                node_id, item_name, item_id);
+        snprintf(trans_msg, MAX_LOG_BODY_LEN, "UNIT %02d - Item Added: %s, %s\r\n",
+                node_id, item_name, itm_condition);
         status = log_transaction(trans_msg);
         if (status == STATUS_OK)
             status = client_post_message(trans_msg, strlen(trans_msg));
 
-        // append only, saves us the overhead of shifting entire array
-        uint8_t record_idx = node_csvs[node_id].num_records;
-        CsvRecord *new_record = &node_csvs[node_id].unit_inventory[record_idx];
-        memcpy((void *)new_record->name, (void *)item_name, strlen(item_name));
-        new_record->id = item_id;
+        // IF DUPLICATE ITEM IN STORAGE SIMPLY INCREMENT QTY
+        uint8_t dupe_idx = 0;
+        if ((dupe_idx = invent_item_duplicate(item_name, itm_condition, node_id)) != 0xFF)
+            node_csvs[node_id].unit_inventory[dupe_idx].qty++;
+        else {
+            // append only, saves us the overhead of shifting entire array
+            uint8_t record_idx = node_csvs[node_id].unit_data.num_records;
+            CsvRecord *new_record = &node_csvs[node_id].unit_inventory[record_idx];
+            memset((void *)new_record->name, 0, MAX_ITEM_NAME_LEN);
+            memcpy((void *)new_record->name, (void *)item_name, strlen(item_name));
+            memset((void *)new_record->condition, 0, MAX_ITEM_CND_LEN);
+            memcpy((void *)new_record->condition, (void *)itm_condition, strlen(itm_condition));
+            new_record->qty = 1;
+        }
 
         // increment record count
-        node_csvs[node_id].num_records++;
+        node_csvs[node_id].unit_data.num_records++;
     }
 
     return status;
@@ -334,12 +365,12 @@ static uint8_t inventory_flush_transactions(void) {
     char node_csv_file[FILE_NAME_LEN];
 
     for (uint8_t i = 0; i < NUM_UNITS; ++i) {
-        if (node_csvs[i].state == CSV_CLEAN)
+        if (node_csvs[i].unit_data.state == CSV_CLEAN)
             continue;
         memset((void *)node_csv_file, 0, FILE_NAME_LEN);
         snprintf(node_csv_file, FILE_NAME_LEN, "inv%02d.csv", i);
-        status = sd_write_csv(node_csv_file, node_csvs[i].unit_inventory, node_csvs[i].num_records);
-        node_csvs[i].state = CSV_CLEAN;
+        status = sd_write_csv(node_csv_file, node_csvs[i].unit_inventory, node_csvs[i].unit_data.state);
+        node_csvs[i].unit_data.state = CSV_CLEAN;
     }
 
     return status;
@@ -353,23 +384,18 @@ static uint8_t process_transaction(msg *trans) {
     uint8_t item_found = 0;
 
     struct unit_csv_t node = node_csvs[trans->node_id];
-
-    for (uint8_t i = 0; i < node.num_records; ++i) {
-        if (node.unit_inventory[i].id == trans->payload.type_transaction.item_id) {
-            status = inventory_remove_item(i, trans->node_id);
-            item_found = 1;
-            break;
-        }
-    }
-
-    if (!item_found) {
-        status = inventory_enroll_item(trans->payload.type_transaction.item_id, 
-                                        trans->payload.type_transaction.item_name, 
+    uint8_t match_idx = invent_item_is_dupe(trans->payload.type_transaction.item_name, 
+                            trans->payload.type_transaction.item_id,
+                            trans->node_id);
+    if (match_idx != 0xFF)
+        status = inventory_remove_item(match_idx, trans->node_id);
+    else
+        status = inventory_enroll_item(trans->payload.type_transaction.item_name,
+                                        trans->payload.type_transaction.item_id,
                                         trans->node_id);
-    }
 
-    if (!status && node_csvs[trans->node_id].state == CSV_CLEAN)
-        node_csvs[trans->node_id].state = CSV_DIRTY;
+    if (!status && node_csvs[trans->node_id].unit_data.state == CSV_CLEAN)
+        node_csvs[trans->node_id].unit_data.state = CSV_DIRTY;
 
     return status;
 }

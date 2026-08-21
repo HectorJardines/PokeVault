@@ -31,4 +31,23 @@ void ili9341_send_pixels(lv_display_t * disp, const uint8_t * cmd, size_t cmd_si
 
 
 
+/**
+ * @brief This functions performs the actual SPI transmit of pixels
+ * 
+ * This function is owned by the SPI task and only accessible
+ * via a request to the SPI task. Designed to eliminate any 
+ * sort of concurrency issues.
+ */
+uint8_t ili9341_spi_send_pixels(const uint8_t * cmd, size_t cmd_size, uint8_t * param, size_t param_size);
+
+
+
+/**
+ * @brief This functions performs the actual SPI transmit of CMDs
+ * 
+ * 
+ * 
+ */
+uint8_t ili9341_spi_send_cmd(const uint8_t * cmd, size_t cmd_size, const uint8_t *param, size_t param_size);
+
 #endif

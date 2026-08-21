@@ -45,8 +45,9 @@ int sd_get_space_kb(void);
 //csv File operations
 // CSV Record structure
 typedef struct CsvRecord {
-	uint32_t id;
 	char name[17];
+	char condition[4];
+	uint8_t qty;
 } CsvRecord;
 
 // CSV reader (caller defines record array)

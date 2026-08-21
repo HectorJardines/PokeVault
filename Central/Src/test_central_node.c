@@ -61,7 +61,7 @@ void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName)
 static void test_setup(void) {
     SystemClock_Config();
     IO_Init();
-    trace_init();
+    // trace_init();
 }
 
 // static void test_central_node_message(void) {
@@ -173,6 +173,10 @@ static void test_tag_register(void) {
 
 
 int main(void) {
+    // extern volatile const int uxTopUsedPriority;
+    // __attribute__((unused))volatile uint8_t dum;
+    // dum = uxTopUsedPriority;
+
     test_setup();
     test_tag_register();
 }

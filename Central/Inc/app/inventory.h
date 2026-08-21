@@ -27,8 +27,11 @@
 
 #define ITEMS_PER_SCREEN    (7U)
 #define NODES_PER_SCREEN    (6U)
-#define MAX_ITEM_NAME_LEN   (16U) // MAX ITEM NAME LEN IN BYTES
-#define MAX_ITEMS_PER_UNIT  (21U)
+#define MAX_ITEM_NAME_LEN   (17U) // MAX ITEM NAME LEN
+#define MAX_ITEM_CND_LEN    (4U) // MAX ITEM CONDITION TAG LEN
+
+#define MAX_ITEMS           (50)
+#define MAX_UNIQUE_ITEMS    (20)
 #define NUM_UNITS           (3U)
 
 /*********************
@@ -47,12 +50,18 @@ typedef enum {
     TRANS_ITEM_ENROLL
 } trans_type_e;
 
+typedef struct {
+    uint32_t uid_lo;
+    uint32_t uid_hi;
+} item_uid_t;
 
 typedef struct {
     char id[8];
     char capacity[6];
     uint8_t armed;
 } unit_record_t;
+
+typedef CsvRecord item_info_t;
 
 /******************
  * PUBLIC APIs

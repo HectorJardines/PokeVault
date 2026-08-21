@@ -69,10 +69,11 @@ static uint8_t SD_ReceiveByte(void) {
 static void SD_TransmitBuffer(const uint8_t *buffer, uint16_t len) {
 #if USE_DMA
     dma_tx_done = 0;
-    spi_transmit_dma(DEV_SD, (uint8_t *)buffer, len);
-    spi_wait(DEV_SD);
+    if (spi_transmit_dma(DEV_SD, (uint8_t *)buffer, len) == HAL_OK);
+        // spi_wait(DEV_SD);
 #else
-    HAL_SPI_Transmit(&SD_SPI_HANDLE, (uint8_t *)buffer, len, HAL_MAX_DELAY);
+    // HAL_SPI_Transmit(&SD_SPI_HANDLE, (uint8_t *)buffer, len, HAL_MAX_DELAY);
+    spi_transmit(DEV_SD, buffer, len);
 #endif
 }
 
@@ -91,13 +92,24 @@ static void SD_ReceiveBuffer(uint8_t *buffer, uint16_t len) {
     // dma_rx_done = 0;
     // HAL_SPI_TransmitReceive_DMA(&hspi1, tx_dummy, buffer, len);
     // while (!dma_rx_done);
-    spi_receive_dma(DEV_SD, buffer, len);
-    spi_wait(DEV_SD);
+    if (spi_receive_dma(DEV_SD, buffer, len) == HAL_OK);
+        // spi_wait(DEV_SD);
 #else
     for (uint16_t i = 0; i < len; i++) {
         buffer[i] = SD_ReceiveByte();
     }
 #endif
+}
+
+/**
+ * @brief Attempts to resync the card by generatic 80 clock pulses
+ * 
+ * 
+ */
+static void SD_Resync(void) {
+    SD_CS_HIGH();
+    uint8_t i = 0;
+    for (i = 0; i < 11; i++) SD_TransmitByte(0xFF);
 }
 
 static SD_Status SD_WaitReady(void) {
@@ -113,7 +125,12 @@ static SD_Status SD_WaitReady(void) {
 static uint8_t SD_SendCommand(uint8_t cmd, uint32_t arg, uint8_t crc) {
     uint8_t response, retry = 0xFF;
 
-    SD_WaitReady();
+    if (SD_WaitReady() == SD_ERROR) {
+        SD_Resync();
+        SD_CS_LOW();
+        if (SD_WaitReady() == SD_ERROR)
+            return SD_ERROR;
+    }
     SD_TransmitByte(0x40 | cmd);
     SD_TransmitByte(arg >> 24);
     SD_TransmitByte(arg >> 16);
@@ -140,8 +157,7 @@ SD_Status SD_SPI_Init(void) {
     uint32_t retry;
 
     HAL_Delay(2);
-    SD_CS_HIGH();
-    for (i = 0; i < 75; i++) SD_TransmitByte(0xFF);
+    SD_Resync();
 
     SD_CS_LOW();
     response = SD_SendCommand(CMD0, 0, 0x95);
@@ -197,8 +213,12 @@ SD_Status SD_ReadBlocks(uint8_t *buff, uint32_t sector, uint32_t count) {
     	if (!sdhc) sector *= 512;
         SD_CS_LOW();
         if (SD_SendCommand(CMD17, sector, 0xFF) != 0x00) {
-            SD_CS_HIGH();
-            return SD_ERROR;
+            SD_Resync();
+            SD_CS_LOW();
+            if (SD_SendCommand(CMD17, sector, 0xFF) != 0x00) {
+                SD_CS_HIGH();
+                return SD_ERROR;
+            }
         }
 
         uint8_t token;

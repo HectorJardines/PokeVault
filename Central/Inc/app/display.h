@@ -14,6 +14,9 @@
  * PUBLIC APIs
  ********************/
 
+void display_configure(void);
+
+
 /**
  * @brief Intialize LVGL display library and ILI9341 driver
  * 

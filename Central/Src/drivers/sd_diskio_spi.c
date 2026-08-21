@@ -29,10 +29,7 @@ DSTATUS SD_disk_initialize(BYTE drv) {
     if (drv != 0)
         return STA_NOINIT;
     DSTATUS stat = STA_NOINIT;
-    if(spi_lock(DEV_SD) == pdTRUE) {
-        stat = (SD_SPI_Init() == SD_OK) ? 0 : STA_NOINIT;
-        spi_unlock(DEV_SD);
-    }
+    stat = spi1_wait_init() == 0 ? SD_OK : STA_NOINIT;
     return stat;
 }
 
@@ -42,13 +39,11 @@ DRESULT SD_disk_read(BYTE pdrv, BYTE *buff, DWORD sector, UINT count) {
     if (!card_initialized) return RES_NOTRDY;
     
     DSTATUS stat = RES_ERROR;
-    if ((stat = spi_lock(DEV_SD)) == pdTRUE) {
-        stat = (SD_ReadBlocks(buff, sector, count) == SD_OK) ? RES_OK : RES_ERROR;
-        spi_unlock(DEV_SD);
+    spi1_req_t req_read = {.req_type = SD_READ_BLOCKS, .req_task = xTaskGetCurrentTaskHandle(), .sd_io = {.buff = buff, .sector = sector, .count = count}};
+    stat = spi1_post_request(&req_read);
+    if (stat == HAL_OK) {
+        stat = spi1_wait_notify();
     }
-    else
-        stat = RES_ERROR;
-
     return stat;
 }
 
@@ -57,14 +52,11 @@ DRESULT SD_disk_write(BYTE pdrv,  BYTE *buff, DWORD sector, UINT count) {
     if (!card_initialized) return RES_NOTRDY;
 
     DSTATUS stat = RES_ERROR;
-
-    if((stat = spi_lock(DEV_SD)) == pdTRUE) {
-        stat = (SD_WriteBlocks(buff, sector, count) == SD_OK) ? RES_OK : RES_ERROR;
-        spi_unlock(DEV_SD);
+    spi1_req_t req_write = {.req_type = SD_WRITE_BLOCKS, .req_task = xTaskGetCurrentTaskHandle(), .sd_io = {.buff = buff, .sector = sector, .count = count}};
+    stat = spi1_post_request(&req_write);
+    if (stat == HAL_OK) {
+        stat = spi1_wait_notify();
     }
-    else
-        stat = RES_ERROR;
-    
     return stat;
 }
 

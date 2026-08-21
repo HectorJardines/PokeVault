@@ -1,13 +1,21 @@
-#include "../../../FreeRTOS_WrkSpace/include/FreeRTOS.h"
-#include "../../../FreeRTOS_WrkSpace/include/semphr.h"
 #include "stm32f4xx.h"
+#include "../../Inc/drivers/sd_spi.h"
+#include "../../Inc/drivers/ili9341.h"
 #include "../../Inc/drivers/spi.h"
+#include "../../../FreeRTOS_WrkSpace/include/queue.h"
+#include "../../../FreeRTOS_WrkSpace/include/semphr.h"
+#include "../../../FreeRTOS_WrkSpace/include/event_groups.h"
 
 /**************
  * MACROS
  **************/
 #define SPI_TX_GET_IRQn(spix)   ((spix)->Instance == SPI1 ? DMA2_Stream2_IRQn : DMA1_Stream4_IRQn)
 #define SPI_RX_GET_IRQn(spix)   ((spix)->Instance == SPI1 ? DMA2_Stream0_IRQn : DMA1_Stream3_IRQn)
+#define SPI1_ACT_TSK_DEPTH  (128U)
+#define SPI1_ACT_TSK_PRIO   (4U)
+#define SPI1_ACT_POST_TIMEOUT   (pdMS_TO_TICKS(500U))
+
+#define SPI1_READY_BIT  (0x1U << 0)
 
 typedef struct {
     uint8_t curr_dev;
@@ -26,10 +34,23 @@ typedef struct {
  ******************/
 static void spi1_configure(void);
 static void spi2_configure(void);
+static void spi1_actor(void *arg);
+static uint8_t spi_wait(spi_dev_e dev);
 
 
 static spi_conf_t spi1;
 static spi_conf_t spi2;
+
+static TaskHandle_t spi1_act;
+static StaticTask_t _spi1_act;
+static StackType_t spi1_act_stk[128];
+
+static QueueHandle_t spi1_req_q;
+static StaticQueue_t _spi1_req_q;
+static uint8_t spi1_req_buf[sizeof(spi1_req_t) * 5];
+
+static EventGroupHandle_t spi1_rdy;
+static StaticEventGroup_t _spi1_rdy;
 /*************
  * PUB APIs
  **************/
@@ -50,10 +71,43 @@ void spi_init(void) {
         spi1_configure();
         spi2_configure();
 
-        spi1.mutx = xSemaphoreCreateMutexStatic(&spi1._mutx);
+        // spi1.mutx = xSemaphoreCreateRecursiveMutexStatic(&spi1._mutx);
+        // spi1.mutx = xSemaphoreCreateMutexStatic(&spi1._mutx);
         spi2.mutx = xSemaphoreCreateMutexStatic(&spi2._mutx);
+
+        spi1_act = xTaskCreateStatic(spi1_actor, "TASK SPI1", SPI1_ACT_TSK_DEPTH, NULL, 
+                                    SPI1_ACT_TSK_PRIO, spi1_act_stk, &_spi1_act);
+        spi1_rdy = xEventGroupCreateStatic(&_spi1_rdy);
+        spi1_req_q = xQueueCreateStatic(5, sizeof(spi1_req_t), spi1_req_buf, &_spi1_req_q);
+
+        if (spi1_act == NULL || spi1_rdy == NULL || spi1_req_q == NULL)
+            while(1) {}
+
         initialized = 1;
     }
+}
+
+
+uint8_t spi1_post_request(spi1_req_t *req) {
+    return !xQueueSendToBack(spi1_req_q, req, SPI1_ACT_POST_TIMEOUT); // convention of ret 0 when OK
+}
+
+
+
+uint8_t spi1_wait_init(void) {
+    return !xEventGroupWaitBits(spi1_rdy, SPI1_READY_BIT, pdFALSE, pdTRUE, portMAX_DELAY); // convention of ret 0 when OK
+}
+
+
+uint8_t spi1_wait_notify(void) {
+    uint32_t ret = 0x00;
+    if (xTaskNotifyWait(0x00, SPI_OK_Msk | SPI_ERR_Msk, &ret, portMAX_DELAY) == pdTRUE) {
+        if (ret & SPI_OK_Msk)
+            ret = HAL_OK;
+        else if (ret & SPI_ERR_Msk)
+            ret = HAL_ERROR;
+    }
+    return (uint8_t)ret;
 }
 
 
@@ -61,14 +115,14 @@ void spi_set_freq(spi_dev_e dev) {
     if (dev == DEV_DISP || dev == DEV_SD) {
         while (__HAL_SPI_GET_FLAG(&spi1.hspi, SPI_SR_BSY));
         spi1.hspi.Instance->CR1 &= ~(SPI_CR1_SPE);
-        spi1.hspi.Instance->CR1 &= ~(SPI_BAUDRATEPRESCALER_256); // clear current BR
-        spi1.hspi.Instance->CR1 |= (SPI_BAUDRATEPRESCALER_4);
+        spi1.hspi.Instance->CR1 &= ~(SPI_CR1_BR); // clear current BR
+        spi1.hspi.Instance->CR1 |= (SPI_BAUDRATEPRESCALER_8);
         spi1.hspi.Instance->CR1 |= (SPI_CR1_SPE);
     }
     else {
         while (__HAL_SPI_GET_FLAG(&spi2.hspi, SPI_SR_BSY));
         spi2.hspi.Instance->CR1 &= ~(SPI_CR1_SPE);
-        spi2.hspi.Instance->CR1 &= ~(SPI_BAUDRATEPRESCALER_256); // clear current BR
+        spi2.hspi.Instance->CR1 &= ~(SPI_CR1_BR); // clear current BR
         spi2.hspi.Instance->CR1 |= (SPI_BAUDRATEPRESCALER_2);
         spi2.hspi.Instance->CR1 |= (SPI_CR1_SPE);
     }
@@ -93,15 +147,7 @@ uint8_t spi_transmit(spi_dev_e dev, uint8_t *data, uint32_t len) {
     if (!(spix->Instance->CR1 & SPI_CR1_SPE))
         __HAL_SPI_ENABLE(spix);
 
-    // for (uint32_t i = 0; i < len; ++i) {
-    //     while (!__HAL_SPI_GET_FLAG(spix, (SPI_SR_TXE)) && --retry);
-    //     if (retry == 0) return HAL_ERROR;
-    //     spix->Instance->DR = *data++;
-    //     retry = 500;
-    // }
-    HAL_SPI_Transmit(spix, data, len, 500);
-
-    return HAL_OK;
+    return HAL_SPI_Transmit(spix, data, len, 500);
 }
 
 
@@ -124,20 +170,7 @@ uint8_t spi_receive(spi_dev_e dev, uint8_t *read_data, uint32_t read_len) {
     if (!(spix->Instance->CR1 & SPI_CR1_SPE))
         __HAL_SPI_ENABLE(spix);
 
-    // for (uint32_t i = 0; i < read_len; ++i) {
-    //     while (!__HAL_SPI_GET_FLAG(spix, (SPI_FLAG_TXE)) && --retry);
-    //     if (retry == 0) return HAL_ERROR;
-    //     spix->Instance->DR = dummy;
-    //     retry = 500;
-        
-    //     while (!__HAL_SPI_GET_FLAG(spix, (SPI_FLAG_RXNE)) && --retry);
-    //     if (retry == 0) return HAL_ERROR;
-    //     *read_data++ = (uint8_t)spix->Instance->DR;
-    //     retry = 500;
-    // }
-    HAL_SPI_Receive(spix, read_data, read_len, 500);
-
-    return HAL_OK;
+    return HAL_SPI_Receive(spix, read_data, read_len, 500);
 }
 
 
@@ -151,6 +184,7 @@ uint8_t spi_receive(spi_dev_e dev, uint8_t *read_data, uint32_t read_len) {
 uint8_t spi_transmit_dma(spi_dev_e dev, uint8_t *data, uint32_t len) {
     uint8_t status = HAL_OK;
     SPI_HandleTypeDef *spix;
+    
     if (dev == DEV_DISP || dev == DEV_SD) {
         spix = &spi1.hspi;
         spi1.curr_dev = dev;
@@ -163,8 +197,8 @@ uint8_t spi_transmit_dma(spi_dev_e dev, uint8_t *data, uint32_t len) {
     }
 
     status = HAL_SPI_Transmit_DMA(spix, data, len);
-    // ulTaskNotifyTake(pdFALSE, portMAX_DELAY);
-    // NVIC_DisableIRQ(SPI_RX_GET_IRQn(spix));
+    // if ((status == HAL_OK) && (dev == DEV_SD || dev == DEV_DISP))
+    spi_wait(dev);
     return status;
 }
 
@@ -186,7 +220,8 @@ uint8_t spi_receive_dma(spi_dev_e dev, uint8_t *read_data, uint32_t read_len) {
     }
 
     status = HAL_SPI_Receive_DMA(spix, read_data, read_len);
-    // ulTaskNotifyTake(pdFALSE, portMAX_DELAY);
+    // if (status == HAL_OK && (dev == DEV_DISP || dev == DEV_SD))
+    spi_wait(dev);
     return status;
 }
 
@@ -230,24 +265,59 @@ uint8_t spi_unlock(spi_dev_e dev) {
 }
 
 
+/*****************
+ * STATIC DEFS
+ *****************/
+
+static void spi1_actor(void *arg) {
+    spi1_req_t request;
+    uint8_t stat = 0;
+    const uint8_t byte = 0xFF;
+
+    // initialize SD card
+    stat = SD_SPI_Init();
+    if (stat == HAL_OK) {
+        spi_set_freq(DEV_SD);
+        xEventGroupSetBits(spi1_rdy, SPI1_READY_BIT);
+    } else while(1) {};
+
+    for(;;) {
+        if (xQueueReceive(spi1_req_q, &request, portMAX_DELAY) == pdTRUE) {
+            switch(request.req_type) {
+            case SD_READ_BLOCKS:
+                stat = SD_ReadBlocks(request.sd_io.buff, request.sd_io.sector, request.sd_io.count);
+                break;
+            case SD_WRITE_BLOCKS:
+                stat = SD_WriteBlocks((const uint8_t *)request.sd_io.buff, request.sd_io.sector, request.sd_io.count);
+                break;
+            case ILI9341_SEND_CMD:
+                stat = ili9341_spi_send_cmd(request.ili9341_io.cmd, request.ili9341_io.cmd_size, request.ili9341_io.param, request.ili9341_io.param_size);
+                spi_transmit(DEV_DISP, &byte, 1);
+                break;
+            case ILI9341_SEND_PIXELS:
+                stat = ili9341_spi_send_pixels(request.ili9341_io.cmd, request.ili9341_io.cmd_size, request.ili9341_io.param, request.ili9341_io.param_size);
+                spi_transmit(DEV_DISP, &byte, 1);             
+                break;
+            }
+            xTaskNotify(request.req_task, stat == 0 ? SPI_OK_Msk : SPI_ERR_Msk, eSetBits);
+        }
+    }
+}
+
 /**
  * @brief Sleeps the task until it is notified by DMA interrupt
  * 
  * 
  */
-uint32_t spi_wait(spi_dev_e dev) {
-    
-    uint8_t ret = ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+static uint8_t spi_wait(spi_dev_e dev) {
+    uint8_t ret = ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(500));
     if(dev == DEV_DISP || dev == DEV_SD)
         while(spi1.hspi.Instance->SR & SPI_SR_BSY);
     else
         while(spi2.hspi.Instance->SR & SPI_SR_BSY);
     return ret;
 }
-
-/*****************
- * STATIC DEFS
- *****************/
+ 
 
 /**
  * @brief Configures the SPI peripheral used by ETH/DISP
@@ -368,8 +438,10 @@ void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi) {
             // signal flush complete to display
             
         }
-
-        vTaskNotifyGiveFromISR(spi1.curr_task, &spi1.hpt_trigger);
+        __HAL_SPI_CLEAR_OVRFLAG(hspi);
+        while (!(hspi->Instance->SR & SPI_SR_TXE));
+        while(hspi->Instance->SR & SPI_SR_BSY);
+        vTaskNotifyGiveFromISR(spi1_act, &spi1.hpt_trigger);
         portYIELD_FROM_ISR(spi1.hpt_trigger);
     }
     else if (hspi->Instance == SPI2) {
@@ -377,7 +449,9 @@ void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi) {
         if (spi2.curr_dev == DEV_ETH) {
             
         }
-
+        __HAL_SPI_CLEAR_OVRFLAG(hspi);
+        while (!(hspi->Instance->SR & SPI_SR_TXE));
+        while(hspi->Instance->SR & SPI_SR_BSY);
         vTaskNotifyGiveFromISR(spi2.curr_task, &spi2.hpt_trigger);
         portYIELD_FROM_ISR(spi2.hpt_trigger);
     }
@@ -397,7 +471,11 @@ void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef *hspi) {
         else {
             // we shouldn't need to receive anything from display
         }
-        vTaskNotifyGiveFromISR(spi1.curr_task, &spi1.hpt_trigger);
+        __HAL_SPI_CLEAR_OVRFLAG(hspi);
+        while ((hspi->Instance->SR & SPI_SR_RXNE));
+        while (!(hspi->Instance->SR & SPI_SR_TXE));
+        while(hspi->Instance->SR & SPI_SR_BSY);
+        vTaskNotifyGiveFromISR(spi1_act, &spi1.hpt_trigger);
         portYIELD_FROM_ISR(spi1.hpt_trigger);
     }
     else if (hspi->Instance == SPI2) {
@@ -405,6 +483,10 @@ void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef *hspi) {
         if (spi2.curr_dev == DEV_ETH) {
 
         }
+        __HAL_SPI_CLEAR_OVRFLAG(hspi);
+        while ((hspi->Instance->SR & SPI_SR_RXNE));
+        while (!(hspi->Instance->SR & SPI_SR_TXE));
+        while(hspi->Instance->SR & SPI_SR_BSY);
         vTaskNotifyGiveFromISR(spi2.curr_task, &spi2.hpt_trigger);
         portYIELD_FROM_ISR(spi2.hpt_trigger);
     }
