@@ -52,4 +52,13 @@ void display_load_scanned_screen(void);
  */
 void display_first_load_ready(void);
 
+
+/**
+ * @brief
+ * 
+ * 
+ * 
+ */
+void display_signal_update_units(void);
+
 #endif

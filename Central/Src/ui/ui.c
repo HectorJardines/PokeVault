@@ -39,11 +39,9 @@ void loadScreen(enum ScreensEnum screenId) {
         break;
     case SCREEN_ID_SCANNED:
         create_screen_scanned();
-        delay = 500; // give it a couple ms for UX
         break;
     case SCREEN_ID_SCANNING:
         create_screen_scanning();
-        delay = 500;
         break;
     default:
         break;
@@ -57,7 +55,8 @@ void ui_init() {
     // temporary blank screen to load in when swapping out screens
     small_screen = lv_obj_create(0);
     create_screens();
-    loadScreen(SCREEN_ID_MAIN);
+    lv_obj_t *screen = getLvglObjectFromIndex(SCREEN_ID_MAIN - 1);
+    lv_screen_load_anim(screen, LV_SCREEN_LOAD_ANIM_NONE, 0, 0, false);
 }
 
 void ui_tick() {

@@ -98,11 +98,11 @@ static uint8_t disarmed_state_run(struct state_disarmed_data *data) {
     disarmed_msg.node_id = NODE_ID;
 
     switch (data->state) {
-    case DISARMED_CLOSED: // TODO: DISPLAY ON
+    case DISARMED_CLOSED:
         disarmed_msg.which_payload = msg_type_event_tag;
         disarmed_msg.payload.type_event.type = MSG_EVENT_UNIT_CLOSE;
         break;
-    case DISARMED_OPEN: // TODO: DISPLAY OFF
+    case DISARMED_OPEN:
         disarmed_msg.which_payload = msg_type_event_tag;
         disarmed_msg.payload.type_event.type = MSG_EVENT_UNIT_OPEN;
         break;

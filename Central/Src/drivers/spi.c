@@ -112,11 +112,17 @@ uint8_t spi1_wait_notify(void) {
 
 
 void spi_set_freq(spi_dev_e dev) {
-    if (dev == DEV_DISP || dev == DEV_SD) {
+    if (dev == DEV_DISP) {
         while (__HAL_SPI_GET_FLAG(&spi1.hspi, SPI_SR_BSY));
         spi1.hspi.Instance->CR1 &= ~(SPI_CR1_SPE);
         spi1.hspi.Instance->CR1 &= ~(SPI_CR1_BR); // clear current BR
-        spi1.hspi.Instance->CR1 |= (SPI_BAUDRATEPRESCALER_8);
+        spi1.hspi.Instance->CR1 |= (SPI_BAUDRATEPRESCALER_2);
+        spi1.hspi.Instance->CR1 |= (SPI_CR1_SPE);
+    } else if (dev == DEV_SD) {
+        while (__HAL_SPI_GET_FLAG(&spi1.hspi, SPI_SR_BSY));
+        spi1.hspi.Instance->CR1 &= ~(SPI_CR1_SPE);
+        spi1.hspi.Instance->CR1 &= ~(SPI_CR1_BR); // clear current BR
+        spi1.hspi.Instance->CR1 |= (SPI_BAUDRATEPRESCALER_4);
         spi1.hspi.Instance->CR1 |= (SPI_CR1_SPE);
     }
     else {
@@ -285,20 +291,25 @@ static void spi1_actor(void *arg) {
         if (xQueueReceive(spi1_req_q, &request, portMAX_DELAY) == pdTRUE) {
             switch(request.req_type) {
             case SD_READ_BLOCKS:
+                spi_set_freq(DEV_SD);
                 stat = SD_ReadBlocks(request.sd_io.buff, request.sd_io.sector, request.sd_io.count);
                 break;
             case SD_WRITE_BLOCKS:
+                spi_set_freq(DEV_SD);
                 stat = SD_WriteBlocks((const uint8_t *)request.sd_io.buff, request.sd_io.sector, request.sd_io.count);
                 break;
             case ILI9341_SEND_CMD:
+                spi_set_freq(DEV_DISP);
                 stat = ili9341_spi_send_cmd(request.ili9341_io.cmd, request.ili9341_io.cmd_size, request.ili9341_io.param, request.ili9341_io.param_size);
-                spi_transmit(DEV_DISP, &byte, 1);
                 break;
             case ILI9341_SEND_PIXELS:
-                stat = ili9341_spi_send_pixels(request.ili9341_io.cmd, request.ili9341_io.cmd_size, request.ili9341_io.param, request.ili9341_io.param_size);
-                spi_transmit(DEV_DISP, &byte, 1);             
+                spi_set_freq(DEV_DISP);
+                stat = ili9341_spi_send_pixels(request.ili9341_io.cmd, request.ili9341_io.cmd_size, request.ili9341_io.param, request.ili9341_io.param_size);         
                 break;
             }
+            // resets SD card to known state, hacky but works i think
+            for (uint8_t i = 0; i < 11; ++i) 
+                spi_transmit(DEV_DISP, &byte, 1);
             xTaskNotify(request.req_task, stat == 0 ? SPI_OK_Msk : SPI_ERR_Msk, eSetBits);
         }
     }
@@ -409,7 +420,7 @@ static void spi2_configure(void) {
     spi2.hspi.Init.TIMode = SPI_TIMODE_DISABLE;
     spi2.hspi.Init.Direction = SPI_DIRECTION_2LINES;
     spi2.hspi.Init.CRCPolynomial = SPI_CRCCALCULATION_DISABLE;
-    spi2.hspi.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_128;
+    spi2.hspi.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;
 
     HAL_DMA_Init(&spi2.hdmatx);
     HAL_DMA_Init(&spi2.hdmarx);

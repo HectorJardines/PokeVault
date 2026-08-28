@@ -93,31 +93,6 @@ uint8_t c_message_post_out(msg *message) {
 }
 
 
-// /**
-//  * @brief Checks for any pending peer node messages
-//  * 
-//  * 
-//  * 
-//  * @return 1 if peer node messages are available; else 0
-//  */
-// uint8_t c_message_available(void) {
-//     __disable_irq();
-//     uint8_t is_avail = msg_cnt > 0;
-//     __enable_irq();
-//     return is_avail;
-// }
-
-
-// /**
-//  * @brief Registers the callback function for peer node RX cplt
-//  * 
-//  * 
-//  * 
-//  */
-// void register_peer_rx_cplt_cb(void(*cb)(void)) {
-//     peer_rx_cplt = cb;
-// }
-
 /***********************
  *  STATIC DEFS
  **********************/

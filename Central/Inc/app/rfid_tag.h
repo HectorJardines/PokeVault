@@ -51,7 +51,7 @@ tag_status_e tag_init(void);
  * 
  * @param uid 4-byte serial serial number passed as a buffer of single bytes
  */
-uint8_t tag_register(tag_type_e type, const uint8_t *data_buffer);
+uint8_t tag_register(tag_type_e type, const uint8_t *name_buf, const uint8_t *cond_buf);
 
 
 #endif

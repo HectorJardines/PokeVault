@@ -1,5 +1,6 @@
 #include <string.h>
 
+#include "../../Inc/app/display.h"
 #include "screens.h"
 #include "images.h"
 #include "fonts.h"
@@ -32,6 +33,7 @@ static void event_handler_cb_add_item_add_item(lv_event_t *e) {
     }
 }
 
+
 static void event_handler_cb_inventory_inventory(lv_event_t *e) {
     lv_event_code_t event = lv_event_get_code(e);
     if (event == LV_EVENT_SCREEN_LOAD_START) {
@@ -48,6 +50,7 @@ static void event_handler_cb_inventory_inventory(lv_event_t *e) {
         lv_group_add_obj(groups.invent_items, objects.product_7);
         // group: grp_units
         lv_group_remove_all_objs(groups.grp_units);
+
     }
 }
 
@@ -66,6 +69,8 @@ static void event_handler_cb_main_main(lv_event_t *e) {
         lv_group_add_obj(groups.grp_units, objects.node_4);
         lv_group_add_obj(groups.grp_units, objects.node_5);
         lv_group_add_obj(groups.grp_units, objects.node_6);
+
+        display_signal_update_units();
     }
 }
 
@@ -1411,7 +1416,7 @@ void create_screens() {
     // Create screens
     // create_screen_add_item();
     // create_screen_inventory();
-    // create_screen_main();
+    create_screen_main();
     // create_screen_scan_prompt();
     // create_screen_scanning();
     // create_screen_scanned();

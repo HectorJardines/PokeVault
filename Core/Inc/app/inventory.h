@@ -17,15 +17,16 @@
 
 #include <stdint.h>
 
-#define UID_LEN           (4U)
-#define MAX_ITEM_NAME_LEN (16U) // MAX ITEM NAME LEN IN BYTES
+#define UID_LEN             (4U)
+#define MAX_ITEM_NAME_LEN   (16U) // MAX ITEM NAME LEN IN BYTES
+#define MAX_ITEM_COND_LEN   (4U)
 
 /*********************
  * STRUCTS/ENUMS
  ********************/
 typedef struct {
-    uint8_t item_id[UID_LEN];
     char item_name[MAX_ITEM_NAME_LEN];
+    char item_cond[MAX_ITEM_COND_LEN];
 } transaction_t;
 
 

@@ -45,6 +45,7 @@ static uint8_t load_inventory(void);
 static void task_inventory(void *arg);
 static uint8_t inventory_remove_item(uint32_t item_idx, uint8_t node_id);
 static uint8_t inventory_enroll_item(char *item_name, char *item_condition, uint8_t node_id);
+static int8_t invent_item_is_dupe(char *name, char *condition, uint8_t node_id);
 static uint8_t process_transaction(msg *trans);
 static uint8_t inventory_flush_transactions(void);
 
@@ -120,6 +121,7 @@ uint8_t inventory_signal_scan(char *name) {
     if (name != NULL) {
         scan_msg.command = SCAN_PRODUCT_CMD;
         memcpy((void *)scan_msg.payload.type_transaction.item_name, (const void *)name, MAX_ITEM_NAME_LEN);
+        memcpy((void *)scan_msg.payload.type_transaction.item_cond, (const void *)"NM", strlen("NM"));
         stat = xQueueSendToBack(trans_q, &scan_msg, portMAX_DELAY);
     }
     else {
@@ -198,6 +200,8 @@ static void task_inventory(void *arg) {
 
     if (sd_wait_ready() == pdTRUE)
         load_inventory();
+    
+    tag_init();
 
     for (;;) {
         if (xQueueReceive(trans_q, (void *)&trans_msg, TRANS_PEND_TIMEOUT) == pdTRUE) {
@@ -206,13 +210,19 @@ static void task_inventory(void *arg) {
             else if (trans_msg.command == SCAN_PRODUCT_CMD) { // prob change to a state based approach, dont want to block all other tasks here
                 // scan for product tag
                 display_load_scanning_screen();
-                while (tag_register(TAG_PRODUCT, trans_msg.payload.type_transaction.item_name) != STATUS_OK);
+                do {
+                    stat = tag_register(TAG_PRODUCT, trans_msg.payload.type_transaction.item_name, trans_msg.payload.type_transaction.item_cond);
+                    vTaskDelay(1); // allow other tasks to continue
+                } while (stat != STATUS_OK);
                 display_load_scanned_screen();
             }
             else if (trans_msg.command == SCAN_TAG_CMD) {
                 // scan for key tag
                 display_load_scanning_screen();
-                while (tag_register(TAG_AUTH_CARD, NULL) != STATUS_OK);
+                do {
+                    stat = tag_register(TAG_AUTH_CARD, NULL, NULL);
+                    vTaskDelay(1); // allow other tasks to continue
+                } while (stat != STATUS_OK);
                 display_load_scanned_screen();
             }
         }
@@ -230,6 +240,16 @@ static void task_inventory(void *arg) {
 
 
 
+/**
+ * @brief Load into RAM all unit inventorys
+ * 
+ * This function stores all of the unit's inventory
+ * in CsvRecord arrays of 660 bytes each. 
+ * 
+ * @note This doesn't scale well and would probably
+ * benefit from loading in multiple screen's worth of 
+ * units to quickly swap between them
+ */
 static uint8_t load_inventory(void) {
     uint8_t status = STATUS_OK;
 
@@ -240,7 +260,7 @@ static uint8_t load_inventory(void) {
         memset((void *)node_csv_file, 0, FILE_NAME_LEN);
         snprintf(node_csv_file, FILE_NAME_LEN, "inv%02d.csv", i);
         
-        uint8_t num_records = 0;
+        int32_t num_records = 0;
         status |= sd_read_csv(node_csv_file, node_csvs[i].unit_inventory, MAX_ITEMS, &num_records);
         if (status == FR_NO_PATH || status == FR_NO_FILE) {
             f_open(&fp, node_csv_file, FA_OPEN_ALWAYS | FA_WRITE);
@@ -329,7 +349,7 @@ static uint8_t inventory_enroll_item(char *item_name, char *itm_condition, uint8
 
         // IF DUPLICATE ITEM IN STORAGE SIMPLY INCREMENT QTY
         uint8_t dupe_idx = 0;
-        if ((dupe_idx = invent_item_duplicate(item_name, itm_condition, node_id)) != 0xFF)
+        if ((dupe_idx = invent_item_is_dupe(item_name, itm_condition, node_id)) != 0xFF)
             node_csvs[node_id].unit_inventory[dupe_idx].qty++;
         else {
             // append only, saves us the overhead of shifting entire array
@@ -385,13 +405,13 @@ static uint8_t process_transaction(msg *trans) {
 
     struct unit_csv_t node = node_csvs[trans->node_id];
     uint8_t match_idx = invent_item_is_dupe(trans->payload.type_transaction.item_name, 
-                            trans->payload.type_transaction.item_id,
+                            trans->payload.type_transaction.item_cond,
                             trans->node_id);
     if (match_idx != 0xFF)
         status = inventory_remove_item(match_idx, trans->node_id);
     else
         status = inventory_enroll_item(trans->payload.type_transaction.item_name,
-                                        trans->payload.type_transaction.item_id,
+                                        trans->payload.type_transaction.item_cond,
                                         trans->node_id);
 
     if (!status && node_csvs[trans->node_id].unit_data.state == CSV_CLEAN)

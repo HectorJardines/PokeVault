@@ -140,9 +140,11 @@ uint8_t mfrc_request(uint8_t request_type, uint8_t *picc_type) {
 
     uint8_t value = 0x07; // 7 bits of last byte will be transmitted
     if (reader.req_bus() == 1) {
+        volatile uint8_t ver = read_mfrc_register(MFRC_VERSIONR);
         write_mfrc_register(MFRC_BIT_FRAMING, value);
         picc_type[0] = request_type;
         status = mfrc_send_to_picc(PCD_CMD_TRANSCEIVE, picc_type, 1, picc_type, &rcv_len);
+        write_mfrc_register(MFRC_BIT_FRAMING, 0x00);
         reader.rel_bus();
     }
 
@@ -482,7 +484,11 @@ static uint8_t mfrc_send_to_picc(uint8_t command, uint8_t *send_data, uint8_t se
 
     // loop until expected irq bits are set or error/timeout
     uint8_t irq_status = 0;
+    volatile uint8_t fifo = 0;
+    volatile uint8_t err = 0;
     while (retries > 0) {
+        err = read_mfrc_register(MFRC_ERR_REG);
+        fifo = read_mfrc_register(MFRC_FIFO_LVL);
         irq_status= read_mfrc_register(MFRC_COM_IRQ);
         if ((irq_status & wait_irq) || (irq_status & 0x01)) // check if timer timeout or if irq we set earlier occurrred (i.e. RX irq)
             break;

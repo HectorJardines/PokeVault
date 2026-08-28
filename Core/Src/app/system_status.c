@@ -18,7 +18,6 @@ static uint8_t handle_excess_temp_hum(uint32_t value, uint8_t temp_or_hum);
 static uint8_t handle_presence_detect(void);
 static uint8_t handle_presence_gone(void);
 
-const static uint8_t auth_card_type[PICC_MEM_BLOCK_LEN] = {0xca, 0xfe, 0xbe, 0xef, 0xde, 0xad, 0,0,0,0,0,0,0,0,0,0};
 static system_info_t active_sys_state;
 /*********************
  * PUB APIs
@@ -130,19 +129,10 @@ uint8_t system_process_state(void) {
  */
 uint8_t system_check_card_auth(void) {
     uint8_t is_auth = 1, status = STATUS_OK;
-    uint8_t tag_data[PICC_MEM_BLOCK_LEN];
     uint8_t dummy;
 
-    status = tag_read_data(active_sys_state.prev_uid, tag_data, ITEM_SECTOR, TYPE_BLOCK);
-    if (status == STATUS_OK) {
-        for (uint8_t i = 0; i < PICC_MEM_BLOCK_LEN; ++i) {
-            if (tag_data[i] != auth_card_type[i]) {
-                is_auth = 0;
-                break;
-            }
-        }
-    }
-    else 
+    status = tag_read_keycard_data(NULL);
+    if (status != STATUS_OK)
         is_auth = 0;
 
     return is_auth;

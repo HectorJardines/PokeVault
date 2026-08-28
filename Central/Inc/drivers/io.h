@@ -103,7 +103,7 @@ typedef enum
   IO_UART_RX = IO_A3,
   IO_UNUSED_4 = IO_A4,
   IO_TEST_LED = IO_A5,
-  IO_SPI_CS_MFRC = IO_A6,
+  IO_SPI_CS_MFRC = IO_A6,   
   IO_SPI_CS_DISP = IO_A7,
   IO_SPI_CS_SD = IO_A8,
   IO_UNUSED_9 = IO_A9,

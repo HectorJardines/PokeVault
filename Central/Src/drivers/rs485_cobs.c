@@ -96,25 +96,6 @@ void receive_begin(void) {
 }
 
 
-// uint8_t rs485_receive(uint8_t *encoded_buf, uint32_t *length) {
-//     uint8_t status = RX_OK;
-//     __disable_irq();
-//     if (!ring_buffer_empty(&rx_frame_rb)) {
-//         serial_t tmp_buf = {0};
-
-//         ring_buffer_pop(&rx_frame_rb, (void *)&tmp_buf);
-//         __enable_irq();
-//         *length = rs485_cobs_decode(tmp_buf.buf, tmp_buf.len, (void *)encoded_buf);
-//         if (*length <= 1)
-//             status = RX_ERR;
-//         msg_consumed_cb();
-//     }
-//     __enable_irq();
-
-//     return status;
-// }
-
-
 
 /**
  * @brief Decode COBS encoded buffer into arbitrary data pointer
@@ -152,10 +133,6 @@ void register_msg_in_cb(void(*in_cb)(uint8_t *frame, uint32_t len, uint32_t *hpt
     msg_in_cb = in_cb;
 }
 
-
-// void register_msg_consumed_cb(void(*consumed_cb)(void)) {
-//     msg_consumed_cb = consumed_cb;
-// }
 
 /***************
  * STATIC DEFS

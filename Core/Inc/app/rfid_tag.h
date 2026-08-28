@@ -39,9 +39,9 @@ typedef enum {
 } tag_status_e;
 
 typedef enum {
-    TAG_ENTRY1,
-    TAG_ENTRY2
-} tag_index_e;
+    TAG_PRODUCT,
+    TAG_AUTH_CARD
+} tag_type_e;
 
 typedef struct {
     uint8_t buf[PICC_MEM_BLOCK_LEN];
@@ -61,30 +61,6 @@ typedef struct {
  */
 uint8_t tag_init(void); 
 
-/**
- * @brief 
- */
-tag_status_e tag_quick_scan(void);
-
-
-/**
- * @brief Registers a tag and saves its serialnumber for subsequent authorization
- * 
- * 
- * 
- * @param uid 4-byte serial serial number passed as a buffer of single bytes
- */
-tag_status_e tag_register(tag_index_e tag_entry);
-
-
-/**
- * @brief Removes a tag from the registry to revoke access
- * 
- * @param uid 4-byte serial num associated with tag to remove
- */
-tag_status_e tag_forget(void);
-
-
 
 /**
  * @brief Reads the 16 btyes of data stored in the specified block of the given sector
@@ -98,6 +74,13 @@ tag_status_e tag_forget(void);
  * 
  * @return non-neg number of bits read from PICC on success; otherwise 1
  */
-uint8_t tag_read_data(uint8_t *uid, uint8_t *tag_data, uint8_t sector, uint8_t block);
+uint8_t tag_read_product_data(uint8_t *prod_name, uint8_t *prod_cond);
+
+/**
+ * @brief 
+ * 
+ * 
+ */
+uint8_t tag_read_keycard_data(uint8_t *card_data);
 
 #endif

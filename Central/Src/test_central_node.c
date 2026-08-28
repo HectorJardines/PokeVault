@@ -112,7 +112,7 @@ static void test_register_tag(void) {
 		// 	dis_start_tick = HAL_GetTick();
 		// }
 
-        if (tag_register(TAG_AUTH_CARD, NULL) == STATUS_OK) {
+        if (tag_register(TAG_AUTH_CARD, NULL, NULL) == STATUS_OK) {
             io_set_out(IO_TEST_LED, IO_OUT_HIGH);
             HAL_Delay(1000);
             io_set_out(IO_TEST_LED, IO_OUT_LOW);

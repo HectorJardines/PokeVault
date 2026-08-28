@@ -3,7 +3,7 @@
 
 #ifndef PB_DRIVERS_NANOPB_MESSAGES_PB_H_INCLUDED
 #define PB_DRIVERS_NANOPB_MESSAGES_PB_H_INCLUDED
-#include "pb.h"
+#include <pb.h>
 
 #if PB_PROTO_HEADER_VERSION != 40
 #error Regenerate this file with the current version of nanopb generator.
@@ -16,8 +16,8 @@ typedef struct _alert {
 } alert;
 
 typedef struct _transaction {
-    uint32_t item_id;
     char item_name[17];
+    char item_cond[4];
 } transaction;
 
 typedef struct _event {
@@ -48,21 +48,21 @@ extern "C" {
 
 /* Initializer values for message structs */
 #define msg_array_init_default                   {0, {msg_init_default, msg_init_default, msg_init_default, msg_init_default, msg_init_default}}
-#define msg_init_default                         {0, 0, msg_type_alert_tag, {alert_init_default}}
+#define msg_init_default                         {0, 0, 0, {alert_init_default}}
 #define alert_init_default                       {0, 0}
-#define transaction_init_default                 {0, ""}
+#define transaction_init_default                 {"", ""}
 #define event_init_default                       {0, 0}
 #define msg_array_init_zero                      {0, {msg_init_zero, msg_init_zero, msg_init_zero, msg_init_zero, msg_init_zero}}
 #define msg_init_zero                            {0, 0, 0, {alert_init_zero}}
 #define alert_init_zero                          {0, 0}
-#define transaction_init_zero                    {0, ""}
+#define transaction_init_zero                    {"", ""}
 #define event_init_zero                          {0, 0}
 
 /* Field tags (for use in manual encoding/decoding) */
 #define alert_type_tag                           1
 #define alert_value_tag                          2
-#define transaction_item_id_tag                  1
-#define transaction_item_name_tag                2
+#define transaction_item_name_tag                1
+#define transaction_item_cond_tag                2
 #define event_type_tag                           1
 #define event_value_tag                          2
 #define msg_command_tag                          1
@@ -98,8 +98,8 @@ X(a, STATIC,   REQUIRED, UINT32,   value,             2)
 #define alert_DEFAULT NULL
 
 #define transaction_FIELDLIST(X, a) \
-X(a, STATIC,   REQUIRED, UINT32,   item_id,           1) \
-X(a, STATIC,   REQUIRED, STRING,   item_name,         2)
+X(a, STATIC,   REQUIRED, STRING,   item_name,         1) \
+X(a, STATIC,   REQUIRED, STRING,   item_cond,         2)
 #define transaction_CALLBACK NULL
 #define transaction_DEFAULT NULL
 
@@ -126,9 +126,9 @@ extern const pb_msgdesc_t event_msg;
 #define DRIVERS_NANOPB_MESSAGES_PB_H_MAX_SIZE    msg_array_size
 #define alert_size                               9
 #define event_size                               9
-#define msg_array_size                           185
-#define msg_size                                 35
-#define transaction_size                         24
+#define msg_array_size                           180
+#define msg_size                                 34
+#define transaction_size                         23
 
 #ifdef __cplusplus
 } /* extern "C" */

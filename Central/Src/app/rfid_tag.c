@@ -22,9 +22,10 @@
 #define TYPE_BLOCK          ((ITEM_SECTOR * BLOCKS_PER_SECTOR) + TYPE_IDX)
 #define AUTH_BLOCK          ((ITEM_SECTOR * BLOCKS_PER_SECTOR) + TRAIL_IDX)
 
-#define PAGES_PER_WRITE     (4U) // we write 16 byte data into 4 byte pages
-#define NAME_PAGE           (0x07U)
-#define TYPE_PAGE           (0x03U)
+#define PAGE_SEC_RATIO     (4U) // we write 16 byte data into 4 byte pages
+#define COND_PAGE           (11U)
+#define NAME_PAGE           (7U)
+#define TYPE_PAGE           (3U)
 
 typedef struct {
     uint8_t buf[PICC_MEM_BLOCK_LEN];
@@ -50,8 +51,8 @@ static uint8_t card_block_buf[PICC_MEM_BLOCK_LEN] = {0xca, 0xfe, 0xbe, 0xef, 0xd
  * @param[out] card_uid
  */
 static mfrc_status_e tag_scan_and_select(tag_type_e type, uint8_t *card_buf, uint8_t *card_uid);
-static mfrc_status_e tag_write_to_mifare1k(rfid_tag_t *tag, const uint8_t *data);
-static mfrc_status_e tag_write_to_nfc215(const uint8_t *data);
+static mfrc_status_e tag_write_to_mifare1k(rfid_tag_t *tag);
+static mfrc_status_e tag_write_to_nfc215(const uint8_t *data_name, const uint8_t *data_cond);
 
 
 static uint8_t mfrc_spi_tx_byte(uint8_t byte);
@@ -70,8 +71,8 @@ static void mfrc_spi_rel(void);
  */
 tag_status_e tag_init(void) {
     mfrc_reader_t reader = {.init = spi_init, .transmit_byte = mfrc_spi_tx_byte, 
-                            .receive_byte = mfrc_spi_rx_byte, .select = mfrc_cs_high, 
-                            .deselect = mfrc_cs_low, .req_bus = mfrc_spi_req, 
+                            .receive_byte = mfrc_spi_rx_byte, .select = mfrc_cs_low, 
+                            .deselect = mfrc_cs_high, .req_bus = mfrc_spi_req, 
                             .rel_bus = mfrc_spi_rel};
     mfrc522_init(&reader);
     return MFRC_OK;
@@ -83,7 +84,7 @@ tag_status_e tag_init(void) {
  * 
  * 
  */
-uint8_t tag_register(tag_type_e type, const uint8_t *data_buffer) {
+uint8_t tag_register(tag_type_e type, const uint8_t *name_buf, const uint8_t *cond_buf) {
     uint8_t status = STATUS_ERR;
     static rfid_tag_t tag;
 
@@ -91,10 +92,10 @@ uint8_t tag_register(tag_type_e type, const uint8_t *data_buffer) {
     if (status == STATUS_OK) {
         switch (type) {
         case TAG_PRODUCT:
-            status = tag_write_to_nfc215(data_buffer);
+            status = tag_write_to_nfc215(name_buf, cond_buf);
             break;
         case TAG_AUTH_CARD:
-            status = tag_write_to_mifare1k(&tag, data_buffer);
+            status = tag_write_to_mifare1k(&tag);
             break;
         }
     }
@@ -114,7 +115,7 @@ uint8_t tag_register(tag_type_e type, const uint8_t *data_buffer) {
  * 
  * 
  */
-static mfrc_status_e tag_write_to_mifare1k(rfid_tag_t *tag, const uint8_t *data) {
+static mfrc_status_e tag_write_to_mifare1k(rfid_tag_t *tag) {
     uint8_t status = mfrc522_auth(PICC_AUTH_A, AUTH_BLOCK, default_sec_key, tag->uid);
     if (status == STATUS_OK) {
         status = mfrc_picc_write(TYPE_BLOCK, card_block_buf, MFRC_WR_SECTOR);
@@ -131,14 +132,15 @@ static mfrc_status_e tag_write_to_mifare1k(rfid_tag_t *tag, const uint8_t *data)
  * 
  * 
  */
-static mfrc_status_e tag_write_to_nfc215(const uint8_t *data) {
+static mfrc_status_e tag_write_to_nfc215(const uint8_t *data_name, const uint8_t *data_cond) {
     uint8_t status = MFRC_ERR;
     
-    for (uint8_t i = 0; i < PAGES_PER_WRITE; ++i)
-        mfrc_picc_write(TYPE_PAGE + i, &item_block_buf[i * PAGES_PER_WRITE], MFRC_WR_PAGE);
+    for (uint8_t i = 0; i < PAGE_SEC_RATIO; ++i)
+        mfrc_picc_write(TYPE_PAGE + i, &item_block_buf[i * PAGE_SEC_RATIO], MFRC_WR_PAGE);
     if (status == STATUS_OK) {
-        for (uint8_t i = 0; i < PAGES_PER_WRITE; ++i)
-            status = mfrc_picc_write(NAME_PAGE + i, &data[i * PAGES_PER_WRITE], MFRC_WR_PAGE);
+        for (uint8_t i = 0; i < PAGE_SEC_RATIO; ++i)
+            status = mfrc_picc_write(NAME_PAGE + i, &data_name[i * PAGE_SEC_RATIO], MFRC_WR_PAGE);
+        status = mfrc_picc_write(COND_PAGE, data_cond, MFRC_WR_PAGE);
     }
     return status;
 }
@@ -175,7 +177,7 @@ static mfrc_status_e tag_scan_and_select(tag_type_e type, uint8_t *card_buf, uin
     mfrc_stat = mfrc_select_picc(card_buf, MFRC_SEL_CL1);
 
     if (mfrc_stat == MFRC_OK && type == TAG_PRODUCT) {
-        mfrc_stat = mfrc_anticollision(&card_buf, MFRC_AC_CL2); // read next 4 bytes of UID
+        mfrc_stat = mfrc_anticollision(card_buf, MFRC_AC_CL2); // read next 4 bytes of UID
         if (mfrc_stat != MFRC_OK) goto sel_exit;
         for (uint8_t i = 0; i < SER_NUM_LEN_BYTES; ++i)
             card_uid[uid_idx++] = card_buf[i];
@@ -194,7 +196,7 @@ static uint8_t mfrc_spi_tx_byte(uint8_t byte) {
 
 
 static uint8_t mfrc_spi_rx_byte(void) {
-    uint8_t read_byte = 0x00;
+    uint8_t read_byte = 0xFF;
     spi_receive(DEV_MFRC, &read_byte, 1);
     return read_byte;
 }

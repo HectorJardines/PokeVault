@@ -22,17 +22,18 @@
 #define DISP_TOUCH_TIMEOUT  (20U) // ms
 #define DISPLAY_PARTIAL_DIV (10U)
 #define FRAME_BUF_SIZE      (((DISPLAY_WIDTH * DISPLAY_HEIGHT) / DISPLAY_PARTIAL_DIV) * DISPLAY_BPP)
-#define DISP_TASK_STK_DEPTH (1024U)
+#define DISP_TASK_STK_DEPTH (1756U)
 #define DISP_TASK_PRIO      (4U)
 #define INPUT_Q_LEN         (5U)
 
 
 #define NODE_ID(node_bits)      ((node_bits) & (0x3U))
 #define NODE_PG_IDX(node_bits)  (((node_bits) & (0x1FU << 2)) >> 2)
-#define TOUCH_Msk               (0x01 << 0)
-#define SCAN_Msk                (0x01 << 1)
-#define SCAN_CPLT_Msk           (0x01 << 2)
-#define INIT_INVENT_LOAD_Msk    (0x01 << 3)
+#define TOUCH_Msk                   (0x01 << 0)
+#define SCAN_Msk                    (0x01 << 1)
+#define SCAN_CPLT_Msk               (0x01 << 2)
+#define INIT_INVENT_LOAD_Msk        (0x01 << 3)
+#define SCAN_TRANSITION_CPLT_Msk    (0x01 << 4)
 
 
 /******************
@@ -41,6 +42,7 @@
 typedef struct {
     lv_display_t *dispp;
     lv_indev_t *input;
+    lv_timer_t *tran_tim;
     uint8_t buf[FRAME_BUF_SIZE];
     uint8_t scan_state;
 } display_t;
@@ -72,7 +74,8 @@ static void touch_input_cb(lv_indev_t *in, lv_indev_data_t *data);
 static void update_items(void);
 static void update_units(void);
 static void xpt2046_touch_isr(void);
-static void load_screen_cb(lv_event_t *e);
+static void load_screen_cb(lv_timer_t *timer);
+static void product_name_ready(lv_event_t *e);
 
 // DISPLAY DATA
 static display_t ili_disp;
@@ -102,7 +105,7 @@ void display_init(void) {
     // INIT SUBMODULES
     spi_init();
     lv_init();
-    // xpt2046_init();
+    xpt2046_init();
     lv_tick_set_cb(xTaskGetTickCount);
 
     // DISPLAY TOUCH INTERRUPT
@@ -185,6 +188,7 @@ void action_previous_items(lv_event_t * e) {
  */
 void action_register_prompt(lv_event_t * e) {
     loadScreen(SCREEN_ID_ADD_ITEM);
+    lv_obj_add_event_cb(objects.txt_ar_prod, product_name_ready, LV_EVENT_READY, NULL);
 }
 
 /**
@@ -210,26 +214,15 @@ void action_to_inventory(lv_event_t * e) {
  */
 void action_scan_prompt(lv_event_t * e) {
     // signal to inventory task to scan for tag
+    ili_disp.scan_state = 1;
     loadScreen(SCREEN_ID_SCAN_PROMPT);
     inventory_signal_scan(NULL);
-    ili_disp.scan_state = 1;
 }
 
 
-void product_name_ready(lv_event_t *e) {
-    uint8_t stat = 0;
-    lv_event_code_t code = lv_event_get_code(e);
-    lv_obj_t *text_ar = lv_event_get_target(e);
-    if (code == LV_EVENT_READY) {
-        loadScreen(SCREEN_ID_SCAN_PROMPT);
-        const char *name = lv_textarea_get_text(text_ar);
-        stat = inventory_signal_scan(name);
-        ili_disp.scan_state = 1;
-    }
-
-    (void)stat;
+void display_first_load_ready(void) {
+    xTaskNotify(disp_tsk, INIT_INVENT_LOAD_Msk, eSetBits);
 }
-
 
 void display_load_scanned_screen(void) {
     xTaskNotify(disp_tsk, SCAN_CPLT_Msk, eSetBits);
@@ -239,16 +232,22 @@ void display_load_scanning_screen(void) {
     xTaskNotify(disp_tsk, SCAN_Msk, eSetBits);
 }
 
-void display_first_load_ready(void) {
-    xTaskNotify(disp_tsk, INIT_INVENT_LOAD_Msk, eSetBits);
+
+void display_signal_update_units(void) {
+    unit_content.valid_units = inventory_get_unit_stats(&unit_content.units, unit_content.pg_idx);
+    update_units();
 }
 
+void display_update_items(void) {
+    update_items();
+}
 
 /**
  * Performs all SPI initialization for the display task
  */
 void display_configure(void) {
     ili_disp.dispp = lv_ili9341_create(DISPLAY_WIDTH, DISPLAY_HEIGHT, 0x00, ili9341_send_cmd, ili9341_send_pixels);
+    xpt2046_reset_state();
     lv_display_set_color_format(ili_disp.dispp, LV_COLOR_FORMAT_RGB565);
     lv_display_set_buffers(ili_disp.dispp, ili_disp.buf, NULL, FRAME_BUF_SIZE, LV_DISPLAY_RENDER_MODE_PARTIAL);
     lv_display_set_rotation(ili_disp.dispp, LV_DISPLAY_ROTATION_90);
@@ -257,7 +256,10 @@ void display_configure(void) {
     ili_disp.input = lv_indev_create();
     lv_indev_set_type(ili_disp.input, LV_INDEV_TYPE_POINTER);
     lv_indev_set_read_cb(ili_disp.input, touch_input_cb);
-    lv_display_add_event_cb(ili_disp.dispp, load_screen_cb, LV_EVENT_SCREEN_LOADED, &ili_disp.scan_state);
+    
+    ili_disp.tran_tim = lv_timer_create(load_screen_cb, 700, &ili_disp.scan_state);
+    lv_timer_pause(ili_disp.tran_tim);
+    lv_timer_set_repeat_count(ili_disp.tran_tim, 1);
 
     io_irq_enable_interrupt(IO_TOUCH_IT);
 }
@@ -267,60 +269,49 @@ void display_configure(void) {
  *******************/
 static void task_display(void *arg) {
     static uint32_t delay = 0, curr_tick = 0, notif = 0;
-    // CONFIGURE DISPLAY SETTINGS
-    // vTaskDelay(pdMS_TO_TICKS(200));
     
     if (spi1_wait_init() == HAL_OK);
     display_configure();
-    ui_init();
     do {
         xTaskNotifyWait(0x00, INIT_INVENT_LOAD_Msk, &notif, portMAX_DELAY);
     } while (!(notif & INIT_INVENT_LOAD_Msk));
-    unit_content.valid_units = inventory_get_unit_stats(&unit_content.units, unit_content.pg_idx);
-    update_units();
+    ui_init();
 
     for(;;) {
         delay = lv_timer_handler();
         if (delay == LV_NO_TIMER_READY)
             delay = LV_DEF_REFR_PERIOD;
 
-        curr_tick = xTaskGetTickCount;
         static touch_coord_t input;
-        if (xTaskNotifyWait(0x00, (SCAN_CPLT_Msk | TOUCH_Msk | SCAN_Msk), &notif, pdMS_TO_TICKS(delay)) == pdTRUE) {
+        if (xTaskNotifyWait(0x00, (SCAN_CPLT_Msk | TOUCH_Msk | SCAN_Msk | SCAN_TRANSITION_CPLT_Msk), &notif, pdMS_TO_TICKS(delay)) == pdTRUE) {
             if (notif & TOUCH_Msk) {
                 xpt2046_read_position(&input.x, &input.y);
                 xQueueSendToBack(input_q, &input, 0);
-            } else {
-                input.x = -1; input.y = -1;
-                xQueueSendToBack(input_q, &input, 0);
             }
             if (notif & SCAN_Msk)
-                ili_disp.scan_state = 2;
-            if (notif & SCAN_CPLT_Msk)
+                loadScreen(SCREEN_ID_SCANNING);
+            if (notif & SCAN_CPLT_Msk) {
                 ili_disp.scan_state = 3;
+                loadScreen(SCREEN_ID_SCANNED);
+                lv_timer_resume(ili_disp.tran_tim);
+            }
+        }
+        volatile UBaseType_t high_stk_usage = uxTaskGetStackHighWaterMark(NULL);
+        if (high_stk_usage < 25) {
+            for (;;);
         }
     }
-
-    UBaseType_t high_stk_usage = uxTaskGetStackHighWaterMark(NULL);
-    // printf("DISPLAY TASK: FREE RAM = %d - %d\r\n", DISP_TASK_STK_DEPTH, high_stk_usage);
 }
 
 
-static void load_screen_cb(lv_event_t *e) {
-    lv_event_code_t code = lv_event_get_code(e);
-    lv_obj_t *d = lv_event_get_current_target_obj(e);
-    uint8_t *load_state = ((uint8_t *)lv_obj_get_user_data(d));
-
-    if (code == LV_EVENT_SCREEN_LOADED && *load_state > 1) {
-        if (*load_state == 2) {
-            loadScreen(SCREEN_ID_SCANNING);
-        } else if (*load_state == 3) {
-            loadScreen(SCREEN_ID_SCANNED);
-            *load_state = 4;
-        } else if (*load_state == 4) {
-            loadScreen(SCREEN_ID_MAIN);
-            *load_state = 0;
-        }
+static void load_screen_cb(lv_timer_t *timer) {
+    uint8_t *load_screen = ((uint8_t *)lv_timer_get_user_data(timer));
+    if (*load_screen == 3) {
+        *load_screen = 0;
+        loadScreen(SCREEN_ID_MAIN);
+        lv_timer_reset(timer);
+        lv_timer_pause(timer);
+        lv_timer_set_repeat_count(ili_disp.tran_tim, 1);
     }
 }
 
@@ -337,6 +328,21 @@ static void touch_input_cb(lv_indev_t *in, lv_indev_data_t *data) {
             data->state = LV_INDEV_STATE_PRESSED;
         }
     }
+}
+
+
+static void product_name_ready(lv_event_t *e) {
+    uint8_t stat = 0;
+    lv_event_code_t code = lv_event_get_code(e);
+    lv_obj_t *text_ar = lv_event_get_target(e);
+    if (code == LV_EVENT_READY) {
+        ili_disp.scan_state = 1;
+        const char *name = lv_textarea_get_text(text_ar);
+        stat = inventory_signal_scan(name);
+        loadScreen(SCREEN_ID_SCAN_PROMPT);
+    }
+
+    (void)stat;
 }
 
 
@@ -381,7 +387,14 @@ static void update_units(void) {
  * 
  */
 static void xpt2046_touch_isr(void) {
-    BaseType_t hpt_ready = pdFALSE;
+    static uint32_t prev_tick = 0;
+    uint32_t tick = xTaskGetTickCount();
+    if (tick - prev_tick < 100) {
+        prev_tick = tick;
+        return;
+    }
+
+    BaseType_t hpt_ready = pdFALSE;;
     xTaskNotifyFromISR(disp_tsk, TOUCH_Msk, eSetBits, &hpt_ready);
     portYIELD_FROM_ISR(hpt_ready);
 }

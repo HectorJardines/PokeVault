@@ -10,8 +10,6 @@
 /*************************
  * STATIC DECLARATION
  ************************/
-
-static uint8_t item_type_block[PICC_MEM_BLOCK_LEN] = {0xde, 0xad, 0xbe, 0xef, 0xca, 0xfe, 0,0,0,0,0,0,0,0,0,0};
 static transaction_t active_transaction;
 // BUFFER STORES RECENT TRANSACITONS IN CASE OF MESSAGE FAILURE
 STATIC_RING_BUFFER(transaction_cache, CACHE_SIZE, transaction_t);
@@ -54,21 +52,8 @@ uint8_t inventory_init(void) {
  */
 uint8_t inventory_scan_for_item(void) {
     memset((void *)&active_transaction, 0, sizeof(active_transaction));
-    
     // verify tag scanned is an item tag by checking the sector block written on tag reg
-    uint8_t status = tag_read_data(active_transaction.item_id, active_transaction.item_name,
-                                    ITEM_SECTOR, TYPE_BLOCK);
-
-    if (status == STATUS_OK) {
-        for(uint8_t i = 0; i < PICC_MEM_BLOCK_LEN; ++i) { // compare type block read with expected type value
-            status = !(active_transaction.item_name[i] == item_type_block[i]);
-            if (status)
-                break;
-        }
-        if (status == STATUS_OK) // read actual item name
-            status = tag_read_data(active_transaction.item_id, active_transaction.item_name, ITEM_SECTOR, NAME_BLOCK); 
-    }
-
+    uint8_t status = tag_read_product_data(active_transaction.item_name, active_transaction.item_cond);
     return status;
 }
 
@@ -91,8 +76,8 @@ uint8_t inventory_item_update(void) {
     msg item_detected = msg_init_default;
     item_detected.node_id = NODE_ID;
     item_detected.which_payload = msg_type_transaction_tag;
-    item_detected.payload.type_transaction.item_id = *((uint32_t *)active_transaction.item_id);
     memcpy((void *)item_detected.payload.type_transaction.item_name, (void *)active_transaction.item_name, strlen(active_transaction.item_name));
+    memcpy((void *)item_detected.payload.type_transaction.item_cond, (void *)active_transaction.item_cond, strlen(active_transaction.item_cond));
 
     message_send(&item_detected);
 

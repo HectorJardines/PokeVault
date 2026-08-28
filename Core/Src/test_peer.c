@@ -159,69 +159,6 @@ static void test_lvgl_update_temp(void) {
     }
 }
 
-// static void test_w5500_connect(void) {
-//     spi_init(SPI_DEVICE_W5500);
-//     w5500_init();
-
-//     while (1) {
-
-//     }
-// }
-
-// static void test_w5500_tls_connect(void) {
-//     wiz_tls_context tls_context;
-//     int sock_num = 0, SERVER_PORT = 443;
-//     unsigned char sslHostName[] = "api.telegram.org";
-//     uint8_t host_ip[4];
-
-//     spi_init(SPI_DEVICE_W5500);
-//     w5500_init();
-//     w5500_resolve_hostname(sslHostName, host_ip);
-//     wiz_tls_init(&tls_context, &sock_num);
-//     wiz_tls_connect(&tls_context, SERVER_PORT, host_ip);
-
-//     while(1) {
-
-//     }
-// }
-
-// static char https_req[512] = {0};
-// static char out_buf[1024] = {0};
-// static char token[] = "key";
-// static char message[] = "Ping From ST...";
-// static void test_w5500_https_post(void) {
-//     wiz_tls_context tls_context;
-//     int sock_num = 0, SERVER_PORT = 443;
-//     unsigned char sslHostName[] = "api.telegram.org";
-//     uint8_t host_ip[4];
-//     uint64_t chat_id = 8807953801;
-//     uint32_t chat_id_h = (uint32_t)(chat_id / 1000000000ULL);
-//     uint32_t chat_id_l = (uint32_t)(chat_id % 1000000000ULL);
-
-//     snprintf(https_req, sizeof(https_req), "{\"chat_id\": %u%09u, \"text\": \"%s\"}",
-//             chat_id_h, chat_id_l, message);
-//     snprintf(out_buf, sizeof(out_buf), 
-//             "POST /bot%s/sendMessage HTTP/1.1\r\n"
-//             "Host: api.telegram.org\r\n"
-//             "Content-Type: application/json\r\n"
-//             "Content-Length: %u\r\n"
-//             "Connection: close\r\n"
-//             "\r\n"
-//             "%s",
-//             token, (uint32_t)strlen((const char *)https_req), https_req);
-    
-//     spi_init(SPI_DEVICE_W5500);
-//     w5500_init();
-//     w5500_resolve_hostname(sslHostName, host_ip);
-//     wiz_tls_init(&tls_context, &sock_num);
-//     wiz_tls_connect(&tls_context, SERVER_PORT, host_ip);
-
-//     while (1) {
-//         wiz_tls_write(&tls_context, (unsigned char *)out_buf, strlen((const char*)out_buf));
-//         HAL_Delay(600000);
-//     }
-// }
-
 
 static void test_tag_read_data(void) {
     uint8_t data[PICC_MEM_BLOCK_LEN];
@@ -259,7 +196,7 @@ static void test_system_messaging(void) {
     uint32_t display_tick = HAL_GetTick(), sensor_tick = HAL_GetTick(), auth_tick = HAL_GetTick();
     uint32_t invent_tick = HAL_GetTick();
 
-    uint32_t disp_period = 0, sens_period = 100, auth_period = 50, invent_period = 100;
+    uint32_t disp_period = 0, sens_period = 100, auth_period = 200, invent_period = 200;
 
     while (1) {
         if (message_available())
@@ -279,14 +216,18 @@ static void test_system_messaging(void) {
             sensor_tick = HAL_GetTick();
         }
 
-        if ((HAL_GetTick() - auth_tick >= auth_period) && display_scan_cplt()) {
+        if ((HAL_GetTick() - auth_tick >= auth_period) && display_scan_cplt() 
+            && main_sm.current_state != SECURITY_DISARMED) // NO NEED TO SCAN FOR AUTH WHEN UNIT DISARMED
+        {
             uint8_t card_present = system_check_card_auth();
             if (card_present)
                 security_post_event(&main_sm, EVENT_TAG_AUTH);
             auth_tick = HAL_GetTick();
         }
 
-        if ((HAL_GetTick() - invent_tick >= invent_period) && display_scan_cplt()) {
+        if ((HAL_GetTick() - invent_tick >= invent_period) && display_scan_cplt()
+            && main_sm.current_state != SECURITY_ARMED) // NO NEED TO SCAN FOR PRODUCTS IF UNIT ARMED
+        {
             uint8_t item_present = inventory_scan_for_item();
             if (item_present == STATUS_OK)
                 security_post_event(&main_sm, EVENT_ITEM_SCAN);

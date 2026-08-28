@@ -60,6 +60,27 @@ void xpt2046_init()
 }
 
 
+/**
+ * @brief Resets the XPT2046 IRQ trigger in case of power loss during touch read
+ * 
+ * 
+ */
+int xpt2046_reset_state(void) {
+	if (spi_lock(DEV_TOUCH)) {
+		XPT_CS_LOW();
+
+		ts_ControlByte.powerMode = XPT2046_POWER_DOWN;
+		xpt2046_control_byte_update();
+
+		uint8_t dummy[2] = {0x00,0x00};
+		spi_transmit(DEV_TOUCH, &command, sizeof(command));
+		spi_receive(DEV_TOUCH, dummy, sizeof(dummy));
+
+		XPT_CS_HIGH();
+		spi_unlock(DEV_TOUCH);
+	}
+} 
+
 void xpt2046_orientation(TouchScreen_OrientationTypeDef orientation_)
 {
 	ts_Orientation = orientation_;
@@ -115,10 +136,6 @@ void xpt2046_update(){
 			spi_transmit(DEV_TOUCH, &command, sizeof(command));
 			spi_receive(DEV_TOUCH, receiveByteX, sizeof(receiveByteX));
 
-			printf("0x%x,0x%x\r\n", receiveByteX[1], receiveByteX[0]);
-			if (i == NUM_SAMPLES - 1) {
-				xpt2046_control_byte_update();
-			}
 			ts_ControlByte.channel = XPT2046_DFR_Y;
 			xpt2046_control_byte_update();
 

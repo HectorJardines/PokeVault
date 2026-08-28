@@ -139,4 +139,10 @@ void xpt2046_set_size(uint16_t w, uint16_t h);
 void xpt2046_bit_mode(uint8_t b);
 void xpt2046_update(void);
 void xpt2046_read_position(int32_t* x, int32_t* y);
+/**
+ * @brief Resets the XPT2046 IRQ trigger in case of power loss during touch read
+ * 
+ * 
+ */
+int xpt2046_reset_state(void);
 #endif
