@@ -19,7 +19,8 @@ typedef enum {
     DEV_ETH,
     DEV_SD,
     DEV_DISP,
-    DEV_TOUCH
+    DEV_TOUCH,
+    DEV_SD_INIT
 } spi_dev_e;
 
 
@@ -57,77 +58,82 @@ void spi_init(void);
 
 
 /**
- * @brief 
+ * @brief Blocking transmit API
+ * 
+ *
+ * 
  */
 uint8_t spi_transmit(spi_dev_e dev, uint8_t *data, uint32_t len);
 
 
 /**
- * @brief 
+ * @brief Blocking receive API
+ * 
+ *  
  */
 uint8_t spi_receive(spi_dev_e dev, uint8_t *read_data, uint32_t read_len);
 
 
 /**
- * @brief
+ * @brief Non-blocking, DMA-based transmit API
+ * 
+ * 
  */
 uint8_t spi_transmit_dma(spi_dev_e dev, uint8_t *data, uint32_t len);
 
 /**
- * @brief 
+ * @brief Non-blocking, DMA-based receive API
+ * 
+ *  
  */
 uint8_t spi_receive_dma(spi_dev_e dev, uint8_t *read_data, uint32_t read_len);
 
 
 
 /**
- * @brief Sets the max SPI clock freq for the specified device
+ * @brief Requests SPI bus lock
  * 
  * 
  * 
- */
-void spi_set_freq(spi_dev_e dev);
-
-
-/**
- * @brief Sleeps the thread until the lock is obtained for the device
- * 
- * 
- * 
+ * @note This function need only be called
+ * when accessing SPI2 bus
  */
 uint8_t spi_lock(spi_dev_e dev);
 
 /**
- * @brief Sleeps the thread until the lock is obtained for the device
- * 
- * 
- * 
+ * @brief Release the SPI bus lock
  */
 uint8_t spi_unlock(spi_dev_e dev);
 
 
 /**
- * @brief
+ * @brief Request SPI1 bus operation
  * 
+ * Calling thread requests a SPI1 operation 
+ * to be performed by the SPI1 actor task. The calling 
+ * thread blocks until the request is completed.
  * 
  */
 uint8_t spi1_post_request(spi1_req_t *req);
 
 
+/**
+ * @brief Sleep the calling task until SPI1 operation complete
+ * 
+ * This function should be called after a call to
+ * spi1_post_request. This function sleeps the thread
+ * until the previous request is completed.
+ * 
+ */
+uint8_t spi1_wait_notify(uint8_t dev);
+
 
 /**
- * @brief
- * 
- * 
+ * @brief Calling task blocks until the SPI1 bus has been initialized
  */
 uint8_t spi1_wait_init(void);
 
 
-/**
- * @brief
- * 
- * 
- */
-uint8_t spi1_wait_notify(void);
+
 
 #endif

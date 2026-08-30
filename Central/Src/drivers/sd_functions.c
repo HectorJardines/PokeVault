@@ -177,10 +177,12 @@ int sd_read_csv(const char *filename, CsvRecord *records, int max_records, int *
 		line_p = line;
 		char *token = strsep(&line_p, ",");
 		if (!token) continue;
-		strncpy(records[*record_count].name, token, strlen(token));
+		strncpy(records[*record_count].name, token, sizeof(records[*record_count].name) - 1);
+		records[*record_count].name[sizeof(records[*record_count].name) - 1] = '\0';
 		token = strsep(&line_p, ",");
 		if (!token) continue;
-		strncpy(records[*record_count].condition, token, strlen(token));
+		strncpy(records[*record_count].condition, token, sizeof(records[*record_count].condition) - 1);
+		records[*record_count].condition[sizeof(records[*record_count].condition) - 1] = '\0';
 		token = strsep(&line_p, ",");
 		if (!token) continue;
 		records[*record_count].qty = atoi(token);

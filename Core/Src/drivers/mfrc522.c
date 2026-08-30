@@ -162,14 +162,13 @@ uint8_t mfrc_anticollision(uint8_t *uid, mfrc_ac_cl_e CL) {
     mfrc_status_e status = MFRC_OK;
     uint8_t uid_check = 0;
     uint8_t val = 0x00; // all bits of last byte in TX sequence will be transmitted
-    write_mfrc_register(MFRC_BIT_FRAMING, val);
-
     uint16_t uid_len = 0;
 
     uid[0] = CL == MFRC_AC_CL1 ? PICC_ANTICOLL_CL1 : PICC_ANTICOLL_CL2;
     uid[1] = 0x20; // indicates to nearby PICCs that no part of UID will be sent, just send full UID
 
     if (reader.req_bus() == 1) {
+        write_mfrc_register(MFRC_BIT_FRAMING, val);
         status = mfrc_send_to_picc(PCD_CMD_TRANSCEIVE, uid, 2, uid, &uid_len); // sent PICC anticolll command and retrieve UID
         reader.rel_bus();
     }

@@ -25,7 +25,7 @@
 #define INVENT_FLUSH_PERIOD (pdMS_TO_TICKS(5000)) // flush every 5 seconds
 
 #define INVENTORY_TASK_STK_DEPTH    (512U)
-#define INVENTORY_TASK_PRIO         (3U)
+#define INVENTORY_TASK_PRIO         (4U)
 
 typedef struct {
     uint8_t state               : 1;    /* DIRTY OR CLEAN : DICTATES WHETHER WE FLUSH CSV UPDATES */
@@ -143,9 +143,11 @@ uint8_t inventory_get_contents(uint8_t node_id, CsvRecord *records, uint8_t pg_i
     // called by display function when screen needs to update (nothing else to do in that thread)
     if (xSemaphoreTake(csv_mutx, portMAX_DELAY) == pdTRUE) {
         if (node_csvs[node_id].unit_data.num_records > ITEMS_PER_SCREEN * pg_idx) {
-            uint8_t record_mod = pg_idx == 0 ? ITEMS_PER_SCREEN : ITEMS_PER_SCREEN * pg_idx;
-            records_read = (node_csvs[node_id].unit_data.num_records % record_mod) * sizeof(CsvRecord);
-            memcpy((void *)records, 
+            if (pg_idx * ITEMS_PER_SCREEN == 0)
+                records_read = node_csvs[node_id].unit_data.num_records <= ITEMS_PER_SCREEN ? NUM_UNITS : ITEMS_PER_SCREEN;
+            else
+                records_read = node_csvs[node_id].unit_data.num_records % (pg_idx * ITEMS_PER_SCREEN);
+            memcpy((void *)records,
                     (const void *)&node_csvs[node_id].unit_inventory[ITEMS_PER_SCREEN * pg_idx],
                     records_read);
         }
@@ -164,8 +166,10 @@ uint8_t inventory_get_unit_stats(unit_record_t *records, uint8_t pg_idx) {
     uint8_t records_read = 0;
     if (xSemaphoreTake(csv_mutx, portMAX_DELAY) == pdTRUE) {
         if (NUM_UNITS > pg_idx * NODES_PER_SCREEN) {
-            uint8_t record_mod = pg_idx == 0 ? NODES_PER_SCREEN : NODES_PER_SCREEN * pg_idx;
-            records_read = (NUM_UNITS % record_mod);
+            if (pg_idx * NODES_PER_SCREEN == 0)
+                records_read = NUM_UNITS <= NODES_PER_SCREEN ? NUM_UNITS : NODES_PER_SCREEN;
+            else
+                records_read = NUM_UNITS % (pg_idx * NODES_PER_SCREEN);
 
             for (uint8_t i = 0; i < records_read; ++i) {
                 snprintf(records[i].capacity, sizeof(records[i].capacity), "%02d/%02d", 
@@ -198,8 +202,11 @@ static void task_inventory(void *arg) {
     msg trans_msg = msg_init_default;
     uint8_t stat = STATUS_OK, records_ready = 0;
 
-    if (sd_wait_ready() == pdTRUE)
-        load_inventory();
+    // if (sd_wait_ready() == pdTRUE)
+    stat = sd_mount();
+    if (stat)
+        for(;;);
+    load_inventory();
     
     tag_init();
 
@@ -232,9 +239,6 @@ static void task_inventory(void *arg) {
             stat = inventory_flush_transactions(); // eventually log any errors
             prev_flush_tick = curr_flush_tick;
         }
-
-        UBaseType_t high_stk_usage = uxTaskGetStackHighWaterMark(NULL);
-        // printf("INVENT TASK: FREE RAM = %d - %d\r\n", INVENTORY_TASK_STK_DEPTH, high_stk_usage);
     }
 }
 

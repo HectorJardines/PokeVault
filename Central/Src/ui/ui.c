@@ -9,16 +9,15 @@
 static int16_t currentScreen = -1;
 static lv_obj_t *small_screen;
 
-static lv_obj_t *getLvglObjectFromIndex(int32_t index) {
-    if (index == -1) {
-        return 0;
-    }
-    return ((lv_obj_t **)&objects)[index];
-}
+static void reparent_children(lv_obj_t *screen);
+static lv_obj_t *getLvglObjectFromIndex(int32_t index);
+
+
 
 void loadScreen(enum ScreensEnum screenId) {
     lv_obj_t *old = lv_screen_active();
     lv_screen_load(small_screen);
+    reparent_children(old);
     lv_obj_delete(old);
     uint32_t delay = 0;
 
@@ -61,4 +60,27 @@ void ui_init() {
 
 void ui_tick() {
     tick_screen(currentScreen);
+}
+
+
+/**
+ * @brief Reparents all children of the screen to flatten display structure
+ * 
+ * 
+ * This function should be called before deleting a screen
+ * to eliminate the recursive depth of the lv_obj_delete 
+ * function.
+ *
+ */
+static void reparent_children(lv_obj_t *screen) {
+
+}
+
+
+
+static lv_obj_t *getLvglObjectFromIndex(int32_t index) {
+    if (index == -1) {
+        return 0;
+    }
+    return ((lv_obj_t **)&objects)[index];
 }

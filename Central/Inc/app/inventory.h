@@ -32,7 +32,7 @@
 
 #define MAX_ITEMS           (50)
 #define MAX_UNIQUE_ITEMS    (20)
-#define NUM_UNITS           (3U)
+#define NUM_UNITS           (7U)
 
 /*********************
  * STRUCTS/ENUMS

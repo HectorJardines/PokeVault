@@ -18,22 +18,19 @@
 #define DISPLAY_WIDTH       (240U) // px
 #define DISPLAY_HEIGHT      (320U) // px
 
-
 #define DISP_TOUCH_TIMEOUT  (20U) // ms
 #define DISPLAY_PARTIAL_DIV (10U)
 #define FRAME_BUF_SIZE      (((DISPLAY_WIDTH * DISPLAY_HEIGHT) / DISPLAY_PARTIAL_DIV) * DISPLAY_BPP)
-#define DISP_TASK_STK_DEPTH (1756U)
+#define DISP_TASK_STK_DEPTH (1256U)
 #define DISP_TASK_PRIO      (4U)
 #define INPUT_Q_LEN         (5U)
+#define MAX_QSTR_LEN        (4U)
 
-
-#define NODE_ID(node_bits)      ((node_bits) & (0x3U))
-#define NODE_PG_IDX(node_bits)  (((node_bits) & (0x1FU << 2)) >> 2)
 #define TOUCH_Msk                   (0x01 << 0)
 #define SCAN_Msk                    (0x01 << 1)
 #define SCAN_CPLT_Msk               (0x01 << 2)
 #define INIT_INVENT_LOAD_Msk        (0x01 << 3)
-#define SCAN_TRANSITION_CPLT_Msk    (0x01 << 4)
+#define ALL_Msk                     ( SCAN_CPLT_Msk| TOUCH_Msk | SCAN_Msk)
 
 
 /******************
@@ -51,11 +48,13 @@ typedef struct {
     uint8_t pg_idx;
     uint8_t valid_records;
     CsvRecord records[ITEMS_PER_SCREEN];
+    char qty_strs[ITEMS_PER_SCREEN][4];
 } invent_screen_t;
 
 
 typedef struct {
     uint8_t pg_idx;
+    uint8_t prev_pg_idx;
     uint8_t valid_units;
     unit_record_t units[NODES_PER_SCREEN];
 } units_screen_t;
@@ -112,6 +111,7 @@ void display_init(void) {
     io_set_interrupt_prio(EXTI0_IRQ_NO, 5);
     io_configure_interrupt(IO_TOUCH_IT, IO_INTERRUPT_FT, xpt2046_touch_isr);
 
+    unit_content.prev_pg_idx = 0xFF;
     input_q = xQueueCreateStatic(INPUT_Q_LEN, sizeof(touch_coord_t), input_buf, &_input_q);
     disp_tsk = xTaskCreateStatic(task_display, "Display Task", DISP_TASK_STK_DEPTH, 
                                 NULL, DISP_TASK_PRIO, disp_stk, &_disp_tsk);
@@ -122,12 +122,9 @@ void display_init(void) {
 
 
 void action_back_to_main(lv_event_t * e) {
-    invent_content.pg_idx = 0;
+    unit_content.prev_pg_idx = unit_content.pg_idx;
+    unit_content.pg_idx = 0;
     loadScreen(SCREEN_ID_MAIN);
-
-    unit_content.valid_units = inventory_get_unit_stats(unit_content.units, unit_content.pg_idx);
-    if (unit_content.valid_units > 0)
-        update_units();
 }
 
 
@@ -147,10 +144,9 @@ void action_next_items(lv_event_t * e) {
     // AT MOST 4 ITEMS SCREEN PER NODE (use lower 2 bits)
     // UPPER 5 BITS USED FOR NODE ID
     lv_obj_t *obj = lv_event_get_target_obj(e);
-    uint8_t node_bits = *((uint8_t *)lv_obj_get_user_data(obj)); 
+    uint8_t node_id = *((uint8_t *)lv_obj_get_user_data(obj)); 
     
-
-    invent_content.valid_records = inventory_get_contents(NODE_ID(node_bits), invent_content.records, invent_content.pg_idx);
+    invent_content.valid_records = inventory_get_contents(node_id, invent_content.records, invent_content.pg_idx);
     if (invent_content.valid_records > 0) {
         update_items();
         invent_content.pg_idx++;
@@ -169,13 +165,13 @@ void action_next_items(lv_event_t * e) {
  */
 void action_previous_items(lv_event_t * e) {
     lv_obj_t *obj = lv_event_get_target_obj(e);
-    uint8_t node_bits = *((uint8_t *)lv_obj_get_user_data(obj));
+    uint8_t node_id = *((uint8_t *)lv_obj_get_user_data(obj));
 
     if (invent_content.pg_idx > 0) {
-        invent_content.pg_idx--;
-        invent_content.valid_records = inventory_get_contents(NODE_ID(node_bits), invent_content.records, invent_content.pg_idx);
+        invent_content.valid_records = inventory_get_contents(node_id, invent_content.records, invent_content.pg_idx);
         if (invent_content.valid_records > 0) {
             update_items(); // could optionally display a blank screen
+            invent_content.pg_idx--;
         }
     }
 }
@@ -197,14 +193,11 @@ void action_register_prompt(lv_event_t * e) {
  * 
  */
 void action_to_inventory(lv_event_t * e) {
-    loadScreen(SCREEN_ID_INVENTORY); // gonna need to either block here or sleep the thread    
     lv_obj_t *obj = lv_event_get_target_obj(e);
-    uint8_t node_bits = *((uint8_t *)lv_obj_get_user_data(obj));
+    uint8_t node_id = *((uint8_t *)lv_obj_get_user_data(obj));
 
-    invent_content.valid_records = inventory_get_contents(NODE_ID(node_bits), invent_content.records, invent_content.pg_idx);
-    if (invent_content.valid_records > 0) {
-        update_items();
-    }
+    invent_content.valid_records = inventory_get_contents(node_id, invent_content.records, invent_content.pg_idx);
+    loadScreen(SCREEN_ID_INVENTORY); // gonna need to either block here or sleep the thread
 }
 
 /**
@@ -220,33 +213,76 @@ void action_scan_prompt(lv_event_t * e) {
 }
 
 
+/**
+ * @brief Signals inventory loaded to display task
+ * 
+ * This function notifies the display task of inventory
+ * being loaded by the inventory task. I.e. the display task
+ * can now update its contents.
+ */
 void display_first_load_ready(void) {
     xTaskNotify(disp_tsk, INIT_INVENT_LOAD_Msk, eSetBits);
 }
 
+
+/**
+ * @brief Signals rfid tag scan complete to display task 
+ * 
+ * This API signals that an RFID tag has been successfully
+ * scanned. Display task can then update its current screen
+ * 
+ */
 void display_load_scanned_screen(void) {
     xTaskNotify(disp_tsk, SCAN_CPLT_Msk, eSetBits);
 }
 
+
+/**
+ * @brief Signals start of RFID tag sequence to display task
+ * 
+ * This API signals that an RFID tag scan
+ * is pending. Display task can then update its 
+ * current screen to display a scan prompt
+ *
+ */
 void display_load_scanning_screen(void) {
     xTaskNotify(disp_tsk, SCAN_Msk, eSetBits);
 }
 
-
-void display_signal_update_units(void) {
-    unit_content.valid_units = inventory_get_unit_stats(&unit_content.units, unit_content.pg_idx);
-    update_units();
+/**
+ * @brief Retrieves unit contents and updates the display contents
+ * 
+ * This function is called on main screen load, or 
+ * when next/prev main screen section is requested.
+ * The API retrieves the necessary unit contents and
+ * displays them on the screen.
+ */
+void display_update_units(void) {
+    if (unit_content.pg_idx != unit_content.prev_pg_idx) { // skip update if prev loaded content is same
+        unit_content.valid_units = inventory_get_unit_stats(&unit_content.units, unit_content.pg_idx);
+        if (unit_content.valid_units > 0)
+            update_units();
+    }
 }
 
+/**
+ * @brief Updates the items in the storage unit
+ * 
+ * This API is called on when a unit is selected.
+ * The display task requests the unit contents from the 
+ * inventory task and updates them on the display.
+ * 
+ */
 void display_update_items(void) {
     update_items();
 }
 
 /**
- * Performs all SPI initialization for the display task
+ * @brief Configures the display and input device
+ * 
  */
 void display_configure(void) {
-    ili_disp.dispp = lv_ili9341_create(DISPLAY_WIDTH, DISPLAY_HEIGHT, 0x00, ili9341_send_cmd, ili9341_send_pixels);
+    ili_disp.dispp = lv_ili9341_create(DISPLAY_WIDTH, DISPLAY_HEIGHT, 0x00, ili9341_spi_send_cmd, ili9341_spi_send_pixels);
     xpt2046_reset_state();
     lv_display_set_color_format(ili_disp.dispp, LV_COLOR_FORMAT_RGB565);
     lv_display_set_buffers(ili_disp.dispp, ili_disp.buf, NULL, FRAME_BUF_SIZE, LV_DISPLAY_RENDER_MODE_PARTIAL);
@@ -270,7 +306,7 @@ void display_configure(void) {
 static void task_display(void *arg) {
     static uint32_t delay = 0, curr_tick = 0, notif = 0;
     
-    if (spi1_wait_init() == HAL_OK);
+    // if (spi1_wait_init() == HAL_OK);
     display_configure();
     do {
         xTaskNotifyWait(0x00, INIT_INVENT_LOAD_Msk, &notif, portMAX_DELAY);
@@ -283,7 +319,7 @@ static void task_display(void *arg) {
             delay = LV_DEF_REFR_PERIOD;
 
         static touch_coord_t input;
-        if (xTaskNotifyWait(0x00, (SCAN_CPLT_Msk | TOUCH_Msk | SCAN_Msk | SCAN_TRANSITION_CPLT_Msk), &notif, pdMS_TO_TICKS(delay)) == pdTRUE) {
+        if (xTaskNotifyWait(0x00, ALL_Msk, &notif, pdMS_TO_TICKS(delay)) == pdTRUE) {
             if (notif & TOUCH_Msk) {
                 xpt2046_read_position(&input.x, &input.y);
                 xQueueSendToBack(input_q, &input, 0);
@@ -351,12 +387,18 @@ static void update_items(void) {
     lv_obj_t *label = NULL;
     for (uint8_t i = 0; i < ITEMS_PER_SCREEN; ++i) {
         container = lv_group_get_obj_by_index(groups.invent_items, i);
+        if (i >= invent_content.valid_records) {
+            lv_obj_add_flag(container, LV_OBJ_FLAG_HIDDEN);
+            continue;
+        } else
+            lv_obj_remove_flag(container, LV_OBJ_FLAG_HIDDEN);
         label = lv_obj_get_child(container, 0);
         lv_label_set_text_static(label, invent_content.records[i].name);
         label = lv_obj_get_child(container, 1);
-        lv_label_set_text_static(label, "NM");
+        lv_label_set_text_static(label, invent_content.records[i].condition);
         label = lv_obj_get_child(container, 2);
-        lv_label_set_text_static(label, "2");
+        lv_snprintf(invent_content.qty_strs[i], MAX_QSTR_LEN, "%d", invent_content.records[i].qty);
+        lv_label_set_text_static(label, invent_content.qty_strs[i]);
     }
 }
 
@@ -364,8 +406,15 @@ static void update_items(void) {
 static void update_units(void) {
     lv_obj_t *button = NULL;
     lv_obj_t *label;
-    for (uint8_t i = 0; i < unit_content.valid_units; ++i) {
+    for (uint8_t i = 0; i < NODES_PER_SCREEN; ++i) {
         button = lv_group_get_obj_by_index(groups.grp_units, i);
+
+        if (i >= unit_content.valid_units) {
+            lv_obj_add_flag(button, LV_OBJ_FLAG_HIDDEN);
+            continue;
+        } else
+            lv_obj_remove_flag(button, LV_OBJ_FLAG_HIDDEN);
+
         label = lv_obj_get_child(button, 0); // UNIT ID
         lv_label_set_text_static(label, unit_content.units[i].id);
         lv_obj_set_user_data(button, &unit_content.units[i].id);
@@ -390,11 +439,11 @@ static void xpt2046_touch_isr(void) {
     static uint32_t prev_tick = 0;
     uint32_t tick = xTaskGetTickCount();
     if (tick - prev_tick < 100) {
-        prev_tick = tick;
         return;
     }
+    prev_tick = tick;
 
-    BaseType_t hpt_ready = pdFALSE;;
+    BaseType_t hpt_ready = pdFALSE;
     xTaskNotifyFromISR(disp_tsk, TOUCH_Msk, eSetBits, &hpt_ready);
     portYIELD_FROM_ISR(hpt_ready);
 }

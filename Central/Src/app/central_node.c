@@ -14,7 +14,7 @@
 
 #define CENTRAL_NODE_STACK_DEPTH    (1024U)
 #define CENTRAL_NODE_PRIO           (3U)
-#define RX_TIMEOUT_TICKS            (pdMS_TO_TICKS(400))
+#define RX_TIMEOUT_TICKS            (pdMS_TO_TICKS(500))
 
 /*************************
  * STATIC DECLARATIONS
@@ -59,56 +59,20 @@ void central_node_init(void) {
     }
 }
 
-
+/**
+ * @brief Posts a message to the central node
+ * 
+ * This function posts a msg receives over RS-485 
+ * to the central node to be handled by one of the 
+ * subsystems.
+ * 
+ * @return pdFALSE on failure/timeout; pdTRUE on success
+ */
 uint8_t central_post_msg(msg *message) {
     uint8_t ret = pdFALSE;
     ret = xQueueSendToBack(msg_arr_q, (const void *)message, pdMS_TO_TICKS(100)); // will process errors eventually
     return ret;
 }
-
-
-/**
- * @brief Polls the peer nodes for any pending messages
- * 
- * This function polls one peer node and returns. Should not be 
- * called again until the peer node has sent it's pending messages or 
- * a tiemout occurs.
- * 
- */
-// uint8_t central_node_poll_peer(void) {
-//     uint8_t status = STATUS_ERR;
-
-//     if (central_node.flags & PEER_RX_CPLT_Msk) {
-//         msg cts_msg = msg_init_default;
-//         cts_msg.node_id = central_node.curr_node;
-//         cts_msg.command = MSG_CMD_CTS;
-
-//         status = c_message_send(&cts_msg);
-//         if (status == STATUS_OK) {
-//             central_node.flags &= ~(PEER_RX_CPLT_Msk); // cleared until RX cplt
-//             status = STATUS_WAIT;
-//         }
-//     }
-
-//     if (central_node.flags & PEER_MSG_READY_Msk) {
-//         msg_array arr = msg_array_init_default;
-//         status = c_message_receive(&arr);
-//         if (status == STATUS_OK) {
-//             if (arr.msgs[arr.msgs_count - 1].command != MSG_CMD_SEND_CPLT)
-//                 status = STATUS_ERR;
-//             for (uint8_t i = 0; i < arr.msgs_count - 1; ++i)
-//                 ring_buffer_push(&pending_msgs, (void *)&arr.msgs[i]);
-//             central_node.pending_msg_cnt = ring_buffer_count(&pending_msgs);
-//         }
-//         central_node.flags |= PEER_RX_CPLT_Msk;
-//         central_node.flags &= ~PEER_MSG_READY_Msk;
-//         central_node.curr_node = (central_node.curr_node + 1) % MAX_PEER_NODE_CNT;
-//     }
-
-//     return status;
-// }
-
-
 
 /*************************
  * STATIC DECLARATIONS
@@ -135,12 +99,12 @@ static void task_central_node(void *arg) {
                 ret = central_node_process(&msg_in);
         }
         central_node.curr_node = (central_node.curr_node + 1) % MAX_PEER_NODE_CNT;
+        cts_msg.node_id = central_node.curr_node;
 
         UBaseType_t high_stk_usage = uxTaskGetStackHighWaterMark(NULL);
-        if(high_stk_usage <= 100) {
+        if(high_stk_usage <= 25) {
             for(;;);
         }
-        // printf("CENTRAL TASK: FREE RAM = %d - %d\r\n", CENTRAL_NODE_STACK_DEPTH, high_stk_usage);
     }
 }
 
@@ -280,13 +244,4 @@ static uint8_t handle_event_msg(msg *event) {
 
     return status;
 }
-
-// void timeout_peer_poll(void) {
-//     central_node.flags &= ~PEER_MSG_READY_Msk;
-//     central_node.flags |= PEER_RX_CPLT_Msk;
-// }
-
-// static void node_poll_complete_cb(void) {
-//     central_node.flags |= (PEER_MSG_READY_Msk);
-// }
 

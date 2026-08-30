@@ -46,7 +46,7 @@ void ili9341_send_cmd(lv_display_t * disp, const uint8_t * cmd, size_t cmd_size,
                                 };
     status = spi1_post_request(&ili_cmd_send);
     if (status == HAL_OK)
-        status = spi1_wait_notify();
+        status = spi1_wait_notify(DEV_DISP);
     (void)status;
 }
 
@@ -66,7 +66,7 @@ void ili9341_send_pixels(lv_display_t * disp, const uint8_t * cmd, size_t cmd_si
                                 };
     status = spi1_post_request(&ili_pixels_send);
     if (status == HAL_OK)
-        status = spi1_wait_notify();
+        status = spi1_wait_notify(DEV_DISP);
     lv_display_flush_ready(disp);
     (void)status;
 }
@@ -79,17 +79,21 @@ void ili9341_send_pixels(lv_display_t * disp, const uint8_t * cmd, size_t cmd_si
  * via a request to the SPI task. Designed to eliminate any 
  * sort of concurrency issues.
  */
-uint8_t ili9341_spi_send_pixels(const uint8_t * cmd, size_t cmd_size, uint8_t * param, size_t param_size) {
+uint8_t ili9341_spi_send_pixels(lv_display_t * disp, const uint8_t * cmd, size_t cmd_size, uint8_t * param, size_t param_size) {
     uint8_t status = 0;
-    DISP_CS_LOW();
-    DISP_CMD_PIN();
-    if (cmd_size > 0)
-        status = spi_transmit(DEV_DISP, cmd, cmd_size);
+    if (spi_lock(DEV_DISP) == 1) {
+        
+        DISP_CS_LOW();
+        DISP_CMD_PIN();
+        if (cmd_size > 0)
+            status = spi_transmit(DEV_DISP, cmd, cmd_size);
 
-    DISP_DATA_PIN();
-    status |= spi_transmit_dma(DEV_DISP, param, param_size);
-    DISP_CS_HIGH();
-
+        DISP_DATA_PIN();
+        status |= spi_transmit_dma(DEV_DISP, param, param_size);
+        DISP_CS_HIGH();
+        lv_display_flush_ready(disp);
+        spi_unlock(DEV_DISP);
+    }
     return status;
 }
 
@@ -100,18 +104,21 @@ uint8_t ili9341_spi_send_pixels(const uint8_t * cmd, size_t cmd_size, uint8_t * 
  * 
  * 
  */
-uint8_t ili9341_spi_send_cmd(const uint8_t * cmd, size_t cmd_size, const uint8_t *param, size_t param_size) {
+uint8_t ili9341_spi_send_cmd(lv_display_t * disp, const uint8_t * cmd, size_t cmd_size, const uint8_t *param, size_t param_size) {
     uint8_t status = 0;
-    DISP_CS_LOW();
-    DISP_CMD_PIN();
+    if (spi_lock(DEV_DISP) == 1) {
+        DISP_CS_LOW();
+        DISP_CMD_PIN();
 
-    status = spi_transmit(DEV_DISP, cmd, cmd_size);
-    if (param_size > 0) {
-        DISP_DATA_PIN();
-        status |= spi_transmit(DEV_DISP, param, param_size);
+        status = spi_transmit(DEV_DISP, cmd, cmd_size);
+        if (param_size > 0) {
+            DISP_DATA_PIN();
+            status |= spi_transmit(DEV_DISP, param, param_size);
+        }
+
+        DISP_CS_HIGH();
+        spi_unlock(DEV_DISP);
     }
-
-    DISP_CS_HIGH();
     return status;
 }
 

@@ -59,6 +59,8 @@ void display_first_load_ready(void);
  * 
  * 
  */
-void display_signal_update_units(void);
+void display_update_units(void);
+
+void display_update_items(void);
 
 #endif

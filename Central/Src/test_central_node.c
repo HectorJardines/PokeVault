@@ -161,7 +161,7 @@ static void test_log_to_sd(void) {
 
 static void test_tag_register(void) {
     init_print();
-    log_init();
+    // log_init();
     display_init();
     c_inventory_init();
 

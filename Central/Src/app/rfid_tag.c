@@ -125,6 +125,15 @@ static mfrc_status_e tag_write_to_mifare1k(rfid_tag_t *tag) {
 }
 
 
+static uint8_t tag_write_with_retry(uint8_t sector, const uint8_t *data_buf, mfrc_wr_type_e type, uint8_t max_retries) {
+    uint8_t status = 0;
+    do {
+        HAL_Delay(5);
+        status = mfrc_picc_write(sector, data_buf, type);
+    } while (status != STATUS_OK && --max_retries);
+    return status;
+}
+
 
 /**
  * @brief Writes data to a NFC215 sticker tag
@@ -133,15 +142,24 @@ static mfrc_status_e tag_write_to_mifare1k(rfid_tag_t *tag) {
  * 
  */
 static mfrc_status_e tag_write_to_nfc215(const uint8_t *data_name, const uint8_t *data_cond) {
-    uint8_t status = MFRC_ERR;
+    volatile uint8_t status = MFRC_ERR;
+    uint8_t retry = 10;
     
-    for (uint8_t i = 0; i < PAGE_SEC_RATIO; ++i)
-        mfrc_picc_write(TYPE_PAGE + i, &item_block_buf[i * PAGE_SEC_RATIO], MFRC_WR_PAGE);
-    if (status == STATUS_OK) {
-        for (uint8_t i = 0; i < PAGE_SEC_RATIO; ++i)
-            status = mfrc_picc_write(NAME_PAGE + i, &data_name[i * PAGE_SEC_RATIO], MFRC_WR_PAGE);
-        status = mfrc_picc_write(COND_PAGE, data_cond, MFRC_WR_PAGE);
+    for (uint8_t i = 0; i < PAGE_SEC_RATIO; ++i) {
+        status = tag_write_with_retry(TYPE_PAGE + i, &item_block_buf[i * PAGE_SEC_RATIO], MFRC_WR_PAGE, retry);
+        if (status)
+            break;
     }
+    if (status == STATUS_OK) {
+        for (uint8_t i = 0; i < PAGE_SEC_RATIO; ++i) {
+            status = tag_write_with_retry(NAME_PAGE + i, &data_name[i * PAGE_SEC_RATIO], MFRC_WR_PAGE, retry);
+            if (status)
+                break;
+        }
+        if (status != STATUS_OK) goto exit;
+        status = tag_write_with_retry(COND_PAGE, data_cond, MFRC_WR_PAGE, retry);
+    }
+exit:
     return status;
 }
 

@@ -38,7 +38,7 @@ void ili9341_send_pixels(lv_display_t * disp, const uint8_t * cmd, size_t cmd_si
  * via a request to the SPI task. Designed to eliminate any 
  * sort of concurrency issues.
  */
-uint8_t ili9341_spi_send_pixels(const uint8_t * cmd, size_t cmd_size, uint8_t * param, size_t param_size);
+uint8_t ili9341_spi_send_pixels(lv_display_t * disp, const uint8_t * cmd, size_t cmd_size, uint8_t * param, size_t param_size);
 
 
 
@@ -48,6 +48,6 @@ uint8_t ili9341_spi_send_pixels(const uint8_t * cmd, size_t cmd_size, uint8_t * 
  * 
  * 
  */
-uint8_t ili9341_spi_send_cmd(const uint8_t * cmd, size_t cmd_size, const uint8_t *param, size_t param_size);
+uint8_t ili9341_spi_send_cmd(lv_display_t * disp, const uint8_t * cmd, size_t cmd_size, const uint8_t *param, size_t param_size);
 
 #endif

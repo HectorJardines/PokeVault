@@ -77,6 +77,7 @@ static StackType_t log_stk[LOG_TASK_STACK_DEPTH];
 void log_init(void) {
     uint8_t status = STATUS_OK;
     spi_init();
+    // rtc_init();
 
     sem_mounted = xSemaphoreCreateBinaryStatic(&_sem_mounted);
     log_q = xQueueCreateStatic(MAX_LOG_CNT, sizeof(log_t), log_buf, &_log_q);
@@ -177,7 +178,11 @@ void log_set_level(log_level_e level) {
 }
 
 
-
+/**
+ * @brief Mount SD card and notify any waiting tasks
+ * 
+ * 
+ */
 void log_configure(void) {
     uint8_t res;
     // will only complete once SPI task has finished intialization of SD
@@ -187,6 +192,11 @@ void log_configure(void) {
     xSemaphoreGive(sem_mounted);
 }
 
+/**
+ * @brief Calling task sleeps until the SD card module is init
+ * 
+ * 
+ */
 uint8_t sd_wait_ready(void) {
     return xSemaphoreTake(sem_mounted, portMAX_DELAY);
 }

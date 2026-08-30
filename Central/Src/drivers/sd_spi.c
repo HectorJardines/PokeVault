@@ -108,8 +108,7 @@ static void SD_ReceiveBuffer(uint8_t *buffer, uint16_t len) {
  */
 static void SD_Resync(void) {
     SD_CS_HIGH();
-    uint8_t i = 0;
-    for (i = 0; i < 11; i++) SD_TransmitByte(0xFF);
+    SD_TransmitByte(0xFF);
 }
 
 static SD_Status SD_WaitReady(void) {
@@ -123,13 +122,13 @@ static SD_Status SD_WaitReady(void) {
 }
 
 static uint8_t SD_SendCommand(uint8_t cmd, uint32_t arg, uint8_t crc) {
-    uint8_t response, retry = 0xFF;
+    uint8_t response = 0xFF, retry = 0xFF;
 
     if (SD_WaitReady() == SD_ERROR) {
         SD_Resync();
         SD_CS_LOW();
         if (SD_WaitReady() == SD_ERROR)
-            return SD_ERROR;
+            return response;
     }
     SD_TransmitByte(0x40 | cmd);
     SD_TransmitByte(arg >> 24);
@@ -236,6 +235,13 @@ SD_Status SD_ReadBlocks(uint8_t *buff, uint32_t sector, uint32_t count) {
         SD_ReceiveBuffer(buff, 512);
         SD_ReceiveByte();  // CRC
         SD_ReceiveByte();
+
+        uint8_t resp = 0;
+        timeout = HAL_GetTick() + 500;
+        do {
+            resp = SD_ReceiveByte();
+        } while(resp == 0 && HAL_GetTick() < timeout); // busy wait
+
         SD_CS_HIGH();
         SD_TransmitByte(0xFF);
         return SD_OK;
@@ -276,6 +282,12 @@ SD_Status SD_ReadMultiBlocks(uint8_t *buff, uint32_t sector, uint32_t count) {
     }
 
     SD_SendCommand(12, 0, 0xFF);  // STOP_TRANSMISSION
+    uint32_t timeout = 0;
+    uint8_t resp = 0;
+    timeout = HAL_GetTick() + 500;
+    do {
+        resp = SD_ReceiveByte();
+    } while(resp == 0 && HAL_GetTick() < timeout); // busy wait
     SD_CS_HIGH();
     SD_TransmitByte(0xFF); // Extra 8 clocks
 

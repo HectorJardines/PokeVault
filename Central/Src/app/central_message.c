@@ -64,8 +64,6 @@ static StackType_t msg_task_stk[MSG_CTLR_STACK_DEPTH];
  * 
  */
 void c_message_init(void) {
-    // register_msg_ready_cb(rs485_reception_cb);
-    // register_msg_consumed_cb(rs485_msg_consumed_cb);
     register_msg_in_cb(message_post_in);
     rs485_init();
 
@@ -124,7 +122,6 @@ static void task_message_ctlr(void *arg) {
                 }
                 break;
             case MSG_OUT:
-                // we should probably block here as to not use the bus when its busy...
                 message_send(&object.message);
                 break;
             default:
@@ -132,8 +129,6 @@ static void task_message_ctlr(void *arg) {
             }
 
             UBaseType_t high_stk_usage = uxTaskGetStackHighWaterMark(NULL);
-            // printf("MSG TASK: FREE RAM = %d - %d\r\n", MSG_CTLR_STACK_DEPTH, high_stk_usage);
-
             memset((void *)&object, 0, sizeof(object));
         }
     }

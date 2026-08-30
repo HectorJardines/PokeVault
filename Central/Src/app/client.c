@@ -115,26 +115,6 @@ uint8_t client_post_message(uint8_t *msg, uint16_t len) {
 }
 
 
-
-// uint8_t client_retrieve_message(uint8_t *msg, uint16_t *len) {
-//     uint8_t status = CLIENT_OK;
-//     if (ring_buffer_empty(&get_req_q))
-//         status = CLIENT_IDLE;
-    
-//     if (status == CLIENT_OK) {
-//         net_msg_t server_msg;
-//         ring_buffer_pop(&get_req_q, (void *)&server_msg);
-//         memcpy((void *)msg, (void *)server_msg.msg_body, server_msg.msg_len);
-//         *len = server_msg.msg_len;
-
-//         client.msgs_avail = ring_buffer_count(&get_req_q);
-//     }
-
-//     return status;
-// }
-
-
-
 /**
  * @brief Checks whether the client is connected
  * 
@@ -182,19 +162,18 @@ static void task_client(void *arg) {
 
 
     ret = w5500_configure();
+    // if (ret)
+    //     LOG_ERR("FAILED TO INIT W5500 ETH MODULE\n\r");
     ret = wiz_tls_init(&client.tls_context, &client.sock_num);
-
+    // if (ret)
+    //     LOG_ERR("FAILED TO INIT TLS MODULE\n\r");
     // task body
     for (;;) {
-        while (!client_connected()) {
-            taskENTER_CRITICAL();
+        while (!client_connected())
             client_connect();
-            taskEXIT_CRITICAL();
-        }
         
-        if (xQueueReceive(request_q, &msg_post, CLI_POST_REQ_TIMEOUT) == pdTRUE) {
+        if (xQueueReceive(request_q, &msg_post, CLI_POST_REQ_TIMEOUT) == pdTRUE)
             ret = client_send(&msg_post);
-        }
 
         curr_tick = xTaskGetTickCount();
         if (curr_tick - prev_getreq_tick >= CLI_GET_REQ_PERIOD) {
@@ -204,10 +183,6 @@ static void task_client(void *arg) {
             }
             prev_getreq_tick = curr_tick;
         }   
-
-
-        UBaseType_t high_stk_usage = uxTaskGetStackHighWaterMark(NULL);
-        // printf("CLI TASK: FREE RAM = %d - %d\r\n", CLI_STACK_DEPTH, high_stk_usage);
     }
 }
 
@@ -262,11 +237,6 @@ static uint8_t client_disconnect(void) {
 
 static uint8_t client_send(net_msg_t *msg) {
     uint8_t status = CLIENT_IDLE;
-    // net_msg_t curr_msg;
-    // memset((void *)&curr_msg, 0, sizeof(curr_msg));
-    // ring_buffer_pop(&post_req_q, (void *)&curr_msg);
-    // client.msgs_pending = ring_buffer_count(&post_req_q); // COULD CHOOSE TO REQUEUE MESSAGES THAT FAIL TO SEND?
-
     // FORMAT HTTPS BODY
     snprintf(client.https_req, sizeof(client.https_req), "{\"chat_id\": %u%09u, \"text\": \"%s\"}",
             client.chat_id_h, client.chat_id_l, msg->msg_body);
@@ -281,7 +251,6 @@ static uint8_t client_send(net_msg_t *msg) {
             "\r\n"
             "%s",
             client.token, (uint32_t)strlen((const char *)client.https_req), client.https_req);
-
 
     if ((status = tls_send_data())) {
         status = tls_read_data();
