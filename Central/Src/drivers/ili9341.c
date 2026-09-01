@@ -89,7 +89,7 @@ uint8_t ili9341_spi_send_pixels(lv_display_t * disp, const uint8_t * cmd, size_t
             status = spi_transmit(DEV_DISP, cmd, cmd_size);
 
         DISP_DATA_PIN();
-        status |= spi_transmit_dma(DEV_DISP, param, param_size);
+        status |= spi_transmit(DEV_DISP, param, param_size);
         DISP_CS_HIGH();
         lv_display_flush_ready(disp);
         spi_unlock(DEV_DISP);

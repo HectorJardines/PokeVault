@@ -511,7 +511,7 @@ static uint8_t mfrc_send_to_picc(uint8_t command, uint8_t *send_data, uint8_t se
                 valid_bits = read_mfrc_register(MFRC_CTL_REG);
                 valid_bits = valid_bits & 0x07; // lower three bits hold the valid bits values
 
-                if (valid_bits) // num of receviced bits 
+                if (valid_bits) // num of receviced bits
                     *rcv_len = (num_bytes - 1) * 8 + valid_bits;
                 else
                     *rcv_len = num_bytes * 8;

@@ -95,6 +95,8 @@ static uint8_t input_buf[INPUT_Q_LEN * sizeof(touch_coord_t)];
  * PUBLIC APIs
  *****************/
 
+
+
 /**
  * @brief Initializes LVGL screens and ILI9341 display driver
  * 
@@ -121,97 +123,6 @@ void display_init(void) {
 }
 
 
-void action_back_to_main(lv_event_t * e) {
-    unit_content.prev_pg_idx = unit_content.pg_idx;
-    unit_content.pg_idx = 0;
-    loadScreen(SCREEN_ID_MAIN);
-}
-
-
-/**
- * @brief Loads the next set of items to be displayed
- * 
- * The button should store hidden data, this data
- * should be initially set to index 0. Each call to 
- * action_next_items increments the index (unless 
- * there are no more items). Calls to action_previous_items
- * decrement the index (unless first page).
- * 
- * This function will retrieve values from the inventory module
- * to display...
- */
-void action_next_items(lv_event_t * e) {
-    // AT MOST 4 ITEMS SCREEN PER NODE (use lower 2 bits)
-    // UPPER 5 BITS USED FOR NODE ID
-    lv_obj_t *obj = lv_event_get_target_obj(e);
-    uint8_t node_id = *((uint8_t *)lv_obj_get_user_data(obj)); 
-    
-    invent_content.valid_records = inventory_get_contents(node_id, invent_content.records, invent_content.pg_idx);
-    if (invent_content.valid_records > 0) {
-        update_items();
-        invent_content.pg_idx++;
-    }
-}
-
-
-/**
- * @brief Loads the previous set of items to display
- * 
- * The button stores hidden data indicating the current page index,
- * initially set to 0. Refer to action_next_items for more 
- * information...
- * 
- * 
- */
-void action_previous_items(lv_event_t * e) {
-    lv_obj_t *obj = lv_event_get_target_obj(e);
-    uint8_t node_id = *((uint8_t *)lv_obj_get_user_data(obj));
-
-    if (invent_content.pg_idx > 0) {
-        invent_content.valid_records = inventory_get_contents(node_id, invent_content.records, invent_content.pg_idx);
-        if (invent_content.valid_records > 0) {
-            update_items(); // could optionally display a blank screen
-            invent_content.pg_idx--;
-        }
-    }
-}
-
-
-/**
- * @brief Display the tag register prompt
- * 
- * 
- */
-void action_register_prompt(lv_event_t * e) {
-    loadScreen(SCREEN_ID_ADD_ITEM);
-    lv_obj_add_event_cb(objects.txt_ar_prod, product_name_ready, LV_EVENT_READY, NULL);
-}
-
-/**
- * @brief Loads the inventory screen associated with the unit
- * 
- * 
- */
-void action_to_inventory(lv_event_t * e) {
-    lv_obj_t *obj = lv_event_get_target_obj(e);
-    uint8_t node_id = *((uint8_t *)lv_obj_get_user_data(obj));
-
-    invent_content.valid_records = inventory_get_contents(node_id, invent_content.records, invent_content.pg_idx);
-    loadScreen(SCREEN_ID_INVENTORY); // gonna need to either block here or sleep the thread
-}
-
-/**
- * @brief Skips item registration, used for RFID card registering
- * 
- * 
- */
-void action_scan_prompt(lv_event_t * e) {
-    // signal to inventory task to scan for tag
-    ili_disp.scan_state = 1;
-    loadScreen(SCREEN_ID_SCAN_PROMPT);
-    inventory_signal_scan(NULL);
-}
-
 
 /**
  * @brief Signals inventory loaded to display task
@@ -223,6 +134,7 @@ void action_scan_prompt(lv_event_t * e) {
 void display_first_load_ready(void) {
     xTaskNotify(disp_tsk, INIT_INVENT_LOAD_Msk, eSetBits);
 }
+
 
 
 /**
@@ -237,6 +149,7 @@ void display_load_scanned_screen(void) {
 }
 
 
+
 /**
  * @brief Signals start of RFID tag sequence to display task
  * 
@@ -249,6 +162,8 @@ void display_load_scanning_screen(void) {
     xTaskNotify(disp_tsk, SCAN_Msk, eSetBits);
 }
 
+
+
 /**
  * @brief Retrieves unit contents and updates the display contents
  * 
@@ -258,12 +173,13 @@ void display_load_scanning_screen(void) {
  * displays them on the screen.
  */
 void display_update_units(void) {
-    if (unit_content.pg_idx != unit_content.prev_pg_idx) { // skip update if prev loaded content is same
+    if (unit_content.pg_idx != unit_content.prev_pg_idx) // skip update if prev loaded content is same
         unit_content.valid_units = inventory_get_unit_stats(&unit_content.units, unit_content.pg_idx);
-        if (unit_content.valid_units > 0)
+    if (unit_content.valid_units > 0)
             update_units();
-    }
 }
+
+
 
 /**
  * @brief Updates the items in the storage unit
@@ -276,6 +192,8 @@ void display_update_units(void) {
 void display_update_items(void) {
     update_items();
 }
+
+
 
 /**
  * @brief Configures the display and input device
@@ -299,6 +217,8 @@ void display_configure(void) {
 
     io_irq_enable_interrupt(IO_TOUCH_IT);
 }
+
+
 
 /******************
  * STATIC DEFS
@@ -417,7 +337,7 @@ static void update_units(void) {
 
         label = lv_obj_get_child(button, 0); // UNIT ID
         lv_label_set_text_static(label, unit_content.units[i].id);
-        lv_obj_set_user_data(button, &unit_content.units[i].id);
+        lv_obj_set_user_data(button, &unit_content.units[i].id_val);
         label = lv_obj_get_child(button, 1);
         if (unit_content.units[i].armed == 0)
             lv_label_set_text_static(label, "ARMED");
@@ -446,4 +366,142 @@ static void xpt2046_touch_isr(void) {
     BaseType_t hpt_ready = pdFALSE;
     xTaskNotifyFromISR(disp_tsk, TOUCH_Msk, eSetBits, &hpt_ready);
     portYIELD_FROM_ISR(hpt_ready);
+}
+
+
+
+/***********************
+ * DIISPLAY ACTIONS
+ ***********************/
+void action_back_to_main(lv_event_t * e) {
+    unit_content.prev_pg_idx = unit_content.pg_idx;
+    unit_content.pg_idx = 0;
+    loadScreen(SCREEN_ID_MAIN);
+}
+
+
+
+/**
+ * @brief Loads the next set of items to be displayed
+ * 
+ * The button should store hidden data, this data
+ * should be initially set to index 0. Each call to 
+ * action_next_items increments the index (unless 
+ * there are no more items). Calls to  
+ * decrement the index (unless first page).
+ * 
+ * This function will retrieve values from the inventory module
+ * to display...
+ */
+void action_next_items(lv_event_t * e) {
+    // AT MOST 4 ITEMS SCREEN PER NODE (use lower 2 bits)
+    // UPPER 5 BITS USED FOR NODE ID
+    lv_obj_t *obj = lv_event_get_target_obj(e);
+    uint8_t node_id = *((uint8_t *)lv_obj_get_user_data(obj)); 
+    
+    invent_content.valid_records = inventory_get_contents(node_id, invent_content.records, invent_content.pg_idx + 1);
+    if (invent_content.valid_records > 0) {
+        update_items();
+        invent_content.pg_idx++;
+    }
+}
+
+
+
+/**
+ * @brief Loads the previous set of items to display
+ * 
+ * The button stores hidden data indicating the current page index,
+ * initially set to 0. Refer to action_next_items for more 
+ * information...
+ * 
+ * 
+ */
+void action_previous_items(lv_event_t * e) {
+    lv_obj_t *obj = lv_event_get_target_obj(e);
+    uint8_t node_id = *((uint8_t *)lv_obj_get_user_data(obj));
+
+    if (invent_content.pg_idx > 0) {
+        invent_content.valid_records = inventory_get_contents(node_id, invent_content.records, invent_content.pg_idx - 1);
+        if (invent_content.valid_records > 0) {
+            update_items(); // could optionally display a blank screen
+            invent_content.pg_idx--;
+        }
+    }
+}
+
+
+
+/**
+ * @brief Loads the next set of units if available
+ * 
+ * 
+ */
+void action_next_units(lv_event_t *e) {
+    uint8_t ret = inventory_get_unit_stats(unit_content.units, unit_content.pg_idx + 1);
+    if (ret > 0) {
+        update_units();
+        unit_content.pg_idx++;
+        unit_content.valid_units = ret;
+    }
+}
+
+
+
+
+/**
+ * @brief Load the previous set of units if available
+ * 
+ * 
+ */
+void action_prev_units(lv_event_t *e) {
+    if (unit_content.pg_idx > 0) {
+        uint8_t ret = inventory_get_unit_stats(unit_content.units, unit_content.pg_idx - 1);
+        if (ret > 0) {
+            unit_content.valid_units = ret;
+            update_units();
+            unit_content.pg_idx--;
+        }
+    }
+}
+
+
+
+/**
+ * @brief Display the tag register prompt
+ * 
+ * 
+ */
+void action_register_prompt(lv_event_t * e) {
+    loadScreen(SCREEN_ID_ADD_ITEM);
+    lv_obj_add_event_cb(objects.txt_ar_prod, product_name_ready, LV_EVENT_READY, NULL);
+}
+
+
+
+/**
+ * @brief Loads the inventory screen associated with the unit
+ * 
+ * 
+ */
+void action_to_inventory(lv_event_t * e) {
+    lv_obj_t *obj = lv_event_get_target_obj(e);
+    uint8_t node_id = *((uint8_t *)lv_obj_get_user_data(obj));
+
+    invent_content.valid_records = inventory_get_contents(node_id, invent_content.records, invent_content.pg_idx);
+    loadScreen(SCREEN_ID_INVENTORY); // gonna need to either block here or sleep the thread
+}
+
+
+
+/**
+ * @brief Skips item registration, used for RFID card registering
+ * 
+ * 
+ */
+void action_scan_prompt(lv_event_t * e) {
+    // signal to inventory task to scan for tag
+    ili_disp.scan_state = 1;
+    loadScreen(SCREEN_ID_SCAN_PROMPT);
+    inventory_signal_scan(NULL);
 }

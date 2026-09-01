@@ -1127,7 +1127,7 @@ void create_screen_main() {
             objects.back_btn_main = obj;
             lv_obj_set_pos(obj, 9, 214);
             lv_obj_set_size(obj, 34, 23);
-            lv_obj_add_event_cb(obj, action_previous_items, LV_EVENT_SINGLE_CLICKED, (void *)0);
+            lv_obj_add_event_cb(obj, action_prev_units, LV_EVENT_SINGLE_CLICKED, (void *)0);
             lv_obj_set_style_shadow_width(obj, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
             lv_obj_set_style_bg_color(obj, lv_color_hex(0x000000), LV_PART_MAIN | LV_STATE_DEFAULT);
             {
@@ -1149,7 +1149,7 @@ void create_screen_main() {
             objects.forward_btn_main = obj;
             lv_obj_set_pos(obj, 275, 214);
             lv_obj_set_size(obj, 34, 23);
-            lv_obj_add_event_cb(obj, action_next_items, LV_EVENT_SINGLE_CLICKED, (void *)0);
+            lv_obj_add_event_cb(obj, action_next_units, LV_EVENT_SINGLE_CLICKED, (void *)0);
             lv_obj_set_style_shadow_width(obj, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
             lv_obj_set_style_bg_color(obj, lv_color_hex(0x000000), LV_PART_MAIN | LV_STATE_DEFAULT);
             {

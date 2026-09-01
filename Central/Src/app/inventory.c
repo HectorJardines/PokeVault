@@ -149,11 +149,11 @@ uint8_t inventory_get_contents(uint8_t node_id, CsvRecord *records, uint8_t pg_i
                 records_read = node_csvs[node_id].unit_data.num_records % (pg_idx * ITEMS_PER_SCREEN);
             memcpy((void *)records,
                     (const void *)&node_csvs[node_id].unit_inventory[ITEMS_PER_SCREEN * pg_idx],
-                    records_read);
+                    (records_read * sizeof(CsvRecord)));
         }
         xSemaphoreGive(csv_mutx);
     }
-    return records_read / sizeof(CsvRecord);
+    return records_read;
 }
 
 
@@ -175,6 +175,7 @@ uint8_t inventory_get_unit_stats(unit_record_t *records, uint8_t pg_idx) {
                 snprintf(records[i].capacity, sizeof(records[i].capacity), "%02d/%02d", 
                         node_csvs[(NODES_PER_SCREEN * pg_idx) + i].unit_data.num_records, MAX_ITEMS);
                 snprintf(records[i].id, sizeof(records[i].id), "UNIT %d", (NODES_PER_SCREEN * pg_idx) + i);
+                records[i].id_val = (NODES_PER_SCREEN * pg_idx) + i;
                 records[i].armed = node_csvs[(NODES_PER_SCREEN * pg_idx) + i].unit_data.armed;
             }
         }

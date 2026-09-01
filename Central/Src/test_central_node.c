@@ -158,6 +158,18 @@ static void test_log_to_sd(void) {
     }
 }
 
+static void test_tag(void) {
+    tag_init();
+    uint8_t status = MFRC_ERR;
+
+    while (status != MFRC_OK) {
+        status = tag_register(TAG_AUTH_CARD, NULL, NULL);
+        if (status == MFRC_OK)
+            for(;;);
+    }
+
+}
+
 
 static void test_tag_register(void) {
     init_print();
@@ -170,6 +182,9 @@ static void test_tag_register(void) {
 
     }
 }
+
+
+
 
 
 int main(void) {

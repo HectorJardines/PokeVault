@@ -100,7 +100,7 @@ void spi_init(void) {
         spi1_act = xTaskCreateStatic(spi1_actor, "TASK SPI1", SPI1_ACT_TSK_DEPTH, NULL, 
                                     SPI1_ACT_TSK_PRIO, spi1_act_stk, &_spi1_act);
         spi1_rdy = xEventGroupCreateStatic(&_spi1_rdy);
-        spi1_req_q = xQueueCreateStatic(5, sizeof(spi1_req_t), spi1_req_buf, &_spi1_req_q);
+        spi1_req_q = xQueueCreateStatic(10, sizeof(spi1_req_t), spi1_req_buf, &_spi1_req_q);
 
         if (spi1_act == NULL || spi1_rdy == NULL || spi1_req_q == NULL)
             while(1) {}
@@ -186,7 +186,6 @@ uint8_t spi_transmit(spi_dev_e dev, uint8_t *data, uint32_t len) {
     else {
         if (spi_lock(dev) == pdTRUE) {
             spix = &spi2.hspi;
-            spi2.curr_dev = dev;
         } else
             return HAL_ERROR;
     }
@@ -212,7 +211,6 @@ uint8_t spi_receive(spi_dev_e dev, uint8_t *read_data, uint32_t read_len) {
     else {
         if (spi_lock(dev) == pdTRUE) {
             spix = &spi2.hspi;
-            spi2.curr_dev = dev;
         } else 
             return HAL_ERROR;
     }
@@ -244,7 +242,6 @@ uint8_t spi_transmit_dma(spi_dev_e dev, uint8_t *data, uint32_t len) {
     else {
         if (spi_lock(dev) == pdTRUE) {
             spix = &spi2.hspi;
-            spi2.curr_dev = dev;
             spi2.curr_task = xTaskGetCurrentTaskHandle();
         } else
             return HAL_ERROR;
@@ -272,7 +269,6 @@ uint8_t spi_receive_dma(spi_dev_e dev, uint8_t *read_data, uint32_t read_len) {
         status = spi_lock(dev);
         if (status == pdTRUE) {
             spix = &spi2.hspi;
-            spi2.curr_dev = dev;
             spi2.curr_task = xTaskGetCurrentTaskHandle();
         } else
             return HAL_ERROR;
@@ -299,7 +295,12 @@ uint8_t spi_lock(spi_dev_e dev) {
     }
     else {
         lock_obtained = xSemaphoreTakeRecursive(spi2.bus_lock, portMAX_DELAY);
-        spi_set_freq(dev);
+        if (spi2.curr_dev != dev) {
+            spi2.curr_dev = dev;
+            spi_set_freq(dev);
+            uint8_t byte = 0xFF;
+            HAL_SPI_Transmit(&spi2.hspi, &byte, sizeof(byte), 500);
+        }
         // uint8_t byte = 0xFF;
         // spi_transmit(dev, &byte, 1);
     }
@@ -402,7 +403,7 @@ static uint8_t spi_wait(spi_dev_e dev) {
     if(dev == DEV_SD)
         while(spi1.hspi.Instance->SR & SPI_SR_BSY);
     else
-        while(spi2.hspi.Instance->SR & SPI_SR_BSY)
+        while(spi2.hspi.Instance->SR & SPI_SR_BSY);
     return ret;
 }
 
@@ -587,10 +588,11 @@ void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef *hspi) {
     }
     else if (hspi->Instance == SPI2) {
         spi2.hpt_trigger = pdFALSE;
-        __HAL_SPI_CLEAR_OVRFLAG(hspi);
+        
         while ((hspi->Instance->SR & SPI_SR_RXNE));
         while (!(hspi->Instance->SR & SPI_SR_TXE));
         while(hspi->Instance->SR & SPI_SR_BSY);
+        __HAL_SPI_CLEAR_OVRFLAG(hspi);
         
         xSemaphoreGiveFromISR(spi2.dma_signal, &spi2.hpt_trigger);
         portYIELD_FROM_ISR(spi2.hpt_trigger);

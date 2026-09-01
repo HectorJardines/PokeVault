@@ -59,6 +59,7 @@ typedef struct {
     char id[8];
     char capacity[6];
     uint8_t armed;
+    uint8_t id_val;
 } unit_record_t;
 
 typedef CsvRecord item_info_t;
