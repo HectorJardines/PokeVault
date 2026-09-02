@@ -111,8 +111,8 @@
 #if defined (MBEDTLS_CLIENT_SUPPOR_AILPAY) //defines for alipay
 		#define MBEDTLS_SSL_MAX_CONTENT_LEN   5120   //define SSL client for connection to AILPAY
 #else
-		#define MBEDTLS_SSL_OUT_CONTENT_LEN    	2096 //2048
-		#define MBEDTLS_SSL_IN_CONTENT_LEN		2096
+		#define MBEDTLS_SSL_OUT_CONTENT_LEN    	2048 //2048
+		#define MBEDTLS_SSL_IN_CONTENT_LEN		8192
 #endif
 
 //#define MBEDTLS_X509_ALLOW_UNSUPPORTED_CRITICAL_EXTENSION

@@ -197,7 +197,7 @@ static void task_client(void *arg) {
  * @return 0 on success; else 1
  */
 static uint8_t client_connect(void) {
-    uint8_t res = w5500_resolve_hostname(&client.host_name, client.host_ip);
+    uint8_t res = w5500_resolve_hostname(client.host_name, client.host_ip);
 
     if (res == CLIENT_OK) {
         res = wiz_tls_connect(&client.tls_context, client.server_port, client.host_ip);

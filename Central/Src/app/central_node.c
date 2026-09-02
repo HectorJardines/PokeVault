@@ -12,7 +12,7 @@
 #define MAX_PENDING_MSGS    (15U)
 #define MAX_PEER_NODE_CNT   (1U)
 
-#define CENTRAL_NODE_STACK_DEPTH    (1024U)
+#define CENTRAL_NODE_STACK_DEPTH    (512U)
 #define CENTRAL_NODE_PRIO           (3U)
 #define RX_TIMEOUT_TICKS            (pdMS_TO_TICKS(500))
 

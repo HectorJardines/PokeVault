@@ -30,15 +30,16 @@
 /************************
  * STATIC DECLARATIONS
  ***********************/
-static uint16_t compute_crc16(uint8_t *buf, uint16_t length);
 static uint8_t serialize_struct(msg* message, uint32_t *length);
 static uint8_t deserialize_msg_buf(uint8_t *serial_buf, uint32_t length, msg_array *message);
+static uint16_t compute_crc16(uint8_t *buf, uint16_t length);
 static uint8_t crc_is_equal(uint16_t crc, uint8_t *received_crc);
+
+static uint8_t process_frame(uint8_t *frame_buf, uint32_t frame_len, msg_array *messages);
+
 static uint8_t message_send(msg *message);
 static void message_post_in(uint8_t *frame, uint32_t len, BaseType_t *hpt);
-static uint8_t process_frame(uint8_t *frame_buf, uint32_t frame_len, msg_array *messages);
-static void rs485_reception_cb(void);
-static void rs485_msg_consumed_cb(void);
+static void message_discover(void);
 
 
 static void task_message_ctlr(void *arg);
@@ -135,6 +136,21 @@ static void task_message_ctlr(void *arg) {
 }
 
 
+/**
+ * @brief Node discover sequence
+ * 
+ * This function implements the storage node
+ * discovery sequence. The implementation utilizes
+ * the 96-bit UID on each stm32f411xe mcu in a BT 
+ * search. If collision is detected on the line ,e.g.
+ * failed CRC check, the mask is extended by 1 bit
+ * until no collision occurrs.
+ * 
+ */
+static void message_discover(void) {
+    
+}
+
 
 /**
  * @brief Sends a message to all peer nodes with node ID set
@@ -213,11 +229,14 @@ static uint16_t compute_crc16(uint8_t *buf, uint16_t length) {
 }
 
 
+
 static uint8_t deserialize_msg_buf(uint8_t *serial_buf, uint32_t length, msg_array *message) {
     pb_istream_t stream_in = pb_istream_from_buffer(serial_buf, length);
     uint8_t status = pb_decode(&stream_in, &msg_array_msg, (void *)message);
     return !status;
 }
+
+
 
 static uint8_t serialize_struct(msg* message, uint32_t *len) {
     uint8_t status = 0;

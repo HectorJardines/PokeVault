@@ -203,13 +203,13 @@ static void task_inventory(void *arg) {
     msg trans_msg = msg_init_default;
     uint8_t stat = STATUS_OK, records_ready = 0;
 
-    // if (sd_wait_ready() == pdTRUE)
-    stat = sd_mount();
-    if (stat)
-        for(;;);
-    load_inventory();
-    
-    tag_init();
+    // stat = sd_mount();
+    // if (stat)
+    //     for(;;);
+    if (sd_wait_ready() == pdTRUE) {
+        load_inventory();
+        tag_init();
+    }
 
     for (;;) {
         if (xQueueReceive(trans_q, (void *)&trans_msg, TRANS_PEND_TIMEOUT) == pdTRUE) {

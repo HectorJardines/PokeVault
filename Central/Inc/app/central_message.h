@@ -29,7 +29,9 @@ typedef enum {
 typedef enum {
     MSG_CMD_NONE,
     MSG_CMD_CTS,
-    MSG_CMD_SEND_CPLT
+    MSG_CMD_SEND_CPLT,
+    MSG_CMD_DISCOVER,
+    MSG_CMD_DISCOVER_RESP
 } message_cmd_e;
 
 /*********************

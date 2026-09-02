@@ -67,9 +67,9 @@ uint8_t system_retrieve_state(system_info_t *sys_state) {
     sys_state->presence = (sens_status.presence_state == PIR_PRESENCE);
     sys_state->no_presence = (sens_status.presence_state == PIR_NO_PRESENCE);
 
-
     status = aht20_read_data(&sys_state->temp_hum_readings);
-
+    if (status == 2)
+        status = STATUS_OK;
     return status;
 }
 
@@ -87,6 +87,8 @@ uint8_t system_retrieve_state(system_info_t *sys_state) {
  */
 uint8_t system_process_state(void) {
     system_info_t tmp;
+    tmp.temp_hum_readings.humidity = active_sys_state.temp_hum_readings.humidity;
+    tmp.temp_hum_readings.temp = active_sys_state.temp_hum_readings.temp;
     uint8_t status = system_retrieve_state(&tmp);
 
     if (status == STATUS_OK) {

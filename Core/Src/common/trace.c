@@ -131,7 +131,7 @@ int _write(int file, char *ptr, int len) {
     return len;
 }
 
-// int putchar(int ch) {
-//     usart_transmit(&ch, 1);
-//     return ch;
-// }
+int putchar(int ch) {
+    usart_transmit(&ch, 1);
+    return ch;
+}

@@ -34,15 +34,13 @@ uint8_t aht20_init(void) {
 }
 
 uint8_t aht20_read_data(aht20_data_t *data) {
-    while (i2c_is_busy());
+    if (i2c_is_busy())
+        return 2; // temp/hum reads are not critical just retry later
     uint8_t rslt = 0;
     // start measurement for all sensors
     rslt |= aht20_start_measurement();
     // delay 75ms (max measurement time)
-    HAL_Delay(80);
-    // sanity check with status bit read
-
-
+    HAL_Delay(75);
     // block until all measurements are read
     rslt |= aht20_read_measurement(data);
 

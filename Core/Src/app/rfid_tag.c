@@ -32,25 +32,6 @@ static uint8_t default_sec_key[SEC_KEY_LEN] = {DEFAULT_SEC_KEY, DEFAULT_SEC_KEY,
 static uint8_t item_type_block[PICC_MEM_BLOCK_LEN] = {0xde, 0xad, 0xbe, 0xef, 0xca, 0xfe, 0,0,0,0,0,0,0,0,0,0};
 const static uint8_t auth_card_type[PICC_MEM_BLOCK_LEN] = {0xca, 0xfe, 0xbe, 0xef, 0xde, 0xad, 0,0,0,0,0,0,0,0,0,0};
 
-// static uint8_t registered_keys[NUM_OF_ALLOWED_TAGS][UID_LEN_BYTES] = {
-//     [TAG_ENTRY1] = {0x00,0x00,0x00,0x00,0x00}, 
-//     [TAG_ENTRY2] = {0x00,0x00,0x00,0x00,0x00}
-// };
-// static uint8_t xor_cipher[SEC_KEY_LEN][UID_LEN_BYTES] = {
-//     // SEC_KEY_BYTE1
-//     {0x12, 0x36, 0x77, 0x89},
-//     //SEC_KEY_BYTE2
-//     {0x67, 0x89, 0x43, 0x32},
-//     // SEC_KEY_BYTE3
-//     {0x51, 0x99, 0xAB, 0xBD},
-//     //SEC_KEY_BYTE4
-//     {0x4D, 0xF3, 0x7C, 0xEF},
-//     // SEC_KEY_BYTE5
-//     {0x04, 0x29, 0xA7, 0xBF},
-//     //SEC_KEY_BYTE6
-//     {0x14, 0xE9, 0xAA, 0xCB},
-// };
-
 
 /**
  * @brief Utilizes a XOR cipher to set the SECTOR KEY
@@ -125,7 +106,7 @@ uint8_t tag_read_keycard_data(uint8_t *card_data) {
     if (status == STATUS_OK) {
         display_change_screen(NULL, 0);
         // if this fails its not a mifare1k keycard
-        status = mfrc522_auth(PICC_AUTH_A, (TYPE_BLOCK * BLOCKS_PER_SECTOR) + SECTOR_TRAIL_BLOCK, default_sec_key, active_tag.uid);
+        status = mfrc522_auth(PICC_AUTH_A, AUTH_BLOCK, default_sec_key, active_tag.uid);
         if (status) goto cleanup;
         status = mfrc_picc_read(TYPE_BLOCK, active_tag.buf);
         if (status) goto cleanup;
@@ -152,7 +133,7 @@ uint8_t tag_read_product_data(uint8_t *prod_name, uint8_t *prod_cond) {
     status = tag_scan_and_select(TAG_PRODUCT, active_tag.buf, active_tag.uid);
     if (status == STATUS_OK) {
         display_change_screen(NULL, 0);
-        
+        HAL_Delay(1);
         status = mfrc_picc_read(TYPE_PAGE, active_tag.buf);
         if (status) goto cleanup;
         for(uint8_t i = 0; i < PICC_MEM_BLOCK_LEN; ++i) { // compare type block read with expected type value
@@ -179,35 +160,6 @@ cleanup:
  * STATIC DEFS
  *********************/
 
-// static void scramble_key(uint8_t *sec_key, uint8_t *uid) {
-//     for (uint8_t i = 0; i < SEC_KEY_LEN; ++i) {
-//         sec_key[i] = 0;
-//         for (uint8_t j = 0; j < UID_LEN_BYTES - 1; ++j)
-//             sec_key[i] += (xor_cipher[i][j] ^ uid[j]);
-//     }
-// }
-
-
-// static void unscramble_key(uint8_t *sec_key) {
-//     for (uint8_t i = 0; i < SEC_KEY_LEN; ++i) {
-//         uint8_t scrambled_byte = sec_key[i];
-//         sec_key[i] = 0;
-//         for (uint8_t j = 0; j < UID_LEN_BYTES - 1; ++j)
-//             sec_key[i] += (xor_cipher[i][j] ^ scrambled_byte); // TODO: FIX THIS WE CANT UNSCRAMBLE THE BYTE DIRECTLY
-//     }
-// }
-
-// static uint8_t search_uid(uint8_t *uid, uint8_t *idx) {
-//     uint8_t match = 0;
-//     for (uint8_t i = 0; i < NUM_OF_ALLOWED_TAGS; ++i) {
-//         match = mfrc_compare(uid, registered_keys[i]);
-//         if (match) {
-//             *idx = i;
-//             break;
-//         }
-//     }
-//     return match;
-// }
 
 static mfrc_status_e tag_scan_and_select(tag_type_e type, uint8_t *card_buf, uint8_t *card_uid) {
    mfrc_status_e mfrc_stat = MFRC_ERR;
@@ -231,7 +183,7 @@ static mfrc_status_e tag_scan_and_select(tag_type_e type, uint8_t *card_buf, uin
     mfrc_stat = mfrc_select_picc(card_buf, MFRC_SEL_CL1);
 
     if (mfrc_stat == MFRC_OK && type == TAG_PRODUCT) {
-        mfrc_stat = mfrc_anticollision(&card_buf, MFRC_AC_CL2); // read next 4 bytes of UID
+        mfrc_stat = mfrc_anticollision(card_buf, MFRC_AC_CL2); // read next 4 bytes of UID
         if (mfrc_stat != MFRC_OK) goto sel_exit;
         for (uint8_t i = 0; i < SER_NUM_LEN_BYTES; ++i)
             card_uid[uid_idx++] = card_buf[i];

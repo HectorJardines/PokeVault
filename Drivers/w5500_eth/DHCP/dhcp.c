@@ -56,7 +56,7 @@
 /* If you want to display debug & processing message, Define _DHCP_DEBUG_ in dhcp.h */
 
 #ifdef _DHCP_DEBUG_
-#include <stdio.h>
+#include "../../../Central/Inc/common/printf-stdarg.h"
 #endif
 
 /* DHCP state machine. */

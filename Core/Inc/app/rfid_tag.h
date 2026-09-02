@@ -22,9 +22,6 @@
 #define MAN_SECTOR_BLOCK    (0U)
 
 #define ITEM_SECTOR         (8U)
-#define TYPE_BLOCK          (1U)
-#define NAME_BLOCK          (2U)
-#define TRAIL_BLOCK         (3U)
 
 /********************
  * ENUMS/STRUCTS
