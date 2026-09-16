@@ -256,6 +256,8 @@ static uint8_t message_flush(void) {
 
     if (status == 1) {
         status = rs485_transmit(serialize_buf, len);
+        if (status == STATUS_OK)
+            printf("FLUSHING %d MESSAGES FROM PEER\n\r", arr.msgs_count);
     }
     return status;
 }

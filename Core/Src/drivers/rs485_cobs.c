@@ -139,7 +139,7 @@ static uint8_t transmit_begin(void) {
 
 
 static void receive_begin(void) {
-    memset((void *)rx_buf, 0, sizeof(rx_buf));
+    memset((void *)rx_buf, 0xFF, sizeof(rx_buf));
     HAL_UARTEx_ReceiveToIdle_DMA(&huart1, rx_buf, MAX_FRAME_LEN);
 }
 
@@ -293,7 +293,26 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart) {
         }
         else {
             tx_ongoing = FALSE;
+            while (!(huart->Instance->SR & USART_SR_TC));
+            huart->Instance->SR &= ~(USART_SR_TC_Msk);
         }
+    }
+}
+
+
+void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart) {
+    uint32_t tmpreg;
+    uint32_t tmp;
+    if (huart->Instance == huart1.Instance) {
+        if ((huart->ErrorCode & HAL_UART_ERROR_ORE) || (huart->ErrorCode & HAL_UART_ERROR_FE)) {
+            tmpreg = huart->Instance->SR;
+            tmp = huart->Instance->DR;
+        }
+        (void)tmpreg;
+        (void)tmp;
+        HAL_UART_DMAStop(huart);
+        usart_init();
+        receive_begin();
     }
 }
 
@@ -303,7 +322,7 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
     uint16_t curr_buf_pos = Size;
     uint8_t frame_status = COBS_NOT_TERM;
     if (huart->Instance == USARTx) {
-        if (curr_buf_pos != prev_buf_pos) {
+        if ((curr_buf_pos != prev_buf_pos) && (huart->RxEventType == HAL_UART_RXEVENT_IDLE)) {
             if (curr_buf_pos > prev_buf_pos) {
                 uint16_t num_bytes = curr_buf_pos - prev_buf_pos;
                 frame_status = process_bytes(&rx_buf[prev_buf_pos], num_bytes, &prev_buf_pos);
@@ -319,6 +338,9 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
             ring_buffer_push(&rx_frame_rb, (void *)&active_rx_buf); // memcpy's to ring buffer
             memset((void *)&active_rx_buf, 0, sizeof(active_rx_buf));
             msg_ready_cb();
+        } else {
+            active_rx_idx = 0;
+            memset((void *)&active_rx_buf, 0, sizeof(active_rx_buf));
         }
     }
 }

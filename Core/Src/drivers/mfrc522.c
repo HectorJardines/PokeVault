@@ -12,6 +12,7 @@
 #define PICC_NUM_ACK_BITS       (4U)
 #define PICC_ACK                (0x0A)
 
+#define MFRC_COMPAT_WRITE_LEN   (4U)
 #define PICC_DB_LEN_BYTES   (16U)
 #define PICC_CRC_LEN_BYTES  (2U)
 #define PICC_DB_PAYLOAD_LEN (PICC_DB_LEN_BYTES + PICC_CRC_LEN_BYTES) // the length of a write payload for MIFARE data block
@@ -350,11 +351,11 @@ uint8_t mfrc_picc_write(uint8_t picc_block_addr, uint8_t *send_data, mfrc_wr_typ
         }
 
         // compatibility for 4-byte page addressed tags
-        for (uint8_t i = 0, wr_idx = 0; i < PICC_DB_LEN_BYTES; ++i) {
-            if (wr_type == MFRC_WR_PAGE && i < PICC_DB_LEN_BYTES - 4)
-                buffer[i] = 0x00;
+        for (uint8_t i = 0; i < PICC_DB_LEN_BYTES; ++i) {
+            if ((wr_type == MFRC_WR_PAGE) && (i < MFRC_COMPAT_WRITE_LEN))
+                buffer[i] = *(send_data + i);
             else
-                buffer[i] = *(send_data + wr_idx++);
+                buffer[i] = 0x00;
         }
 
         mfrc_calculate_crc(buffer, PICC_DB_LEN_BYTES, &buffer[PICC_DB_LEN_BYTES]);

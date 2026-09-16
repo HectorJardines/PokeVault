@@ -3,6 +3,7 @@
 /*************************
  * STATIC DECLARATIONS
  *************************/
+#define BREACHED_ALERT_T    (15000) // 15 second breach alert period
 
 /**
  * @brief 
@@ -42,6 +43,7 @@ void breached_state_enter(struct state_breached_data *data, state_e from, event_
     case SECURITY_ARMED:
         switch (event) {
         case EVENT_UNIT_MOVED:
+            display_refresh_value(LABEL_STATUS, 2);
             msg unauth_move = msg_init_default;
             unauth_move.node_id = NODE_ID;
             unauth_move.which_payload = msg_type_event_tag;
@@ -51,6 +53,7 @@ void breached_state_enter(struct state_breached_data *data, state_e from, event_
             breached_state_run(data);
             break;
         case EVENT_UNIT_OPENED:
+            display_refresh_value(LABEL_STATUS, 2);
             msg unauth_open = msg_init_default;
             unauth_open.node_id = NODE_ID;
             unauth_open.which_payload = msg_type_event_tag;
@@ -74,12 +77,14 @@ void breached_state_enter(struct state_breached_data *data, state_e from, event_
             inventory_item_update();
             breached_state_run(data);
             break;
+        case EVENT_NONE:
+            breached_state_run(data);
+            break;
         case EVENT_REMOTE_AUTH:
         case EVENT_TAG_AUTH:
         case EVENT_UNIT_MOVED:
         case EVENT_UNIT_OPENED:
         case EVENT_UNIT_CLOSED:
-        case EVENT_NONE:
         default:
             break; // NONE OF THE ABOVE SHOULD ENTER THIS STATE
         }
@@ -101,16 +106,19 @@ static uint8_t breached_state_run(struct state_breached_data *data) {
     breached_msg.which_payload = msg_type_alert_tag;
     breached_msg.payload.type_alert.type = ALERT_SECURITY_BREACH;
     
+    uint32_t curr_tick = HAL_GetTick();
     switch (data->state) {
     case BREACHED_INIT:
+    case BREACHED_TICK:
         breached_msg.payload.type_alert.value = 0; // first alert issued
         message_send(&breached_msg);
+        data->state = BREACHED_WAIT;
         break;
-    case BREACHED_BUZZER:
-        break;
-    case BREACHED_ALERT:
-        breached_msg.payload.type_alert.value = 1; // multiple alerts have been issued
-        message_send(&breached_msg);
+    case BREACHED_WAIT:
+        if (curr_tick - data->last_breached_tick > BREACHED_ALERT_T) {
+            data->state = BREACHED_TICK;
+            data->last_breached_tick = curr_tick;
+        }
         break;
     }
 }

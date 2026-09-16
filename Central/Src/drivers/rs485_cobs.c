@@ -282,7 +282,7 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
     uint8_t frame_status = COBS_NOT_TERM;
     if (huart->Instance == USARTx) {
         if (curr_buf_pos != prev_buf_pos) {
-            if (curr_buf_pos > prev_buf_pos) {
+            if ((curr_buf_pos > prev_buf_pos) && (huart1.RxEventType == HAL_UART_RXEVENT_IDLE)) {
                 uint16_t num_bytes = curr_buf_pos - prev_buf_pos;
                 frame_status = process_bytes(&rx_buf[prev_buf_pos], num_bytes, &prev_buf_pos);
             }
@@ -298,9 +298,30 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
             msg_in_cb(&active_rx_buf.buf, (uint32_t)active_rx_buf.len, &hpt);
             memset((void *)&active_rx_buf, 0, sizeof(active_rx_buf));
             portYIELD_FROM_ISR(hpt);
+        } else {
+            active_rx_idx = 0;
+            memset((void *)&active_rx_buf, 0, sizeof(active_rx_buf));
         }
     }
 }
+
+
+void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart) {
+    uint32_t tmpreg;
+    uint32_t tmp;
+    if (huart->Instance == huart1.Instance) {
+        if ((huart->ErrorCode & HAL_UART_ERROR_ORE) || (huart->ErrorCode & HAL_UART_ERROR_FE)) {
+            tmpreg = huart->Instance->SR;
+            tmp = huart->Instance->DR;
+        }
+        (void)tmpreg;
+        (void)tmp;
+        HAL_UART_DMAStop(huart);
+        usart_init();
+        receive_begin();
+    }
+}
+
 
 void USART1_IRQHandler(void) {
     HAL_UART_IRQHandler(&huart1);

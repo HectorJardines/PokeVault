@@ -15,6 +15,7 @@ extern void action_to_inventory(lv_event_t * e);
 extern void action_scan_prompt(lv_event_t * e);
 extern void action_next_units(lv_event_t *e);
 extern void action_prev_units(lv_event_t *e);
+extern void action_focus_ta(lv_event_t *e);
 
 #ifdef __cplusplus
 }

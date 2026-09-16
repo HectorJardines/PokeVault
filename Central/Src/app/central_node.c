@@ -13,7 +13,7 @@
 #define MAX_PEER_NODE_CNT   (1U)
 
 #define CENTRAL_NODE_STACK_DEPTH    (512U)
-#define CENTRAL_NODE_PRIO           (3U)
+#define CENTRAL_NODE_PRIO           (5U)
 #define RX_TIMEOUT_TICKS            (pdMS_TO_TICKS(500))
 
 /*************************
@@ -190,10 +190,15 @@ static uint8_t handle_alert_msg(msg *alert) {
                 alert->payload.type_alert.value == 0 ? "UNIT %d DISARMED" : "UNIT %d ARMED", 
                 alert->node_id);
         status = client_post_message(alert_body, strlen(alert_body));
+        alert->command = CMD_UNIT_STAT_CH;
+        inventory_post_event(alert);
         break;
     case ALERT_SECURITY_BREACH:
         snprintf((char *)alert_body, MAX_HTTPS_BODY_LEN, "URGENT: UNIT %d BREACHED", alert->node_id);
         status = client_post_message(alert_body, strlen(alert_body));
+        alert->payload.type_alert.value = 2;
+        alert->command = CMD_UNIT_STAT_CH;
+        inventory_post_event(alert);
         break;
     case ALERT_SYS_HUM:
         snprintf((char *)alert_body, MAX_HTTPS_BODY_LEN, "WARN: UNIT %d EXCESS HUMIDITITY - %d\%", 

@@ -11,7 +11,7 @@
 #include "socket.h"
 #include "certificate.h"
 #include "mbedtls/debug.h"
-#include <stdio.h>
+#include "../../../Central/Inc/common/printf-stdarg.h"
 #include <string.h>
 #include "HexTrans.h"
 #include "mbedtls/x509_crt.h"
@@ -132,7 +132,7 @@ unsigned int wiz_tls_init(wiz_tls_context* tlsContext, int* socket_fd)
 	//mbedtls_ssl_conf_authmode(tlsContext->conf, MBEDTLS_SSL_VERIFY_REQUIRED);//This option is for server certificate verification
 	mbedtls_ssl_conf_authmode(tlsContext->conf, MBEDTLS_SSL_VERIFY_NONE);
 #if defined (MBEDTLS_DEBUG_C)
-	mbedtls_ssl_conf_dbg(tlsContext->conf, WIZnetDebugCB, stdout);
+	mbedtls_ssl_conf_dbg(tlsContext->conf, WIZnetDebugCB, NULL);
 #endif
 	mbedtls_ssl_set_bio(tlsContext->ssl, socket_fd, SSLSendCB, SSLRecvCB, SSLRecvTimeOutCB);		 //set client's socket send and receive functions
 

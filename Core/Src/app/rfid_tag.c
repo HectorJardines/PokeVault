@@ -20,9 +20,9 @@
 #define AUTH_BLOCK          ((ITEM_SECTOR * BLOCKS_PER_SECTOR) + TRAIL_IDX)
 
 #define PAGES_PER_WRITE     (4U) // we write 16 byte data into 4 byte pages
-#define COND_PAGE           (11U)
-#define NAME_PAGE           (7U)
-#define TYPE_PAGE           (3U)
+#define COND_PAGE           (12U)
+#define NAME_PAGE           (8U)
+#define TYPE_PAGE           (4U)
 
 /***********************
  * STATIC DECLARATIONS
@@ -103,24 +103,24 @@ uint8_t tag_read_keycard_data(uint8_t *card_data) {
     memset((void *)&active_tag, 0, sizeof(active_tag));
 
     status = tag_scan_and_select(TAG_AUTH_CARD, active_tag.buf, active_tag.uid);
-    if (status == STATUS_OK) {
-        display_change_screen(NULL, 0);
-        // if this fails its not a mifare1k keycard
-        status = mfrc522_auth(PICC_AUTH_A, AUTH_BLOCK, default_sec_key, active_tag.uid);
-        if (status) goto cleanup;
-        status = mfrc_picc_read(TYPE_BLOCK, active_tag.buf);
-        if (status) goto cleanup;
-        for (uint8_t i = 0; i < PICC_MEM_BLOCK_LEN; ++i) {
-            if (active_tag.buf[i] != auth_card_type[i]) {
-                status = STATUS_ERR;
-                goto cleanup;
-            }
+    if (status) return status;
+    // if this fails its not a mifare1k keycard
+    status = mfrc522_auth(PICC_AUTH_A, AUTH_BLOCK, default_sec_key, active_tag.uid);
+    if (status) goto cleanup;
+    status = mfrc_picc_read(TYPE_BLOCK, active_tag.buf);
+    if (status) goto cleanup;
+    for (uint8_t i = 0; i < PICC_MEM_BLOCK_LEN; ++i) {
+        if (active_tag.buf[i] != auth_card_type[i]) {
+            status = STATUS_ERR;
+            goto cleanup;
         }
     }
+
 
 cleanup:
     TM_MFRC522_Crypto_Off();
     mfrc_halt();
+    display_change_screen(NULL, 0, status);
     return status;
 }
 
@@ -131,26 +131,26 @@ uint8_t tag_read_product_data(uint8_t *prod_name, uint8_t *prod_cond) {
     memset((void *)&active_tag, 0, sizeof(active_tag));
 
     status = tag_scan_and_select(TAG_PRODUCT, active_tag.buf, active_tag.uid);
-    if (status == STATUS_OK) {
-        display_change_screen(NULL, 0);
-        HAL_Delay(1);
-        status = mfrc_picc_read(TYPE_PAGE, active_tag.buf);
-        if (status) goto cleanup;
-        for(uint8_t i = 0; i < PICC_MEM_BLOCK_LEN; ++i) { // compare type block read with expected type value
-            if (active_tag.buf[i] != item_type_block[i]) {
-                status = STATUS_ERR;
-                goto cleanup;
-            }
-        }
+    if (status) return status;
 
-        status = mfrc_picc_read(NAME_PAGE, prod_name);
-        if (status) goto cleanup;
-        status = mfrc_picc_read(COND_PAGE, prod_cond);
-        if (status) goto cleanup;
+    HAL_Delay(1);
+    status = mfrc_picc_read(TYPE_PAGE, active_tag.buf);
+    if (status) goto cleanup;
+    for(uint8_t i = 0; i < PICC_MEM_BLOCK_LEN; ++i) { // compare type block read with expected type value
+        if (active_tag.buf[i] != item_type_block[i]) {
+            status = STATUS_ERR;
+            goto cleanup;
+        }
     }
+
+    status = mfrc_picc_read(NAME_PAGE, prod_name);
+    if (status) goto cleanup;
+    status = mfrc_picc_read(COND_PAGE, prod_cond);
+    if (status) goto cleanup;
 
 cleanup:
     mfrc_halt();
+    display_change_screen(NULL, 0, status);
     return status;
 }
 

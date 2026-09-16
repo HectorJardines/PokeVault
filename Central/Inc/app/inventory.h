@@ -24,6 +24,7 @@
 #define CMD_GET_INVENT      (3U)
 #define CMD_GET_NODE_STAT   (4U)
 #define RECORDS_READY_CMD   (5U)
+#define CMD_UNIT_STAT_CH    (6U)
 
 #define ITEMS_PER_SCREEN    (7U)
 #define NODES_PER_SCREEN    (6U)
@@ -55,10 +56,17 @@ typedef struct {
     uint32_t uid_hi;
 } item_uid_t;
 
+
+struct unit_data {
+    uint8_t armed   : 1;
+    uint8_t cap_val  : 7;
+};
+
+
 typedef struct {
     char id[8];
     char capacity[6];
-    uint8_t armed;
+    struct unit_data data;
     uint8_t id_val;
 } unit_record_t;
 
@@ -102,7 +110,7 @@ uint8_t inventory_get_contents(uint8_t node_id, CsvRecord *records, uint8_t pg_i
  * 
  * 
  */
-uint8_t inventory_get_unit_stats(unit_record_t *records, uint8_t pg_idx);
+uint8_t inventory_get_unit_stats(unit_record_t *records, uint8_t pg_idx, uint8_t *new_values);
 
 
 
@@ -114,7 +122,7 @@ uint8_t inventory_get_unit_stats(unit_record_t *records, uint8_t pg_idx);
  * else signals a product scan
  * @return 0 on successful signal; else 1
  */
-uint8_t inventory_signal_scan(char *name);
+uint8_t inventory_signal_scan(char *name, char *cond);
 
 
 

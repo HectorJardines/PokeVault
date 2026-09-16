@@ -7,15 +7,13 @@
 /**********************
  * TYPEDEF / MACROS
  **********************/
-#define ITEMS_PER_SCREEN (7U)
-
+#define ITEMS_PER_SCREEN    (7U)
+#define DISP_UNIT_CHANGE    (0U)
+#define DISP_INVENT_CHANGE  (1U)
 
 /***********************
  * PUBLIC APIs
  ********************/
-
-void display_configure(void);
-
 
 /**
  * @brief Intialize LVGL display library and ILI9341 driver
@@ -42,6 +40,15 @@ void display_load_scanning_screen(void);
  * 
  */
 void display_load_scanned_screen(void);
+
+
+/**
+ * @brief Signal the unit status has changed for some unit
+ * 
+ * 
+ * 
+ */
+void display_signal_unit_change(uint8_t type);
 
 
 /**

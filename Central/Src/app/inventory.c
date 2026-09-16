@@ -20,17 +20,16 @@
 #define MAX_TRANSACTIONS    (10U)
 #define FILE_NAME_LEN       (12U)
 
-#define TRANS_PEND_TIMEOUT  (pdMS_TO_TICKS(4500))
+#define TRANS_PEND_TIMEOUT  (pdMS_TO_TICKS(10000)) // timeout to sync changes every 10s
 #define TRANS_POST_TIMEOUT  (pdMS_TO_TICKS(25))
-#define INVENT_FLUSH_PERIOD (pdMS_TO_TICKS(5000)) // flush every 5 seconds
 
 #define INVENTORY_TASK_STK_DEPTH    (512U)
 #define INVENTORY_TASK_PRIO         (4U)
 
 typedef struct {
     uint8_t state               : 1;    /* DIRTY OR CLEAN : DICTATES WHETHER WE FLUSH CSV UPDATES */
-    uint8_t armed               : 1;    /* ARMED/DISARMED */
-    uint8_t num_records         : 6;    /* MAX OF 64 ITEMS PER UNIT */
+    uint8_t armed               : 2;    /* ARMED/DISARMED */
+    uint8_t num_records         : 8;    /* MAX OF 256 ITEMS PER UNIT */
 } unit_info_t;
 
 struct unit_csv_t{
@@ -113,7 +112,7 @@ uint8_t inventory_post_event(msg *transaction_msg) {
  * else signals a product scan
  * @return 0 on successful signal; else 1
  */
-uint8_t inventory_signal_scan(char *name) {
+uint8_t inventory_signal_scan(char *name, char *cond) {
     uint8_t stat = pdFALSE;
     msg scan_msg = msg_init_default;
     scan_msg.which_payload = msg_type_transaction_tag;
@@ -121,7 +120,7 @@ uint8_t inventory_signal_scan(char *name) {
     if (name != NULL) {
         scan_msg.command = SCAN_PRODUCT_CMD;
         memcpy((void *)scan_msg.payload.type_transaction.item_name, (const void *)name, MAX_ITEM_NAME_LEN);
-        memcpy((void *)scan_msg.payload.type_transaction.item_cond, (const void *)"NM", strlen("NM"));
+        memcpy((void *)scan_msg.payload.type_transaction.item_cond, (const void *)cond, MAX_ITEM_CND_LEN);
         stat = xQueueSendToBack(trans_q, &scan_msg, portMAX_DELAY);
     }
     else {
@@ -144,7 +143,7 @@ uint8_t inventory_get_contents(uint8_t node_id, CsvRecord *records, uint8_t pg_i
     if (xSemaphoreTake(csv_mutx, portMAX_DELAY) == pdTRUE) {
         if (node_csvs[node_id].unit_data.num_records > ITEMS_PER_SCREEN * pg_idx) {
             if (pg_idx * ITEMS_PER_SCREEN == 0)
-                records_read = node_csvs[node_id].unit_data.num_records <= ITEMS_PER_SCREEN ? NUM_UNITS : ITEMS_PER_SCREEN;
+                records_read = node_csvs[node_id].unit_data.num_records <= ITEMS_PER_SCREEN ? node_csvs[node_id].unit_data.num_records : ITEMS_PER_SCREEN;
             else
                 records_read = node_csvs[node_id].unit_data.num_records % (pg_idx * ITEMS_PER_SCREEN);
             memcpy((void *)records,
@@ -162,7 +161,7 @@ uint8_t inventory_get_contents(uint8_t node_id, CsvRecord *records, uint8_t pg_i
  * 
  * 
  */
-uint8_t inventory_get_unit_stats(unit_record_t *records, uint8_t pg_idx) {
+uint8_t inventory_get_unit_stats(unit_record_t *records, uint8_t pg_idx, uint8_t *new_values) {
     uint8_t records_read = 0;
     if (xSemaphoreTake(csv_mutx, portMAX_DELAY) == pdTRUE) {
         if (NUM_UNITS > pg_idx * NODES_PER_SCREEN) {
@@ -172,11 +171,16 @@ uint8_t inventory_get_unit_stats(unit_record_t *records, uint8_t pg_idx) {
                 records_read = NUM_UNITS % (pg_idx * NODES_PER_SCREEN);
 
             for (uint8_t i = 0; i < records_read; ++i) {
-                snprintf(records[i].capacity, sizeof(records[i].capacity), "%02d/%02d", 
-                        node_csvs[(NODES_PER_SCREEN * pg_idx) + i].unit_data.num_records, MAX_ITEMS);
-                snprintf(records[i].id, sizeof(records[i].id), "UNIT %d", (NODES_PER_SCREEN * pg_idx) + i);
-                records[i].id_val = (NODES_PER_SCREEN * pg_idx) + i;
-                records[i].armed = node_csvs[(NODES_PER_SCREEN * pg_idx) + i].unit_data.armed;
+                uint8_t id = (NODES_PER_SCREEN * pg_idx) + i;
+                uint8_t cap =  node_csvs[id].unit_data.num_records;
+                uint8_t armed_stat = node_csvs[id].unit_data.armed;
+
+                if (records[i].data.cap_val == cap && records[i].id_val == id && records[i].data.armed == armed_stat)
+                    continue;
+
+                records[i].id_val = id;
+                records[i].data.cap_val = cap;
+                records[i].data.armed = armed_stat;
             }
         }
         xSemaphoreGive(csv_mutx);
@@ -200,31 +204,27 @@ uint8_t inventory_get_unit_stats(unit_record_t *records, uint8_t pg_idx) {
 static void task_inventory(void *arg) {
     TickType_t prev_flush_tick = 0;
     TickType_t curr_flush_tick = 0;
-    msg trans_msg = msg_init_default;
+    msg evt_msg = msg_init_default;
     uint8_t stat = STATUS_OK, records_ready = 0;
 
-    // stat = sd_mount();
-    // if (stat)
-    //     for(;;);
     if (sd_wait_ready() == pdTRUE) {
         load_inventory();
         tag_init();
     }
 
     for (;;) {
-        if (xQueueReceive(trans_q, (void *)&trans_msg, TRANS_PEND_TIMEOUT) == pdTRUE) {
-            if(trans_msg.command == 0)
-                process_transaction(&trans_msg);
-            else if (trans_msg.command == SCAN_PRODUCT_CMD) { // prob change to a state based approach, dont want to block all other tasks here
+        if (xQueueReceive(trans_q, (void *)&evt_msg, TRANS_PEND_TIMEOUT) == pdTRUE) {
+            if(evt_msg.command == 0)
+                process_transaction(&evt_msg);
+            else if (evt_msg.command == SCAN_PRODUCT_CMD) { // prob change to a state based approach, dont want to block all other tasks here
                 // scan for product tag
                 display_load_scanning_screen();
                 do {
-                    stat = tag_register(TAG_PRODUCT, trans_msg.payload.type_transaction.item_name, trans_msg.payload.type_transaction.item_cond);
+                    stat = tag_register(TAG_PRODUCT, evt_msg.payload.type_transaction.item_name, evt_msg.payload.type_transaction.item_cond);
                     vTaskDelay(1); // allow other tasks to continue
                 } while (stat != STATUS_OK);
                 display_load_scanned_screen();
-            }
-            else if (trans_msg.command == SCAN_TAG_CMD) {
+            } else if (evt_msg.command == SCAN_TAG_CMD) {
                 // scan for key tag
                 display_load_scanning_screen();
                 do {
@@ -232,14 +232,12 @@ static void task_inventory(void *arg) {
                     vTaskDelay(1); // allow other tasks to continue
                 } while (stat != STATUS_OK);
                 display_load_scanned_screen();
+            } else if (evt_msg.command == CMD_UNIT_STAT_CH) {
+                node_csvs[evt_msg.node_id].unit_data.armed = evt_msg.payload.type_alert.value;
+                display_signal_unit_change(DISP_UNIT_CHANGE);
             }
-        }
-
-        curr_flush_tick = xTaskGetTickCount();
-        if (curr_flush_tick - prev_flush_tick >= INVENT_FLUSH_PERIOD) {
-            stat = inventory_flush_transactions(); // eventually log any errors
-            prev_flush_tick = curr_flush_tick;
-        }
+        } else // idea is that if we are constantly getting transaction messages we don't want to keep flushing every time only flush after 10s of idle time
+            stat = inventory_flush_transactions();
     }
 }
 
@@ -307,6 +305,7 @@ static uint8_t inventory_remove_item(uint32_t item_idx, uint8_t node_id) {
             memset((void *)&node_csvs[node_id].unit_inventory[node_csvs[node_id].unit_data.num_records - 1], 0, sizeof(CsvRecord));
             node_csvs[node_id].unit_data.num_records--;
         }
+        display_signal_unit_change(DISP_INVENT_CHANGE);
     }
 
     return status;
@@ -369,6 +368,7 @@ static uint8_t inventory_enroll_item(char *item_name, char *itm_condition, uint8
 
         // increment record count
         node_csvs[node_id].unit_data.num_records++;
+        display_signal_unit_change(DISP_INVENT_CHANGE);
     }
 
     return status;

@@ -30,7 +30,9 @@
 #define SCAN_Msk                    (0x01 << 1)
 #define SCAN_CPLT_Msk               (0x01 << 2)
 #define INIT_INVENT_LOAD_Msk        (0x01 << 3)
-#define ALL_Msk                     ( SCAN_CPLT_Msk| TOUCH_Msk | SCAN_Msk)
+#define INVENT_UPDATE_UNIT_Msk      (0x01 << 4)
+#define INVENT_UPDATE_ITEM_Msk      (0x01 << 5)
+#define ALL_Msk                     ( 0xFFFFFFFF )
 
 
 /******************
@@ -42,6 +44,11 @@ typedef struct {
     lv_timer_t *tran_tim;
     uint8_t buf[FRAME_BUF_SIZE];
     uint8_t scan_state;
+    uint8_t curr_node;
+    uint8_t curr_screen;
+
+    char ta_name[MAX_ITEM_NAME_LEN];
+    char ta_cond[MAX_ITEM_CND_LEN];
 } display_t;
 
 typedef struct {
@@ -68,6 +75,7 @@ typedef struct {
 /*************
  * STATIC DEC
  **************/
+static void display_configure(void);
 static void task_display(void *arg);
 static void touch_input_cb(lv_indev_t *in, lv_indev_data_t *data);
 static void update_items(void);
@@ -162,6 +170,19 @@ void display_load_scanning_screen(void) {
     xTaskNotify(disp_tsk, SCAN_Msk, eSetBits);
 }
 
+/**
+ * @brief Signal the unit status has changed for some unit
+ * 
+ * 
+ * 
+ */
+void display_signal_unit_change(uint8_t type) {
+    if (type == DISP_UNIT_CHANGE)
+        xTaskNotify(disp_tsk, INVENT_UPDATE_UNIT_Msk, eSetBits);
+    else if (type == DISP_INVENT_CHANGE)
+        xTaskNotify(disp_tsk, INVENT_UPDATE_ITEM_Msk, eSetBits);
+}
+
 
 
 /**
@@ -173,12 +194,12 @@ void display_load_scanning_screen(void) {
  * displays them on the screen.
  */
 void display_update_units(void) {
-    if (unit_content.pg_idx != unit_content.prev_pg_idx) // skip update if prev loaded content is same
-        unit_content.valid_units = inventory_get_unit_stats(&unit_content.units, unit_content.pg_idx);
+    // if (unit_content.pg_idx != unit_content.prev_pg_idx) // skip update if prev loaded content is same
+    unit_content.valid_units = inventory_get_unit_stats(&unit_content.units, unit_content.pg_idx, NULL);
     if (unit_content.valid_units > 0)
             update_units();
+    ili_disp.curr_screen = SCREEN_ID_MAIN;
 }
-
 
 
 /**
@@ -191,31 +212,7 @@ void display_update_units(void) {
  */
 void display_update_items(void) {
     update_items();
-}
-
-
-
-/**
- * @brief Configures the display and input device
- * 
- */
-void display_configure(void) {
-    ili_disp.dispp = lv_ili9341_create(DISPLAY_WIDTH, DISPLAY_HEIGHT, 0x00, ili9341_spi_send_cmd, ili9341_spi_send_pixels);
-    xpt2046_reset_state();
-    lv_display_set_color_format(ili_disp.dispp, LV_COLOR_FORMAT_RGB565);
-    lv_display_set_buffers(ili_disp.dispp, ili_disp.buf, NULL, FRAME_BUF_SIZE, LV_DISPLAY_RENDER_MODE_PARTIAL);
-    lv_display_set_rotation(ili_disp.dispp, LV_DISPLAY_ROTATION_90);
-
-    // DISPLAY TOUCH INPUT DEV
-    ili_disp.input = lv_indev_create();
-    lv_indev_set_type(ili_disp.input, LV_INDEV_TYPE_POINTER);
-    lv_indev_set_read_cb(ili_disp.input, touch_input_cb);
-    
-    ili_disp.tran_tim = lv_timer_create(load_screen_cb, 700, &ili_disp.scan_state);
-    lv_timer_pause(ili_disp.tran_tim);
-    lv_timer_set_repeat_count(ili_disp.tran_tim, 1);
-
-    io_irq_enable_interrupt(IO_TOUCH_IT);
+    ili_disp.curr_screen = SCREEN_ID_INVENTORY;
 }
 
 
@@ -226,7 +223,6 @@ void display_configure(void) {
 static void task_display(void *arg) {
     static uint32_t delay = 0, curr_tick = 0, notif = 0;
     
-    // if (spi1_wait_init() == HAL_OK);
     display_configure();
     do {
         xTaskNotifyWait(0x00, INIT_INVENT_LOAD_Msk, &notif, portMAX_DELAY);
@@ -251,6 +247,13 @@ static void task_display(void *arg) {
                 loadScreen(SCREEN_ID_SCANNED);
                 lv_timer_resume(ili_disp.tran_tim);
             }
+            if (notif & INVENT_UPDATE_ITEM_Msk && ili_disp.curr_screen == SCREEN_ID_INVENTORY) {
+                invent_content.valid_records = inventory_get_contents(ili_disp.curr_node, invent_content.records, invent_content.pg_idx);
+                display_update_items();
+            }
+            if (notif & INVENT_UPDATE_UNIT_Msk && ili_disp.curr_screen == SCREEN_ID_MAIN) {
+                display_update_units();
+            }
         }
         volatile UBaseType_t high_stk_usage = uxTaskGetStackHighWaterMark(NULL);
         if (high_stk_usage < 25) {
@@ -258,6 +261,31 @@ static void task_display(void *arg) {
         }
     }
 }
+
+
+/**
+ * @brief Configures the display and input device
+ * 
+ */
+static void display_configure(void) {
+    ili_disp.dispp = lv_ili9341_create(DISPLAY_WIDTH, DISPLAY_HEIGHT, 0x00, ili9341_spi_send_cmd, ili9341_spi_send_pixels);
+    xpt2046_reset_state();
+    lv_display_set_color_format(ili_disp.dispp, LV_COLOR_FORMAT_RGB565);
+    lv_display_set_buffers(ili_disp.dispp, ili_disp.buf, NULL, FRAME_BUF_SIZE, LV_DISPLAY_RENDER_MODE_PARTIAL);
+    lv_display_set_rotation(ili_disp.dispp, LV_DISPLAY_ROTATION_90);
+
+    // DISPLAY TOUCH INPUT DEV
+    ili_disp.input = lv_indev_create();
+    lv_indev_set_type(ili_disp.input, LV_INDEV_TYPE_POINTER);
+    lv_indev_set_read_cb(ili_disp.input, touch_input_cb);
+    
+    ili_disp.tran_tim = lv_timer_create(load_screen_cb, 700, &ili_disp.scan_state);
+    lv_timer_pause(ili_disp.tran_tim);
+    lv_timer_set_repeat_count(ili_disp.tran_tim, 1);
+
+    io_irq_enable_interrupt(IO_TOUCH_IT);
+}
+
 
 
 static void load_screen_cb(lv_timer_t *timer) {
@@ -270,6 +298,7 @@ static void load_screen_cb(lv_timer_t *timer) {
         lv_timer_set_repeat_count(ili_disp.tran_tim, 1);
     }
 }
+
 
 
 static void touch_input_cb(lv_indev_t *in, lv_indev_data_t *data) {
@@ -293,8 +322,16 @@ static void product_name_ready(lv_event_t *e) {
     lv_obj_t *text_ar = lv_event_get_target(e);
     if (code == LV_EVENT_READY) {
         ili_disp.scan_state = 1;
-        const char *name = lv_textarea_get_text(text_ar);
-        stat = inventory_signal_scan(name);
+
+        memset((void *)ili_disp.ta_cond, 0, MAX_ITEM_CND_LEN);
+        const char *cond = lv_textarea_get_text(text_ar);
+        lv_snprintf(ili_disp.ta_cond, MAX_ITEM_CND_LEN, "%s", cond);
+
+        memset((void *)ili_disp.ta_name, 0, MAX_ITEM_NAME_LEN);
+        const char *name = lv_textarea_get_text(objects.txt_ar_prod);
+        lv_snprintf(ili_disp.ta_name, MAX_ITEM_NAME_LEN, "%s", name);
+
+        stat = inventory_signal_scan(ili_disp.ta_name, ili_disp.ta_cond);
         loadScreen(SCREEN_ID_SCAN_PROMPT);
     }
 
@@ -336,14 +373,18 @@ static void update_units(void) {
             lv_obj_remove_flag(button, LV_OBJ_FLAG_HIDDEN);
 
         label = lv_obj_get_child(button, 0); // UNIT ID
+        snprintf(unit_content.units[i].id, sizeof(unit_content.units[i].id), "UNIT %d", unit_content.units[i].id_val);
         lv_label_set_text_static(label, unit_content.units[i].id);
         lv_obj_set_user_data(button, &unit_content.units[i].id_val);
-        label = lv_obj_get_child(button, 1);
-        if (unit_content.units[i].armed == 0)
-            lv_label_set_text_static(label, "ARMED");
-        else
+        label = lv_obj_get_child(button, 1); // ARMED STATUS
+        if (unit_content.units[i].data.armed == 0)
             lv_label_set_text_static(label, "DISARMED");
-        label = lv_obj_get_child(button, 2);
+        else if (unit_content.units[i].data.armed == 1)
+            lv_label_set_text_static(label, "ARMED");
+        else 
+            lv_label_set_text_static(label, "BREACHED");
+        label = lv_obj_get_child(button, 2); // UNIT CAPACITY
+        snprintf(unit_content.units[i].capacity, sizeof(unit_content.units[i].capacity), "%02d/%02d", unit_content.units[i].data.cap_val, MAX_ITEMS);
         lv_label_set_text_static(label, unit_content.units[i].capacity);
     }
 }
@@ -377,6 +418,15 @@ void action_back_to_main(lv_event_t * e) {
     unit_content.prev_pg_idx = unit_content.pg_idx;
     unit_content.pg_idx = 0;
     loadScreen(SCREEN_ID_MAIN);
+}
+
+
+void action_focus_ta(lv_event_t *e) {
+    lv_obj_t *ta = lv_event_get_current_target_obj(e);
+    if (ta == objects.txt_ar_cnd)
+        lv_keyboard_set_textarea(objects.kb1, objects.txt_ar_cnd);
+    else if (ta == objects.txt_ar_prod)
+        lv_keyboard_set_textarea(objects.kb1, objects.txt_ar_prod);
 }
 
 
@@ -438,7 +488,7 @@ void action_previous_items(lv_event_t * e) {
  * 
  */
 void action_next_units(lv_event_t *e) {
-    uint8_t ret = inventory_get_unit_stats(unit_content.units, unit_content.pg_idx + 1);
+    uint8_t ret = inventory_get_unit_stats(unit_content.units, unit_content.pg_idx + 1, NULL);
     if (ret > 0) {
         update_units();
         unit_content.pg_idx++;
@@ -456,7 +506,7 @@ void action_next_units(lv_event_t *e) {
  */
 void action_prev_units(lv_event_t *e) {
     if (unit_content.pg_idx > 0) {
-        uint8_t ret = inventory_get_unit_stats(unit_content.units, unit_content.pg_idx - 1);
+        uint8_t ret = inventory_get_unit_stats(unit_content.units, unit_content.pg_idx - 1, NULL);
         if (ret > 0) {
             unit_content.valid_units = ret;
             update_units();
@@ -474,7 +524,8 @@ void action_prev_units(lv_event_t *e) {
  */
 void action_register_prompt(lv_event_t * e) {
     loadScreen(SCREEN_ID_ADD_ITEM);
-    lv_obj_add_event_cb(objects.txt_ar_prod, product_name_ready, LV_EVENT_READY, NULL);
+    lv_obj_add_event_cb(objects.txt_ar_cnd, product_name_ready, LV_EVENT_READY, NULL);
+    ili_disp.curr_screen = SCREEN_ID_ADD_ITEM;
 }
 
 
@@ -490,6 +541,7 @@ void action_to_inventory(lv_event_t * e) {
 
     invent_content.valid_records = inventory_get_contents(node_id, invent_content.records, invent_content.pg_idx);
     loadScreen(SCREEN_ID_INVENTORY); // gonna need to either block here or sleep the thread
+    ili_disp.curr_node = node_id;
 }
 
 
@@ -503,5 +555,6 @@ void action_scan_prompt(lv_event_t * e) {
     // signal to inventory task to scan for tag
     ili_disp.scan_state = 1;
     loadScreen(SCREEN_ID_SCAN_PROMPT);
-    inventory_signal_scan(NULL);
+    inventory_signal_scan(NULL, NULL);
+    ili_disp.curr_screen = SCREEN_ID_SCAN_PROMPT;
 }

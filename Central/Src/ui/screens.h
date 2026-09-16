@@ -115,6 +115,9 @@ typedef struct _objects_t {
     lv_obj_t *scan_label;
     lv_obj_t *lbl_scn_cplt;
     lv_obj_t *img_check;
+    lv_obj_t *cnd_ta_lbl;
+    lv_obj_t *prod_ta_lbl;
+    lv_obj_t *txt_ar_cnd;
 } objects_t;
 
 extern objects_t objects;

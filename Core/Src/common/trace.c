@@ -7,7 +7,6 @@
 #define USARTx              (USART2)
 #define USART_BAUDRATE      (115200)
 #define MAX_BUF_LEN         (64) // 64 bytes max tx len 
-#define TX_BUF_LEN(str_len) ((str_len) + 3 + 3) // string len + 4 bytes for num + 3 bytes for colon, carriage return, and newline
 #define MAX_DIGITS  (3U)
 
 /***********************
@@ -41,24 +40,6 @@ void trace_debug(trace_handle_t *h_trace, const char *dbg_msg) {
         usart_transmit(dbg_msg, 1);
     }
 }
-
-
-// /**
-//  * @brief Sends a log warning message over serial
-//  * 
-//  * 
-//  * 
-//  * @param warn_str warning message string
-//  * @param num optional number
-//  */
-// void trace_error(trace_handle_t *h_trace, const char *dbg_msg) {
-//     if (h_trace->level == LOG_LEVEL_ALL || h_trace->level == LOG_LEVEL_WARN) {
-//         uint32_t len = str_len(warn_str);
-//         uint8_t buffer[MAX_BUF_LEN];
-//         log_create_tx_buf(buffer, warn_str, num, len);
-//         usart_transmit(buffer, TX_BUF_LEN(len));
-//     }
-// }
 
 
 /** 
@@ -107,11 +88,18 @@ static uint8_t usart_transmit(uint8_t *data, uint32_t len) {
     uint8_t status = 0;
     for (uint32_t i = 0; i < len; ++i) {
         while (!LL_USART_IsActiveFlag_TXE(USARTx));
-        LL_USART_TransmitData8(USARTx, *(data));
+        LL_USART_TransmitData8(USARTx, *data);
         data++;
     }
     // transmission complete, clear TC flag
-    while (!LL_USART_IsActiveFlag_TC(USARTx));
+    uint8_t retry = 0xFF;
+    while (!LL_USART_IsActiveFlag_TXE(USARTx) && --retry);
+    if (retry == 0)
+        status = 1;
+    retry = 0xFF;
+    while (!LL_USART_IsActiveFlag_TC(USARTx) && --retry);
+    if (retry == 0)
+        status = 1;
     LL_USART_ClearFlag_TC(USARTx);
     return status;
 }

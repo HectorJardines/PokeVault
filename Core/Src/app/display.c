@@ -25,6 +25,7 @@ static uint8_t vtiled_buf[VTILE_BUF_SIZE] = {0};
 static lv_display_t *display = NULL;
 static lv_timer_t *tim = NULL;
 static uint16_t curr_screen_id = SCREEN_ID_MAIN;
+static uint8_t scan_stat = 0;
 static uint8_t flags = 0x00 | (DISP_ON_Msk | DISP_SCAN_CPLT_Msk);
 static char armed_val[9] = {'A', 'r', 'm', 'e', 'd', '\0'};
 static char temp_val[4] = {'6', '7', '\0'};
@@ -124,7 +125,7 @@ void display_sleep(void) {
 
 
 
-void display_change_screen(struct _lv_obj_t *screen, uint16_t screen_id) {
+void display_change_screen(struct _lv_obj_t *screen, uint16_t screen_id, uint8_t scan_failed) {
     if (screen == NULL) {
         screen = objects.item_scanning;
         curr_screen_id = SCREEN_ID_ITEM_SCANNING;
@@ -133,10 +134,11 @@ void display_change_screen(struct _lv_obj_t *screen, uint16_t screen_id) {
     else
         curr_screen_id = screen_id;
 
+    scan_stat = scan_failed;
     lv_screen_load(screen);
 
     if (screen_id != SCREEN_ID_MAIN) {
-        lv_timer_set_user_data(tim, (void *)&curr_screen_id);
+        lv_timer_set_user_data(tim, (void *)&scan_stat);
         lv_timer_resume(tim);
     }
     else
@@ -166,9 +168,11 @@ uint8_t display_refresh_value(disp_label_e label, uint16_t val) {
     case LABEL_STATUS:
         lv_memset(armed_val, 0, sizeof(armed_val));
         if (val == 1)
-            lv_snprintf(armed_val, sizeof(armed_val),  "Armed");
+            lv_snprintf(armed_val, sizeof(armed_val),  "ARMED");
         else if (val == 0)
-            lv_snprintf(armed_val, sizeof(armed_val),  "Disarmed");
+            lv_snprintf(armed_val, sizeof(armed_val),  "DISARMED");
+        else
+            lv_snprintf(armed_val, sizeof(armed_val),  "BREACHED");
 
         lv_label_set_text_static(objects.label_armed_status_val, NULL);
         break;
@@ -186,11 +190,15 @@ static void change_screen_cb(lv_timer_t *tim) {
     lv_timer_reset(tim);
     lv_timer_pause(tim);
     if (lv_display_get_screen_loading(display) == NULL) {
-        uint16_t scr_id = *((uint16_t *)lv_timer_get_user_data(tim));
-        if (scr_id == SCREEN_ID_ITEM_SCANNING)
-            display_change_screen(objects.item_scanned, SCREEN_ID_ITEM_SCANNED);
-        else if (scr_id == SCREEN_ID_ITEM_SCANNED)
-            display_change_screen(objects.main, SCREEN_ID_MAIN);
+        uint8_t scan_stat = *((uint8_t *)lv_timer_get_user_data(tim));
+        if (curr_screen_id == SCREEN_ID_ITEM_SCANNING) {
+            if (scan_stat = 0)
+                display_change_screen(objects.item_scanned, SCREEN_ID_ITEM_SCANNED, scan_stat);
+            else
+                display_change_screen(objects.item_scan_failed, SCREEN_ID_ITEM_SCAN_FAILED, scan_stat);
+        }
+        else if ((curr_screen_id == SCREEN_ID_ITEM_SCANNED) || (curr_screen_id == SCREEN_ID_ITEM_SCAN_FAILED))
+            display_change_screen(objects.main, SCREEN_ID_MAIN, 0);
     }
 }
 

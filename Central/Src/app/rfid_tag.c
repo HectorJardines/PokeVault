@@ -8,10 +8,10 @@
  * MACROS
  *******************/
 
-#define BLOCKS_PER_SECTOR   (4U)
+#define BLOCKS_PER_SECTOR       (4U)
 #define NUM_OF_ALLOWED_TAGS     (2U)
-#define UID_FOUND   (1U)
-#define UID_UNKNOWN (0U)
+#define UID_FOUND               (1U)
+#define UID_UNKNOWN             (0U)
 
 #define ITEM_SECTOR       (8U)
 #define TYPE_IDX          (1U)
@@ -22,10 +22,10 @@
 #define TYPE_BLOCK          ((ITEM_SECTOR * BLOCKS_PER_SECTOR) + TYPE_IDX)
 #define AUTH_BLOCK          ((ITEM_SECTOR * BLOCKS_PER_SECTOR) + TRAIL_IDX)
 
-#define PAGE_SEC_RATIO     (4U) // we write 16 byte data into 4 byte pages
-#define COND_PAGE           (11U)
-#define NAME_PAGE           (7U)
-#define TYPE_PAGE           (3U)
+#define PAGE_SEC_RATIO      (4U) // we write 16 byte data into 4 byte pages
+#define COND_PAGE           (12U)
+#define NAME_PAGE           (8U)
+#define TYPE_PAGE           (4U)
 
 typedef struct {
     uint8_t buf[PICC_MEM_BLOCK_LEN];
@@ -127,10 +127,20 @@ static mfrc_status_e tag_write_to_mifare1k(rfid_tag_t *tag) {
 
 static uint8_t tag_write_with_retry(uint8_t sector, const uint8_t *data_buf, mfrc_wr_type_e type, uint8_t max_retries) {
     uint8_t status = 0;
+    uint8_t check[PICC_MEM_BLOCK_LEN];
+    memset(check, 0, sizeof(check));
     do {
         HAL_Delay(5);
         status = mfrc_picc_write(sector, data_buf, type);
+        HAL_Delay(5);
+        if (status != STATUS_OK) continue;
+        // status = mfrc_picc_read(sector, check);
+        // if (status == STATUS_OK) {
+        //     for (uint8_t i = 0; i < PICC_MEM_BLOCK_LEN; ++i)
+        //         status |= (data_buf[i] != check[i]);
+        // }
     } while (status != STATUS_OK && --max_retries);
+    
     return status;
 }
 

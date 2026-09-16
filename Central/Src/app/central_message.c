@@ -20,7 +20,7 @@
 
 #define MSG_POST_OUT_TIMEOUT    (pdMS_TO_TICKS(50))
 #define MSG_CTLR_STACK_DEPTH    (512U)
-#define MSG_CTLR_PRIO           (2U)
+#define MSG_CTLR_PRIO           (5U)
 
 
 /**************
@@ -190,14 +190,19 @@ static uint8_t process_frame(uint8_t *frame_buf, uint32_t frame_len, msg_array *
     uint8_t tmp[DRIVERS_NANOPB_MESSAGES_PB_H_MAX_SIZE + CRC16_LEN];
     frame_len = rs485_cobs_decode(frame_buf, frame_len, tmp);
 
-    uint16_t crc_check = compute_crc16(tmp, frame_len - CRC16_LEN);
-    if (crc_is_equal(crc_check, &tmp[frame_len - CRC16_LEN])) {
-        status = deserialize_msg_buf(tmp, frame_len - CRC16_LEN, messages);
-        if (status)
-            printf("FAILED TO DESERIALIZE MSG: %s\r\n", tmp);
-    }
-    else {
-        printf("ERROR: CRC VALUES DO NOT MATCH\r\n");
+    if (frame_len > 1) {
+        uint16_t crc_check = compute_crc16(tmp, frame_len - CRC16_LEN);
+        if (crc_is_equal(crc_check, &tmp[frame_len - CRC16_LEN])) {
+            status = deserialize_msg_buf(tmp, frame_len - CRC16_LEN, messages);
+            if (status)
+                printf("FAILED TO DESERIALIZE MSG: %s\r\n", tmp);
+        }
+        else {
+            printf("ERROR: CRC VALUES DO NOT MATCH\r\n");
+            status = 1;
+        }
+    } else {
+        printf("ERROR: FAILED TO DECODE MESSAGE\n\r");
         status = 1;
     }
  

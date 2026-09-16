@@ -371,8 +371,4 @@ void io_set_out(io_e io, io_output_e level);
 uint8_t io_get_out(io_e io);
 
 
-/******************************************
-*   IO Config Struct enums (for vl53l0x)
-*******************************************/
-
 #endif

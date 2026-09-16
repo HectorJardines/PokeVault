@@ -86,6 +86,6 @@ void display_sleep(void);
  * @param[in] screen the screen to be set as active; or NULL to begin
  * tag scanning screen cycle
  */
-void display_change_screen(struct _lv_obj_t *screen, uint16_t screen_id);
+void display_change_screen(struct _lv_obj_t *screen, uint16_t screen_id, uint8_t scan_failed);
 
 #endif

@@ -20,9 +20,9 @@
 #define MAX_HTTPS_PKT_LEN   (1024U)
 
 #define CLI_STACK_DEPTH         (2048U) // 2048 units not bytes
-#define CLI_TASK_PRIO           (3U)
-#define CLI_POST_REQ_TIMEOUT    (pdMS_TO_TICKS(25))
-#define CLI_GET_REQ_PERIOD      (pdMS_TO_TICKS(50))
+#define CLI_TASK_PRIO           (5U)
+#define CLI_POST_REQ_TIMEOUT    (pdMS_TO_TICKS(500))
+#define CLI_GET_REQ_PERIOD      (pdMS_TO_TICKS(500))
 
 typedef struct {
     uint8_t msg_body[MAX_HTTPS_BODY_LEN];
@@ -44,12 +44,10 @@ static int32_t tls_read_data(void);
 static uint8_t tls_parse_data(net_msg_t *msg);
 static uint8_t client_disconnect(void);
 static uint8_t client_connect(void);
-static uint8_t client_receive(net_msg_t *msg);
-static uint8_t client_send(net_msg_t *msg);
+static int32_t client_receive(net_msg_t *msg);
+static int32_t client_send(net_msg_t *msg);
 
 
-// STATIC_RING_BUFFER(post_req_q, MAX_QUEUE_LEN, net_msg_t);
-// STATIC_RING_BUFFER(get_req_q, MAX_QUEUE_LEN, net_msg_t);
 static client_context_t client;
 static tls_members_t tls_info;
 
@@ -155,7 +153,7 @@ uint8_t client_messages_pending(void) {
 static void task_client(void *arg) {
     net_msg_t msg_post;
     net_msg_t msg_get;
-    uint8_t ret = 0;
+    int32_t ret = 0;
 
     TickType_t prev_getreq_tick = 0;
     TickType_t curr_tick = 0;
@@ -172,17 +170,20 @@ static void task_client(void *arg) {
         while (!client_connected())
             client_connect();
         
-        if (xQueueReceive(request_q, &msg_post, CLI_POST_REQ_TIMEOUT) == pdTRUE)
+        if (xQueueReceive(request_q, &msg_post, CLI_POST_REQ_TIMEOUT) == pdTRUE) {
             ret = client_send(&msg_post);
+            if  (ret < 0)
+                printf("FAILED TO SEND MESSAGE OVER TLS\n\r");
+        }
 
-        curr_tick = xTaskGetTickCount();
-        if (curr_tick - prev_getreq_tick >= CLI_GET_REQ_PERIOD) {
-            ret = client_receive(&msg_get);
-            if (ret == 0) {
-                // SEND MESSAGE FOR PROCESSING
-            }
-            prev_getreq_tick = curr_tick;
-        }   
+        // curr_tick = xTaskGetTickCount();
+        // if (curr_tick - prev_getreq_tick >= CLI_GET_REQ_PERIOD) {
+        //     ret = client_receive(&msg_get);
+        //     if (ret == 0) {
+        //         // SEND MESSAGE FOR PROCESSING
+        //     }
+        //     prev_getreq_tick = curr_tick;
+        // }   
     }
 }
 
@@ -225,7 +226,7 @@ static uint8_t client_connect(void) {
 static uint8_t client_disconnect(void) {
     int32_t status = 0;
     if (client.flags & CLI_PCN_Msk)
-        status = wiz_tls_close_notify(client.tls_context.ssl);
+        status = wiz_tls_close_notify(&client.tls_context);
     
     close(client.sock_num);
     status = mbedtls_ssl_session_reset(client.tls_context.ssl);
@@ -235,8 +236,8 @@ static uint8_t client_disconnect(void) {
 }
 
 
-static uint8_t client_send(net_msg_t *msg) {
-    uint8_t status = CLIENT_IDLE;
+static int32_t client_send(net_msg_t *msg) {
+    int32_t status = CLIENT_IDLE;
     // FORMAT HTTPS BODY
     snprintf(client.https_req, sizeof(client.https_req), "{\"chat_id\": %u%09u, \"text\": \"%s\"}",
             client.chat_id_h, client.chat_id_l, msg->msg_body);
@@ -252,7 +253,7 @@ static uint8_t client_send(net_msg_t *msg) {
             "%s",
             client.token, (uint32_t)strlen((const char *)client.https_req), client.https_req);
 
-    if ((status = tls_send_data())) {
+    if ((status = tls_send_data())  >= 0) {
         status = tls_read_data();
     }
 
@@ -260,8 +261,8 @@ static uint8_t client_send(net_msg_t *msg) {
 }
 
 
-static uint8_t client_receive(net_msg_t *msg) {
-    uint8_t status = CLIENT_OK;
+static int32_t client_receive(net_msg_t *msg) {
+    int32_t status = CLIENT_OK;
 
     uint8_t json_body[64];
     snprintf(json_body, sizeof(json_body), 
@@ -285,7 +286,7 @@ static uint8_t client_receive(net_msg_t *msg) {
             client.token, (uint32_t)strlen((const char *)json_body), json_body);
 
 
-    if ((status = tls_send_data())) {
+    if ((status = tls_send_data()) >= 0) {
         status = tls_read_data();
         if (status > 0)
             status = tls_parse_data(msg);
@@ -304,11 +305,10 @@ static int32_t tls_send_data(void) {
 
     printf(" > WRITE TO SERVER:");
 
-    while ((status = wiz_tls_write(&client.tls_context, client.out_buf, strlen((const char *)client.out_buf))) <= 0) {
+    while ((status = wiz_tls_write(&client.tls_context, client.out_buf, strlen((const char *)client.out_buf))) < 0) {
         if (status != MBEDTLS_ERR_SSL_WANT_READ && status != MBEDTLS_ERR_SSL_WANT_WRITE) {
             printf(" failed \n ! wiz_tls_write returned %d\n\n\r\n", status);
             client.flags |= CLI_CONN_ERR_Msk;
-            status = CLIENT_ERR;
             break;
         }
     }
@@ -347,7 +347,7 @@ static int32_t tls_read_data(void) {
         active_pkt.len = status; // bytes read successfully, status indicates how many were read
         printf(" ok\n bytes read: %d\n\n\r\n", active_pkt.len);
         break;
-    } while (retries--);
+    } while (--retries);
 
     return status;
 }

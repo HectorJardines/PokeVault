@@ -5,15 +5,15 @@
 
 typedef enum {
     BREACHED_INIT,
-    BREACHED_BUZZER,
-    BREACHED_ALERT,
-    BREACHED_CHECK_DISARMED
+    BREACHED_TICK,
+    BREACHED_WAIT
 } breached_state_e;
 
 
 struct state_breached_data {
     struct state_common_data *comm;
     breached_state_e state;
+    uint32_t last_breached_tick;
 };
 
 

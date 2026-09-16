@@ -14,13 +14,15 @@ enum ScreensEnum {
     SCREEN_ID_MAIN = 1,
     SCREEN_ID_ITEM_SCANNING = 2,
     SCREEN_ID_ITEM_SCANNED = 3,
-    _SCREEN_ID_LAST = 3
+    SCREEN_ID_ITEM_SCAN_FAILED = 4,
+    _SCREEN_ID_LAST = 4
 };
 
 typedef struct _objects_t {
     lv_obj_t *main;
     lv_obj_t *item_scanning;
     lv_obj_t *item_scanned;
+    lv_obj_t *item_scan_failed;
     lv_obj_t *label_armed_status;
     lv_obj_t *label_armed_status_val;
     lv_obj_t *label_temp;
@@ -33,6 +35,8 @@ typedef struct _objects_t {
     lv_obj_t *lbl_scanning;
     lv_obj_t *lbl_scan_cplt;
     lv_obj_t *img_check;
+    lv_obj_t *obj0;
+    lv_obj_t *obj1;
 } objects_t;
 
 extern objects_t objects;

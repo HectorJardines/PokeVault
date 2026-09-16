@@ -12,6 +12,12 @@
 #include <stdio.h>
 #include <string.h>
 
+#define SCAN_DEBOUNCE   (750U) // MS
+#define INIT_TICK       (0)
+#define AUTH_PERIOD     (200U)
+#define INVENT_PERIOD   (200U)
+#define SENS_PERIOD     (100U)
+
 static void test_setup(void) {
     trace_init();
     SystemClock_Config();
@@ -160,29 +166,27 @@ static void test_lvgl_update_temp(void) {
 }
 
 
-static void test_tag_read_data(void) {
-    uint8_t data[PICC_MEM_BLOCK_LEN];
+// static void test_tag_read_data(void) {
+//     uint8_t data[PICC_MEM_BLOCK_LEN];
 
-    rfid_tag_t tag;
-    tag_init();
+//     rfid_tag_t tag;
+//     tag_init();
 
-    while (1) {
-        if (tag_read_data(tag.uid, data, ITEM_SECTOR, TYPE_BLOCK)) {
-            printf("got data...\r\n");
-            HAL_Delay(1000);
-        }
-        else
-            printf("no card\r\n");
-    }
-}
+//     while (1) {
+//         if (tag_read_data(tag.uid, data, ITEM_SECTOR, TYPE_BLOCK)) {
+//             printf("got data...\r\n");
+//             HAL_Delay(1000);
+//         }
+//         else
+//             printf("no card\r\n");
+//     }
+// }
 
 static void test_system_messaging(void) {
     uint8_t status = STATUS_OK;
     struct security_sm_t main_sm;
     msg rx_msg = msg_init_default;
     memset((void *)&main_sm, 0, sizeof (struct security_sm_t));
-    SystemClock_Config();
-    IO_Init();
     display_init();
     status |= system_monitor_init();
     message_init();
@@ -193,48 +197,46 @@ static void test_system_messaging(void) {
         while (1) {}
     }
 
-    uint32_t display_tick = HAL_GetTick(), sensor_tick = HAL_GetTick(), auth_tick = HAL_GetTick();
-    uint32_t invent_tick = HAL_GetTick();
+    uint32_t display_tick = INIT_TICK, invent_tick = INIT_TICK, 
+             sensor_tick = INIT_TICK, auth_tick = INIT_TICK;
+    uint32_t disp_period = 0;
 
-    uint32_t disp_period = 0, sens_period = 100, auth_period = 200, invent_period = 200;
+    uint32_t now = HAL_GetTick();
 
     while (1) {
         if (message_available())
             status = message_receive(&rx_msg);
-
-        if (display_is_on()) {
-            if (HAL_GetTick() - display_tick >= disp_period) {
-                disp_period = lv_timer_handler();
-                if (disp_period == LV_NO_TIMER_READY)
-                    disp_period = LV_DEF_REFR_PERIOD;
-                display_tick = HAL_GetTick();
-            }
-        }
-
-        if (HAL_GetTick() - sensor_tick >= sens_period) {
-            system_process_state();
-            sensor_tick = HAL_GetTick();
-        }
-
-        if ((HAL_GetTick() - auth_tick >= auth_period) && display_scan_cplt() 
+        if ((now - auth_tick >= AUTH_PERIOD) && display_scan_cplt()
             && main_sm.current_state != SECURITY_DISARMED) // NO NEED TO SCAN FOR AUTH WHEN UNIT DISARMED
         {
             uint8_t card_present = system_check_card_auth();
             if (card_present)
                 security_post_event(&main_sm, EVENT_TAG_AUTH);
-            auth_tick = HAL_GetTick();
+            auth_tick = now;
         }
-
-        if ((HAL_GetTick() - invent_tick >= invent_period) && display_scan_cplt()
+        if ((now - invent_tick >= INVENT_PERIOD) && display_scan_cplt()
             && main_sm.current_state != SECURITY_ARMED) // NO NEED TO SCAN FOR PRODUCTS IF UNIT ARMED
         {
             uint8_t item_present = inventory_scan_for_item();
             if (item_present == STATUS_OK)
                 security_post_event(&main_sm, EVENT_ITEM_SCAN);
-            invent_tick = HAL_GetTick();
+            invent_tick = now;
+        }
+        if (now - sensor_tick >= SENS_PERIOD) {
+            system_process_state();
+            sensor_tick = now;
+        }
+        if (display_is_on()) {
+            if (now - display_tick >= disp_period) {
+                disp_period = lv_timer_handler();
+                if (disp_period == LV_NO_TIMER_READY)
+                    disp_period = LV_DEF_REFR_PERIOD;
+                display_tick = now;
+            }
         }
 
         security_run(&main_sm, NULL);
+        now = HAL_GetTick();
     }
 }
 
