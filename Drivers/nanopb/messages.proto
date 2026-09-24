@@ -24,6 +24,7 @@ message alert {
 message transaction {
     required string item_name = 1;
     required string item_cond = 2;
+    required uint32 direction = 3;
 }
 
 

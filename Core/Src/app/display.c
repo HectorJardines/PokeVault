@@ -192,7 +192,7 @@ static void change_screen_cb(lv_timer_t *tim) {
     if (lv_display_get_screen_loading(display) == NULL) {
         uint8_t scan_stat = *((uint8_t *)lv_timer_get_user_data(tim));
         if (curr_screen_id == SCREEN_ID_ITEM_SCANNING) {
-            if (scan_stat = 0)
+            if (scan_stat == 0)
                 display_change_screen(objects.item_scanned, SCREEN_ID_ITEM_SCANNED, scan_stat);
             else
                 display_change_screen(objects.item_scan_failed, SCREEN_ID_ITEM_SCAN_FAILED, scan_stat);

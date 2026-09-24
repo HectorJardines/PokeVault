@@ -1,5 +1,7 @@
 #include "../../Inc/drivers/mfrc522.h"
 #include "../../Inc/drivers/io.h"
+#include <stdio.h>
+#include <string.h>
 
 #define MFRC522_CS_LOW  (GPIOA->BSRR |= (1 << (IO_PIN_6 + IO_BSRR_BR_OFFSET)))
 #define MFRC522_CS_HIGH (GPIOA->BSRR |= (1 << IO_PIN_6))
@@ -70,11 +72,11 @@ void mfrc522_init(mfrc_reader_t *mfrc) {
         mfrc_reset();
 
         //configure mfrc522 timer 15ms delay
-        uint8_t value = 0x8D; //
+        uint8_t value = 0x85; //
         write_mfrc_register(MFRC_TMODER, value);
         value = 0x3E; //
         write_mfrc_register(MFRC_TPSCR, value);
-        value = 30; // timer count to 30 ticks
+        value = 33; // timer count to 30 ticks
         write_mfrc_register(MFRC_TRELOADR_L, value);
         value = 0; // high bits of timer reload cleared
         write_mfrc_register(MFRC_TRELOADR_H, value);
@@ -309,9 +311,9 @@ uint8_t mfrc_halt(void) {
  * @return non-negative number of bits read on successful read; else 1
  */
 uint16_t mfrc_picc_read(uint8_t picc_block_addr, uint8_t *rcv_data) {
-    mfrc_status_e status = MFRC_OK;
+    mfrc_status_e status = MFRC_ERR;
     uint8_t buffer[4];
-    uint16_t rcv_len;
+    uint16_t rcv_len = 0;
 
     // setup PICC read command as per MIFARE datasheet
     buffer[0] = PICC_READ;
@@ -336,34 +338,46 @@ uint16_t mfrc_picc_read(uint8_t picc_block_addr, uint8_t *rcv_data) {
  * @param 
  */
 uint8_t mfrc_picc_write(uint8_t picc_block_addr, uint8_t *send_data, mfrc_wr_type_e wr_type) {
-    mfrc_status_e status = MFRC_OK;
+    mfrc_status_e status = MFRC_ERR;
     uint8_t buffer[PICC_DB_PAYLOAD_LEN];
-    uint16_t rcv_len_bits;
+    memset(buffer, 0, PICC_DB_PAYLOAD_LEN);
+    uint16_t rcv_len_bits = 0;
+    uint8_t buf_idx = 0;
 
-    buffer[0] = PICC_WRITE_SEC;
-    buffer[1] = picc_block_addr;
+    buffer[buf_idx++] = wr_type == MFRC_WR_PAGE ? PICC_WRITE_PG : PICC_WRITE_SEC;
+    buffer[buf_idx++] = picc_block_addr;
+    if (wr_type == MFRC_WR_PAGE) {
+        memcpy((void *)&buffer[buf_idx], (const void *)send_data, MFRC_COMPAT_WRITE_LEN);
+        buf_idx += MFRC_COMPAT_WRITE_LEN;
+    }
     if (reader.req_bus() == 1) {
-        mfrc_calculate_crc(buffer, 2, &buffer[2]); // calculate and store checksum
-        status = mfrc_send_to_picc(PCD_CMD_TRANSCEIVE, buffer, 4, buffer, &rcv_len_bits); // picc only sends back ACK
+        mfrc_calculate_crc(buffer, buf_idx, &buffer[buf_idx]); // calculate and store checksum
+        status = mfrc_send_to_picc(PCD_CMD_TRANSCEIVE, buffer, buf_idx + PICC_CRC_LEN_BYTES, buffer, &rcv_len_bits); // picc only sends back ACK
         if (status != MFRC_OK || rcv_len_bits != PICC_NUM_ACK_BITS || (buffer[0] & 0x0F) != PICC_ACK) {
             reader.rel_bus();
             return MFRC_ERR;
         }
-
-        // compatibility for 4-byte page addressed tags
-        for (uint8_t i = 0; i < PICC_DB_LEN_BYTES; ++i) {
-            if ((wr_type == MFRC_WR_PAGE) && (i < MFRC_COMPAT_WRITE_LEN))
-                buffer[i] = *(send_data + i);
-            else
-                buffer[i] = 0x00;
+        if (wr_type == MFRC_WR_PAGE) {
+            reader.rel_bus();
+            return status;
         }
-
+        // // compatibility for 4-byte page addressed tags
+        // for (uint8_t i = 0; i < PICC_DB_LEN_BYTES; ++i) {
+        //     if ((wr_type == MFRC_WR_PAGE) && (i < MFRC_COMPAT_WRITE_LEN))
+        //         buffer[i] = *(send_data + i);
+        //     else
+        //         buffer[i] = 0x00;
+        // }
+        memset(buffer, 0, sizeof(buffer));
+        memcpy((void *)buffer, send_data, PICC_DB_LEN_BYTES);
         mfrc_calculate_crc(buffer, PICC_DB_LEN_BYTES, &buffer[PICC_DB_LEN_BYTES]);
         status = mfrc_send_to_picc(PCD_CMD_TRANSCEIVE, buffer, PICC_DB_PAYLOAD_LEN, buffer, &rcv_len_bits);
         reader.rel_bus();
     }
-    if (status != MFRC_OK || rcv_len_bits != PICC_NUM_ACK_BITS || (buffer[0] & 0x0F) != PICC_ACK)
+    if (status != MFRC_OK || rcv_len_bits != PICC_NUM_ACK_BITS || (buffer[0] & 0x0F) != PICC_ACK) {
+        printf("RCV LEN: %d, RCV DATA: 0x%X\n\r", rcv_len_bits, buffer[0]);
         status = MFRC_ERR;
+    }
 
     return status;
 }
@@ -389,11 +403,11 @@ static uint8_t mfrc_calculate_crc(uint8_t *checksum_data, uint8_t data_len, uint
 
     // clear FIFO
     set_bitmask_on_reg(MFRC_FIFO_LVL, 0x80);
-    
+
     // add checksum_data to FIFO
     for (uint8_t i = 0; i < data_len; ++i)
         write_mfrc_register(MFRC_FIFO_DR, checksum_data[i]);
-    
+
     // send calc CRC command
     write_pcd_cmd(PCD_CMD_CALC_CRC);
     // send idle command when complete
@@ -468,8 +482,12 @@ static uint8_t mfrc_send_to_picc(uint8_t command, uint8_t *send_data, uint8_t se
     uint8_t value = irq_en | 0x80;
     write_mfrc_register(MFRC_COM_INT_EN, value);
     clear_bitmask_on_reg(MFRC_COM_IRQ, 0x80); // all marked bits in ComIrqReg cleared
-    set_bitmask_on_reg(MFRC_FIFO_LVL, 0x80); // flush the FIFO contents
-    
+
+    set_bitmask_on_reg(MFRC_FIFO_LVL, 0x80); // reset FIFO pointers/level
+    for (uint8_t i = 0; i < MFRC_MAX_FIFO_LEN; ++i)
+        write_mfrc_register(MFRC_FIFO_DR, 0x00);
+    set_bitmask_on_reg(MFRC_FIFO_LVL, 0x80); // reset FIFO pointers/level
+
     write_pcd_cmd(PCD_CMD_IDLE); // set reader in idle mode
 
     // write data to the FIFO
@@ -487,15 +505,13 @@ static uint8_t mfrc_send_to_picc(uint8_t command, uint8_t *send_data, uint8_t se
     volatile uint8_t fifo = 0;
     volatile uint8_t err = 0;
     while (retries > 0) {
-        err = read_mfrc_register(MFRC_ERR_REG);
-        fifo = read_mfrc_register(MFRC_FIFO_LVL);
         irq_status= read_mfrc_register(MFRC_COM_IRQ);
         if ((irq_status & wait_irq) || (irq_status & 0x01)) // check if timer timeout or if irq we set earlier occurrred (i.e. RX irq)
             break;
         retries--;
     }
     clear_bitmask_on_reg(MFRC_BIT_FRAMING, 0x80); // end data transmission
-
+    HAL_Delay(10);
     if (retries != 0) {
         uint8_t err_check = 0x00;
         err_check = read_mfrc_register(MFRC_ERR_REG);
@@ -503,8 +519,7 @@ static uint8_t mfrc_send_to_picc(uint8_t command, uint8_t *send_data, uint8_t se
             status = MFRC_OK;
             if (irq_status & irq_en & 0x01) // checks timeout irq bit + enabled interrupts above
                 status = MFRC_TIMEOUT;
-            
-            if (command == PCD_CMD_TRANSCEIVE) { // read data bytes from card
+            else if (command == PCD_CMD_TRANSCEIVE) { // read data bytes from card
                 uint8_t num_bytes = 0;
                 uint8_t valid_bits = 0; // number of valid bits in the last data RX
                 num_bytes = read_mfrc_register(MFRC_FIFO_LVL);
@@ -512,7 +527,7 @@ static uint8_t mfrc_send_to_picc(uint8_t command, uint8_t *send_data, uint8_t se
                 valid_bits = read_mfrc_register(MFRC_CTL_REG);
                 valid_bits = valid_bits & 0x07; // lower three bits hold the valid bits values
 
-                if (valid_bits) // num of receviced bits
+                if (valid_bits && (num_bytes > 0)) // num of receviced bits
                     *rcv_len = (num_bytes - 1) * 8 + valid_bits;
                 else
                     *rcv_len = num_bytes * 8;
@@ -522,6 +537,8 @@ static uint8_t mfrc_send_to_picc(uint8_t command, uint8_t *send_data, uint8_t se
                 if (num_bytes > MFRC_MAX_FIFO_LEN)
                     num_bytes = MFRC_MAX_FIFO_LEN;
 
+                printf("NUM BYTES TO READ FROM FIFO: %d\n\r", num_bytes);
+
                 // read data from card to rcv_buf
                 for (uint8_t i = 0; i < num_bytes; ++i)
                     rcv_data[i] = read_mfrc_register(MFRC_FIFO_DR);
@@ -530,6 +547,14 @@ static uint8_t mfrc_send_to_picc(uint8_t command, uint8_t *send_data, uint8_t se
         else
             status = MFRC_ERR;
     }
+    set_bitmask_on_reg(MFRC_FIFO_LVL, 0x80); // reset FIFO pointers/level
+    for (uint8_t i = 0; i < MFRC_MAX_FIFO_LEN; ++i)
+        write_mfrc_register(MFRC_FIFO_DR, 0x00);
+    set_bitmask_on_reg(MFRC_FIFO_LVL, 0x80); // reset FIFO pointers/level
+    uint8_t num_bytes = read_mfrc_register(MFRC_FIFO_LVL);
+    num_bytes = num_bytes & 0x7F; // only lower 7 bits tell us how many bytes are in DR
+    printf("FIFO SHOULD BE EMPTY: %d\n\r", num_bytes);
+
     return status;
 }
 

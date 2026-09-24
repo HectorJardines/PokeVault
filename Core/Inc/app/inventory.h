@@ -19,7 +19,7 @@
 
 #define UID_LEN             (4U)
 #define MAX_ITEM_NAME_LEN   (16U) // MAX ITEM NAME LEN IN BYTES
-#define MAX_ITEM_COND_LEN   (4U)
+#define MAX_ITEM_COND_LEN   (16U)
 
 /*********************
  * STRUCTS/ENUMS
@@ -27,6 +27,7 @@
 typedef struct {
     char item_name[MAX_ITEM_NAME_LEN];
     char item_cond[MAX_ITEM_COND_LEN];
+    uint8_t direction;
 } transaction_t;
 
 

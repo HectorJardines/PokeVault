@@ -18,6 +18,7 @@ typedef struct _alert {
 typedef struct _transaction {
     char item_name[17];
     char item_cond[4];
+    uint8_t direction;
 } transaction;
 
 typedef struct _event {
@@ -50,12 +51,12 @@ extern "C" {
 #define msg_array_init_default                   {0, {msg_init_default, msg_init_default, msg_init_default, msg_init_default, msg_init_default}}
 #define msg_init_default                         {0, 0, 0, {alert_init_default}}
 #define alert_init_default                       {0, 0}
-#define transaction_init_default                 {"", ""}
+#define transaction_init_default                 {"", "", 0}
 #define event_init_default                       {0, 0}
 #define msg_array_init_zero                      {0, {msg_init_zero, msg_init_zero, msg_init_zero, msg_init_zero, msg_init_zero}}
 #define msg_init_zero                            {0, 0, 0, {alert_init_zero}}
 #define alert_init_zero                          {0, 0}
-#define transaction_init_zero                    {"", ""}
+#define transaction_init_zero                    {"", "", 0}
 #define event_init_zero                          {0, 0}
 
 /* Field tags (for use in manual encoding/decoding) */
@@ -63,6 +64,7 @@ extern "C" {
 #define alert_value_tag                          2
 #define transaction_item_name_tag                1
 #define transaction_item_cond_tag                2
+#define transaction_direction_tag                3
 #define event_type_tag                           1
 #define event_value_tag                          2
 #define msg_command_tag                          1
@@ -99,7 +101,8 @@ X(a, STATIC,   REQUIRED, UINT32,   value,             2)
 
 #define transaction_FIELDLIST(X, a) \
 X(a, STATIC,   REQUIRED, STRING,   item_name,         1) \
-X(a, STATIC,   REQUIRED, STRING,   item_cond,         2)
+X(a, STATIC,   REQUIRED, STRING,   item_cond,         2) \
+X(a, STATIC,   REQUIRED, UINT32,   direction,         3)
 #define transaction_CALLBACK NULL
 #define transaction_DEFAULT NULL
 
@@ -126,9 +129,9 @@ extern const pb_msgdesc_t event_msg;
 #define DRIVERS_NANOPB_MESSAGES_PB_H_MAX_SIZE    msg_array_size
 #define alert_size                               9
 #define event_size                               9
-#define msg_array_size                           180
-#define msg_size                                 34
-#define transaction_size                         23
+#define msg_array_size                           195
+#define msg_size                                 37
+#define transaction_size                         26
 
 #ifdef __cplusplus
 } /* extern "C" */

@@ -65,14 +65,10 @@ int sd_mount(void) {
 	DSTATUS stat = disk_initialize(DRIVE_NO);
 	if (stat != 0) {
 		printf("disk_initialize failed: 0x%02X\n", stat);
-		printf("FR_NOT_READY\tTry Hard Reset or Check Connection/Power\r\n");
-		printf("Make sure \"MX_FATFS_Init\" is not being called in the main function\n"\
-				"You need to disable its call in CubeMX->Project Manager->Advance Settings->Uncheck Generate code for MX_FATFS_Init\r\n");
 		return FR_NOT_READY;
 	}
 
 	printf("Attempting mount at %s...\r\n", sd_path);
-	// portENTER_CRITICAL();
 	res = f_mount(&fs, sd_path, 1); // OPT = 1 MOUNT DRIVE IMMEDIATELY
 	if (res == FR_OK)
 	{
@@ -98,11 +94,7 @@ int sd_unmount(void) {
 
 int sd_write_file(const char *filename, FIL* fp, const char *text) {
 	UINT bw;
-	// FRESULT res = f_open(&file, filename, FA_CREATE_ALWAYS | FA_WRITE);
-	// if (res != FR_OK) return res;
-
 	FRESULT res = f_write(fp, text, strlen(text), &bw);
-	// f_close(&file);
 	printf("Write %u bytes to %s\r\n", bw, filename);
 	return (res == FR_OK && bw == strlen(text)) ? FR_OK : FR_DISK_ERR;
 }
@@ -206,7 +198,7 @@ int sd_write_csv(const char *filename, CsvRecord *records, int record_count) {
 	}
 
 	printf("📄 Writing CSV: %s\r\n", filename);
-	snprintf(line, sizeof(line), "ITEM UID,ITEM NAME\r\n");
+	// snprintf(line, sizeof(line), "ITEM UID,ITEM NAME\r\n");
 	res = f_write(&file, line, strlen(line), &bw);
 	if (res == FR_OK) {
 		for (int i = 0; i < record_count; ++i) {

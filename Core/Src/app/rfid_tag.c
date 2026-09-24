@@ -1,6 +1,7 @@
 #include "../Inc/app/rfid_tag.h"
 #include "../Inc/drivers/spi.h"
 #include "../Inc/drivers/mfrc522.h"
+#include <stdio.h>
 #include "common/defines.h"
 #include "display.h"
 #include <string.h>
@@ -20,17 +21,25 @@
 #define AUTH_BLOCK          ((ITEM_SECTOR * BLOCKS_PER_SECTOR) + TRAIL_IDX)
 
 #define PAGES_PER_WRITE     (4U) // we write 16 byte data into 4 byte pages
+#define IN_OUT_PAGE         (16U)
 #define COND_PAGE           (12U)
 #define NAME_PAGE           (8U)
 #define TYPE_PAGE           (4U)
+
+
+#define PRODUCT_IN  (1U)
+#define PRODUCT_OUT (0U)
+#define TAG_DIR_LEN (4U)
 
 /***********************
  * STATIC DECLARATIONS
  ************************/
 static rfid_tag_t active_tag;
-static uint8_t default_sec_key[SEC_KEY_LEN] = {DEFAULT_SEC_KEY, DEFAULT_SEC_KEY, DEFAULT_SEC_KEY, DEFAULT_SEC_KEY, DEFAULT_SEC_KEY, DEFAULT_SEC_KEY};
-static uint8_t item_type_block[PICC_MEM_BLOCK_LEN] = {0xde, 0xad, 0xbe, 0xef, 0xca, 0xfe, 0,0,0,0,0,0,0,0,0,0};
+const static uint8_t default_sec_key[SEC_KEY_LEN] = {DEFAULT_SEC_KEY, DEFAULT_SEC_KEY, DEFAULT_SEC_KEY, DEFAULT_SEC_KEY, DEFAULT_SEC_KEY, DEFAULT_SEC_KEY};
+const static uint8_t item_type_block[PICC_MEM_BLOCK_LEN] = {0xde, 0xad, 0xbe, 0xef, 0xca, 0xfe, 0,0,0,0,0,0,0,0,0,0};
 const static uint8_t auth_card_type[PICC_MEM_BLOCK_LEN] = {0xca, 0xfe, 0xbe, 0xef, 0xde, 0xad, 0,0,0,0,0,0,0,0,0,0};
+const static uint8_t out_buf[PICC_MEM_BLOCK_LEN] = {0xba, 0xad, 0xf0, 0x0d,0,0,0,0,0,0,0,0,0,0,0,0};
+const static uint8_t in_buf[PICC_MEM_BLOCK_LEN] = {0xfe, 0xe1, 0xde, 0xad,0,0,0,0,0,0,0,0,0,0,0,0};
 
 
 /**
@@ -69,6 +78,7 @@ static uint8_t search_uid(uint8_t *uid, uint8_t *idx);
  */
 static mfrc_status_e tag_scan_and_select(tag_type_e type, uint8_t *card_buf, uint8_t *card_uid);
 
+static uint8_t tag_write_with_retry(uint8_t sector, const uint8_t *data_buf, mfrc_wr_type_e type, uint8_t max_retries);
 
 static void reader_spi_init(void);
 static uint8_t reader_write_byte(uint8_t byte);
@@ -126,13 +136,14 @@ cleanup:
 
 
 
-uint8_t tag_read_product_data(uint8_t *prod_name, uint8_t *prod_cond) {
+uint8_t tag_read_product_data(uint8_t *prod_name, uint8_t *prod_cond, uint8_t *direction) {
     uint8_t status = STATUS_ERR;
     memset((void *)&active_tag, 0, sizeof(active_tag));
 
     status = tag_scan_and_select(TAG_PRODUCT, active_tag.buf, active_tag.uid);
     if (status) return status;
 
+    memset(active_tag.buf, 0, sizeof(active_tag.buf));
     HAL_Delay(1);
     status = mfrc_picc_read(TYPE_PAGE, active_tag.buf);
     if (status) goto cleanup;
@@ -143,10 +154,58 @@ uint8_t tag_read_product_data(uint8_t *prod_name, uint8_t *prod_cond) {
         }
     }
 
-    status = mfrc_picc_read(NAME_PAGE, prod_name);
+    HAL_Delay(1);
+    memset(active_tag.buf, 0, sizeof(active_tag.buf));
+    status = mfrc_picc_read(NAME_PAGE, active_tag.buf);
+    memcpy((void *)prod_name, (const void *)active_tag.buf, PICC_MEM_BLOCK_LEN);
     if (status) goto cleanup;
-    status = mfrc_picc_read(COND_PAGE, prod_cond);
+    HAL_Delay(1);
+    memset(active_tag.buf, 0, sizeof(active_tag.buf));
+    status = mfrc_picc_read(COND_PAGE, active_tag.buf);
+    memcpy((void *)prod_cond, (const void *)active_tag.buf, PICC_MEM_BLOCK_LEN);
     if (status) goto cleanup;
+
+    memset(active_tag.buf, 0x00, PICC_RX_LEN);
+    uint8_t retry = 30;
+    HAL_Delay(1);
+    status = mfrc_picc_read(IN_OUT_PAGE, active_tag.buf);
+    if (status != STATUS_OK) goto cleanup;
+    printf("DIRECTION: 0x%X%X%X%X\n\r", active_tag.buf[0], active_tag.buf[1], active_tag.buf[2], active_tag.buf[3]);
+    uint8_t dir = PRODUCT_OUT;
+    if (memcmp(active_tag.buf, out_buf, 4) == 0)
+        dir = PRODUCT_OUT;
+    else
+        dir = PRODUCT_IN;
+    if (dir == PRODUCT_IN) {// product was in storage
+        status = tag_write_with_retry(IN_OUT_PAGE, out_buf, MFRC_WR_PAGE, retry);
+        uint8_t check[PICC_RX_LEN];
+        uint8_t check_stat = STATUS_ERR;
+        uint8_t again = 50;
+        do {
+            memset(check, 0, PICC_RX_LEN);
+            check_stat = mfrc_picc_read(IN_OUT_PAGE, check);
+        } while (check_stat != STATUS_OK && --again);
+        if (memcmp(check, out_buf, 4) == 0) status = STATUS_OK;
+        if (status != STATUS_OK) goto cleanup;
+        HAL_Delay(5);
+        *direction = PRODUCT_OUT;
+    }
+    else if (dir == PRODUCT_OUT) { // product was out of storage
+        status = tag_write_with_retry(IN_OUT_PAGE, in_buf, MFRC_WR_PAGE, retry);
+        uint8_t check[PICC_RX_LEN];
+        uint8_t check_stat = STATUS_ERR;
+        uint8_t again = 50;
+        do {
+            memset(check, 0, PICC_RX_LEN);
+            check_stat = mfrc_picc_read(IN_OUT_PAGE, check);
+        } while (check_stat != STATUS_OK && --again);
+        if (memcmp(check, in_buf, 4) == 0) status = STATUS_OK;
+        if (status != STATUS_OK) goto cleanup;
+        HAL_Delay(5);
+        *direction = PRODUCT_IN;
+    }
+    else
+        status = STATUS_ERR;
 
 cleanup:
     mfrc_halt();
@@ -196,7 +255,34 @@ sel_exit:
 }
 
 
+static uint8_t tag_write_with_retry(uint8_t sector, const uint8_t *data_buf, mfrc_wr_type_e type, uint8_t max_retries) {
+    uint8_t status = STATUS_ERR;
+    // memset(check, 0, PICC_RX_LEN);
+    do {
+        HAL_Delay(5);
+        status = mfrc_picc_write(sector, data_buf, type);
+    } while (status != STATUS_OK && --max_retries);
+    if (status != STATUS_OK) return status;
+    HAL_Delay(20);
+    // uint8_t match = 0;
+    // uint8_t retry = 50;
+    // do {
+    //     status = mfrc_picc_read(sector, check);
+    //     if (status != STATUS_OK) continue;
+    //     if (memcmp(data_buf, check, 4) != 0)
+    //         status = STATUS_ERR;
+    //     else
+    //         match = 1;
+    // } while (status != STATUS_OK && !match && --retry);
 
+    // if (!match)
+    //     status = STATUS_ERR;
+    // else {
+    //     printf("MATCH SUCCESS: 0x%X%X%X%X = 0x%X%X%X%X\n\r", data_buf[0], data_buf[1], data_buf[2], data_buf[3],
+    //         check[0], check[1], check[2], check[3]);
+    // }
+    return status;
+}
 
 static void reader_spi_init(void) {
     spi_init(SPI_DEVICE_MFRC522);

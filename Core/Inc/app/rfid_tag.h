@@ -7,8 +7,9 @@
 
 #include "../drivers/mfrc522.h"
 
-#define UID_LEN_BYTES       (5U) // 4 UID BYTES + 1 BCC
+#define UID_LEN_BYTES       (9U) // 7 UID BYTES (MAX) + 1 BCC
 #define PICC_MEM_BLOCK_LEN  (16U)
+#define PICC_RX_LEN         (18U)
 #define SER_NUM_LEN_BYTES   (4U)
 #define SEC_KEY_LEN         (6U)
 #define SECTOR_TRAIL_BLOCK  (3U) // block address of the PICC sector trailer where KEY and access bits are held
@@ -41,7 +42,7 @@ typedef enum {
 } tag_type_e;
 
 typedef struct {
-    uint8_t buf[PICC_MEM_BLOCK_LEN];
+    uint8_t buf[PICC_RX_LEN];
     uint8_t uid[UID_LEN_BYTES];
     uint8_t sec_key[SEC_KEY_LEN];
 } rfid_tag_t;
@@ -71,7 +72,7 @@ uint8_t tag_init(void);
  * 
  * @return non-neg number of bits read from PICC on success; otherwise 1
  */
-uint8_t tag_read_product_data(uint8_t *prod_name, uint8_t *prod_cond);
+uint8_t tag_read_product_data(uint8_t *prod_name, uint8_t *prod_cond, uint8_t *direction);
 
 /**
  * @brief 

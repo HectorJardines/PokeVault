@@ -14,6 +14,9 @@
 #define SEC_KEY_LEN         (6U)
 #define DEFAULT_SEC_KEY     (0xFFU)
 
+#define PRODUCT_IN  (1U)
+#define PRODUCT_OUT (0U)
+
 /********************
  * ENUMS/STRUCTS
  ********************/

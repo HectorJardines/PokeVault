@@ -91,7 +91,7 @@ uint8_t rs485_transmit(uint8_t *data, uint32_t length) {
  * 
  */
 void receive_begin(void) {
-    memset((void *)rx_buf, 0, sizeof(rx_buf));
+    memset((void *)rx_buf, 0xFF, sizeof(rx_buf));
     HAL_UARTEx_ReceiveToIdle_DMA(&huart1, rx_buf, MAX_FRAME_LEN);
 }
 

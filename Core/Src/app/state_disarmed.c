@@ -62,9 +62,10 @@ void disarmed_state_enter(struct state_disarmed_data *data, state_e from, event_
     case SECURITY_DISARMED:
         switch (event) {
         case EVENT_ITEM_SCAN:
-            if (data->state == DISARMED_OPEN)
+            if (data->state == DISARMED_OPEN) {
                 data->state = DISARMED_TRANS;
-            disarmed_state_run(data);
+                disarmed_state_run(data);
+            }
             break;
         case EVENT_UNIT_OPENED:
             if (data->state == DISARMED_CLOSED || data->state == DISARMED_IDLE)
@@ -110,7 +111,7 @@ static uint8_t disarmed_state_run(struct state_disarmed_data *data) {
         status = inventory_item_update();
         if (status == STATUS_OK)
             data->state = DISARMED_OPEN;
-        break;
+        return status;
     case DISARMED_IDLE:
         display_refresh_value(LABEL_STATUS, 0);
         disarmed_msg.which_payload = msg_type_alert_tag;

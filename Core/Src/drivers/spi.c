@@ -67,7 +67,7 @@ static void spi_configure_mfrc(void) {
 
     // software chip select
     h_spi1.Init.NSS = SPI_NSS_SOFT;
-    h_spi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32; // 75MHz apb2 peripheral clock / 16 = 4.6MHz
+    h_spi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_64; // 75MHz apb2 peripheral clock / 16 = 4.6MHz
     h_spi1.State = HAL_SPI_STATE_READY; // NOT USING MSP INIT FUNCTIONS
 
     h_spi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;

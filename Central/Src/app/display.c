@@ -177,9 +177,9 @@ void display_load_scanning_screen(void) {
  * 
  */
 void display_signal_unit_change(uint8_t type) {
-    if (type == DISP_UNIT_CHANGE)
+    if (type == DISP_UNIT_CHANGE && (ili_disp.curr_screen == SCREEN_ID_MAIN))
         xTaskNotify(disp_tsk, INVENT_UPDATE_UNIT_Msk, eSetBits);
-    else if (type == DISP_INVENT_CHANGE)
+    else if (type == DISP_INVENT_CHANGE && (ili_disp.curr_screen == SCREEN_ID_INVENTORY))
         xTaskNotify(disp_tsk, INVENT_UPDATE_ITEM_Msk, eSetBits);
 }
 

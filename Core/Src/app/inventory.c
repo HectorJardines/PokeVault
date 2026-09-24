@@ -14,7 +14,6 @@ static transaction_t active_transaction;
 // BUFFER STORES RECENT TRANSACITONS IN CASE OF MESSAGE FAILURE
 STATIC_RING_BUFFER(transaction_cache, CACHE_SIZE, transaction_t);
 
-
 /*************************
  * PUB APIs
  ***************/
@@ -53,7 +52,9 @@ uint8_t inventory_init(void) {
 uint8_t inventory_scan_for_item(void) {
     memset((void *)&active_transaction, 0, sizeof(active_transaction));
     // verify tag scanned is an item tag by checking the sector block written on tag reg
-    uint8_t status = tag_read_product_data(active_transaction.item_name, active_transaction.item_cond);
+    uint8_t status = tag_read_product_data(active_transaction.item_name,
+                    active_transaction.item_cond,
+                    &active_transaction.direction);
     return status;
 }
 
@@ -78,6 +79,7 @@ uint8_t inventory_item_update(void) {
     item_detected.which_payload = msg_type_transaction_tag;
     memcpy((void *)item_detected.payload.type_transaction.item_name, (void *)active_transaction.item_name, strlen(active_transaction.item_name));
     memcpy((void *)item_detected.payload.type_transaction.item_cond, (void *)active_transaction.item_cond, strlen(active_transaction.item_cond));
+    item_detected.payload.type_transaction.direction = active_transaction.direction;
 
     message_send(&item_detected);
 

@@ -206,7 +206,7 @@ static uint8_t handle_alert_msg(msg *alert) {
         status = client_post_message(alert_body, strlen(alert_body));
         break;
     case ALERT_SYS_TEMP:
-        snprintf((char *)alert_body, MAX_HTTPS_BODY_LEN, "WARN: UNIT %d EXCESS TEMP - %dC",
+        snprintf((char *)alert_body, MAX_HTTPS_BODY_LEN, "WARN: UNIT %d EXCESS TEMP %dC",
                 alert->node_id, alert->payload.type_alert.value);
         status = client_post_message(alert_body, strlen(alert_body));
         break;

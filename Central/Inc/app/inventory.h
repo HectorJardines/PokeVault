@@ -34,6 +34,7 @@
 #define MAX_ITEMS           (50)
 #define MAX_UNIQUE_ITEMS    (20)
 #define NUM_UNITS           (7U)
+#define TRANS_CACHE_LEN     (20)
 
 /*********************
  * STRUCTS/ENUMS
@@ -58,7 +59,7 @@ typedef struct {
 
 
 struct unit_data {
-    uint8_t armed   : 1;
+    uint8_t armed   : 2;
     uint8_t cap_val  : 7;
 };
 

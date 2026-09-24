@@ -13,6 +13,7 @@ alert.type              int_size:IS_8
 # TRANSACTION STRUCT OPTIONS
 transaction.item_name max_length:16
 transaction.item_cond max_length:3
+transaction.direction int_size:IS_8
 
 
 # EVENT STRUCT OPTIONS

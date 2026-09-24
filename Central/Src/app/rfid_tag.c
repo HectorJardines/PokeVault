@@ -18,14 +18,15 @@
 #define NAME_IDX          (2U)
 #define TRAIL_IDX         (3U)
 
-#define NAME_BLOCK          ((ITEM_SECTOR * BLOCKS_PER_SECTOR) + NAME_IDX)
 #define TYPE_BLOCK          ((ITEM_SECTOR * BLOCKS_PER_SECTOR) + TYPE_IDX)
 #define AUTH_BLOCK          ((ITEM_SECTOR * BLOCKS_PER_SECTOR) + TRAIL_IDX)
 
-#define PAGE_SEC_RATIO      (4U) // we write 16 byte data into 4 byte pages
+#define PAGE_SEC_RATIO      (4U)    // we write 16 byte data into 4 byte pages
+#define IN_OUT_PAGE         (16U)   // store whether item is in or out of a storage unit (changed on transaction event)
 #define COND_PAGE           (12U)
 #define NAME_PAGE           (8U)
 #define TYPE_PAGE           (4U)
+
 
 typedef struct {
     uint8_t buf[PICC_MEM_BLOCK_LEN];
@@ -39,6 +40,8 @@ typedef struct {
 static uint8_t default_sec_key[SEC_KEY_LEN] = {DEFAULT_SEC_KEY, DEFAULT_SEC_KEY, DEFAULT_SEC_KEY, DEFAULT_SEC_KEY, DEFAULT_SEC_KEY, DEFAULT_SEC_KEY};
 static uint8_t item_block_buf[PICC_MEM_BLOCK_LEN] = {0xde, 0xad, 0xbe, 0xef, 0xca, 0xfe, 0,0,0,0,0,0,0,0,0,0};
 static uint8_t card_block_buf[PICC_MEM_BLOCK_LEN] = {0xca, 0xfe, 0xbe, 0xef, 0xde, 0xad, 0,0,0,0,0,0,0,0,0,0};
+const static uint8_t out_buf[PICC_MEM_BLOCK_LEN] = {0xba, 0xad, 0xf0, 0x0d,0,0,0,0,0,0,0,0,0,0,0,0};
+const static uint8_t in_buf[PICC_MEM_BLOCK_LEN] = {0xfe, 0xe1, 0xde, 0xad,0,0,0,0,0,0,0,0,0,0,0,0};
 
 /**
  * @brief Scan tag and set its state to active mode
@@ -125,20 +128,13 @@ static mfrc_status_e tag_write_to_mifare1k(rfid_tag_t *tag) {
 }
 
 
-static uint8_t tag_write_with_retry(uint8_t sector, const uint8_t *data_buf, mfrc_wr_type_e type, uint8_t max_retries) {
+static uint8_t  tag_write_with_retry(uint8_t sector, const uint8_t *data_buf, mfrc_wr_type_e type, uint8_t max_retries) {
     uint8_t status = 0;
-    uint8_t check[PICC_MEM_BLOCK_LEN];
-    memset(check, 0, sizeof(check));
     do {
         HAL_Delay(5);
         status = mfrc_picc_write(sector, data_buf, type);
         HAL_Delay(5);
         if (status != STATUS_OK) continue;
-        // status = mfrc_picc_read(sector, check);
-        // if (status == STATUS_OK) {
-        //     for (uint8_t i = 0; i < PICC_MEM_BLOCK_LEN; ++i)
-        //         status |= (data_buf[i] != check[i]);
-        // }
     } while (status != STATUS_OK && --max_retries);
     
     return status;
@@ -168,6 +164,9 @@ static mfrc_status_e tag_write_to_nfc215(const uint8_t *data_name, const uint8_t
         }
         if (status != STATUS_OK) goto exit;
         status = tag_write_with_retry(COND_PAGE, data_cond, MFRC_WR_PAGE, retry);
+        if (status != STATUS_OK) goto exit;
+        // default to tag out
+        status = tag_write_with_retry(IN_OUT_PAGE, out_buf, MFRC_WR_PAGE, retry);
     }
 exit:
     return status;

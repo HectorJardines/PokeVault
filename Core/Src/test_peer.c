@@ -215,7 +215,7 @@ static void test_system_messaging(void) {
             auth_tick = now;
         }
         if ((now - invent_tick >= INVENT_PERIOD) && display_scan_cplt()
-            && main_sm.current_state != SECURITY_ARMED) // NO NEED TO SCAN FOR PRODUCTS IF UNIT ARMED
+            && (main_sm.current_state != SECURITY_ARMED)) // NO NEED TO SCAN FOR PRODUCTS IF UNIT ARMED
         {
             uint8_t item_present = inventory_scan_for_item();
             if (item_present == STATUS_OK)

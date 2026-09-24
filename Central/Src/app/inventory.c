@@ -17,7 +17,8 @@
  ***************/
 
 
-#define MAX_TRANSACTIONS    (10U)
+#define MAX_INVENT_MSGS     (10U)
+#define MAX_TRANSACTIONS    (20U)
 #define FILE_NAME_LEN       (12U)
 
 #define TRANS_PEND_TIMEOUT  (pdMS_TO_TICKS(10000)) // timeout to sync changes every 10s
@@ -37,24 +38,47 @@ struct unit_csv_t{
     item_info_t unit_inventory[MAX_UNIQUE_ITEMS];
 };
 
+// we trade time for space here, e.g. we have to retrieve the name/condition from FLASH but we save 20 bytes per item in RAM
+struct trans_evt {
+    uint8_t node_id;
+    uint8_t item_token;             /* MAPS TO IDX IN NODE BUFFER IN FLASH */
+    int8_t direction;               /* IN OR OUT */
+};
+
+struct node_item {
+    uint8_t token;
+    uint8_t qty;
+};
+
+struct cached_node {
+    uint8_t node_id;
+    uint8_t capacity;
+
+    struct node_item items[MAX_UNIQUE_ITEMS];
+};
 /*********************
  * STATIC DECLARATIONS
  **********************/
 static uint8_t load_inventory(void);
 static void task_inventory(void *arg);
 static uint8_t inventory_remove_item(uint32_t item_idx, uint8_t node_id);
-static uint8_t inventory_enroll_item(char *item_name, char *item_condition, uint8_t node_id);
+static uint8_t inventory_enroll_item(char *item_name, char *itm_condition, uint8_t node_id, uint8_t match_idx);
 static int8_t invent_item_is_dupe(char *name, char *condition, uint8_t node_id);
 static uint8_t process_transaction(msg *trans);
 static uint8_t inventory_flush_transactions(void);
 
 
-static struct unit_csv_t node_csvs[NUM_UNITS];
+static struct unit_csv_t node_csvs[NUM_UNITS]; // 3KB SRAM
 static char trans_msg[MAX_LOG_BODY_LEN];
 
+static struct cached_node nodes[NUM_UNITS]; // 294 bytes SRAM (same information)
 static QueueHandle_t trans_q;
 static StaticQueue_t _trans_q;
-static uint8_t trans_q_buf[MAX_TRANSACTIONS * sizeof(msg)];
+static uint8_t trans_q_buf[MAX_TRANSACTIONS * sizeof(struct trans_evt)];
+
+static QueueHandle_t invent_msgq;
+static StaticQueue_t _invent_msgq;
+static uint8_t invent_q_buf[MAX_INVENT_MSGS * sizeof(msg)];
 
 static SemaphoreHandle_t csv_mutx;
 static StaticSemaphore_t csv_mutx_buf;
@@ -82,12 +106,18 @@ void c_inventory_init(void) {
     uint8_t status = STATUS_OK;
     csv_mutx = xSemaphoreCreateMutexStatic(&csv_mutx_buf);
     trans_q = xQueueCreateStatic(MAX_TRANSACTIONS, sizeof(msg), trans_q_buf, &_trans_q);
+    invent_msgq = xQueueCreateStatic(MAX_INVENT_MSGS, sizeof(msg), invent_q_buf, &_invent_msgq);
     invent_tsk = xTaskCreateStatic(task_inventory, "Invent Task", INVENTORY_TASK_STK_DEPTH,
                                         NULL, INVENTORY_TASK_PRIO, invent_stk, &_invent_tsk);
+
+    for (uint8_t i = 0; i < NUM_UNITS; ++i) // all units initially armed
+        node_csvs[i].unit_data.armed = 1;
 
     if (invent_tsk == NULL || trans_q == NULL) {
         while (1) {}
     }
+    sizeof(node_csvs);
+    sizeof(nodes);
 }
 
 
@@ -99,7 +129,7 @@ void c_inventory_init(void) {
  * 
  */
 uint8_t inventory_post_event(msg *transaction_msg) {
-    return xQueueSendToBack(trans_q, transaction_msg, TRANS_POST_TIMEOUT);
+    return xQueueSendToBack(invent_msgq, transaction_msg, TRANS_POST_TIMEOUT);
 }
 
 
@@ -121,11 +151,11 @@ uint8_t inventory_signal_scan(char *name, char *cond) {
         scan_msg.command = SCAN_PRODUCT_CMD;
         memcpy((void *)scan_msg.payload.type_transaction.item_name, (const void *)name, MAX_ITEM_NAME_LEN);
         memcpy((void *)scan_msg.payload.type_transaction.item_cond, (const void *)cond, MAX_ITEM_CND_LEN);
-        stat = xQueueSendToBack(trans_q, &scan_msg, portMAX_DELAY);
+        stat = xQueueSendToBack(invent_msgq, &scan_msg, portMAX_DELAY);
     }
     else {
         scan_msg.command = SCAN_TAG_CMD;
-        stat = xQueueSendToBack(trans_q, &scan_msg, portMAX_DELAY);
+        stat = xQueueSendToBack(invent_msgq, &scan_msg, portMAX_DELAY);
     }
     
     return stat;
@@ -213,7 +243,7 @@ static void task_inventory(void *arg) {
     }
 
     for (;;) {
-        if (xQueueReceive(trans_q, (void *)&evt_msg, TRANS_PEND_TIMEOUT) == pdTRUE) {
+        if (xQueueReceive(invent_msgq, (void *)&evt_msg, TRANS_PEND_TIMEOUT) == pdTRUE) {
             if(evt_msg.command == 0)
                 process_transaction(&evt_msg);
             else if (evt_msg.command == SCAN_PRODUCT_CMD) { // prob change to a state based approach, dont want to block all other tasks here
@@ -340,21 +370,20 @@ static int8_t invent_item_is_dupe(char *name, char *condition, uint8_t node_id) 
  * 
  * 
  */
-static uint8_t inventory_enroll_item(char *item_name, char *itm_condition, uint8_t node_id) {
+static uint8_t inventory_enroll_item(char *item_name, char *itm_condition, uint8_t node_id, uint8_t match_idx) {
     uint8_t status = STATUS_ERR;
 
     if (node_csvs[node_id].unit_data.num_records < MAX_ITEMS) {
         memset((void *)trans_msg, 0, MAX_LOG_BODY_LEN);
-        snprintf(trans_msg, MAX_LOG_BODY_LEN, "UNIT %02d - Item Added: %s, %s\r\n",
+        snprintf(trans_msg, MAX_LOG_BODY_LEN, "UNIT %02d Item Added: %s, %s\r\n",
                 node_id, item_name, itm_condition);
         status = log_transaction(trans_msg);
         if (status == STATUS_OK)
             status = client_post_message(trans_msg, strlen(trans_msg));
 
         // IF DUPLICATE ITEM IN STORAGE SIMPLY INCREMENT QTY
-        uint8_t dupe_idx = 0;
-        if ((dupe_idx = invent_item_is_dupe(item_name, itm_condition, node_id)) != 0xFF)
-            node_csvs[node_id].unit_inventory[dupe_idx].qty++;
+        if (match_idx != 0xFF)
+            node_csvs[node_id].unit_inventory[match_idx].qty++;
         else {
             // append only, saves us the overhead of shifting entire array
             uint8_t record_idx = node_csvs[node_id].unit_data.num_records;
@@ -369,6 +398,7 @@ static uint8_t inventory_enroll_item(char *item_name, char *itm_condition, uint8
         // increment record count
         node_csvs[node_id].unit_data.num_records++;
         display_signal_unit_change(DISP_INVENT_CHANGE);
+        display_signal_unit_change(DISP_UNIT_CHANGE);
     }
 
     return status;
@@ -405,19 +435,21 @@ static uint8_t inventory_flush_transactions(void) {
 
 
 static uint8_t process_transaction(msg *trans) {
+    sizeof(node_csvs);
     uint8_t status = STATUS_OK;
     uint8_t item_found = 0;
 
     struct unit_csv_t node = node_csvs[trans->node_id];
+
     uint8_t match_idx = invent_item_is_dupe(trans->payload.type_transaction.item_name, 
                             trans->payload.type_transaction.item_cond,
                             trans->node_id);
-    if (match_idx != 0xFF)
+    if (trans->payload.type_transaction.direction == PRODUCT_OUT && (match_idx != 0xFF))
         status = inventory_remove_item(match_idx, trans->node_id);
     else
         status = inventory_enroll_item(trans->payload.type_transaction.item_name,
                                         trans->payload.type_transaction.item_cond,
-                                        trans->node_id);
+                                        trans->node_id, match_idx);
 
     if (!status && node_csvs[trans->node_id].unit_data.state == CSV_CLEAN)
         node_csvs[trans->node_id].unit_data.state = CSV_DIRTY;
