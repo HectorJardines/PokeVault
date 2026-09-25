@@ -189,7 +189,7 @@ int sd_read_csv(const char *filename, CsvRecord *records, int max_records, int *
 int sd_write_csv(const char *filename, CsvRecord *records, int record_count) {
 	FIL file;
 	char line[128];
-	uint8_t bw = 0;
+	UINT bw = 0;
 
 	FRESULT res = f_open(&file, filename, FA_WRITE | FA_CREATE_ALWAYS);
 	if (res != FR_OK) {
@@ -197,17 +197,12 @@ int sd_write_csv(const char *filename, CsvRecord *records, int record_count) {
 		return res;
 	}
 
-	printf("📄 Writing CSV: %s\r\n", filename);
-	// snprintf(line, sizeof(line), "ITEM UID,ITEM NAME\r\n");
-	res = f_write(&file, line, strlen(line), &bw);
-	if (res == FR_OK) {
-		for (int i = 0; i < record_count; ++i) {
-			memset((void *)line, 0, sizeof(line));
-			snprintf(line, sizeof(line), "%s,%s,%d\r\n", records[i].name, records[i].condition, records[i].qty);
-			res = f_write(&file, line, strlen(line), &bw);
-			if (res != FR_OK)
-				break;
-		}
+	for (int i = 0; i < record_count; ++i) {
+		memset((void *)line, 0, sizeof(line));
+		snprintf(line, sizeof(line), "%s,%s,%d\n", records[i].name, records[i].condition, records[i].qty);
+		res = f_write(&file, line, strlen(line), &bw);
+		if (res != FR_OK)
+			break;
 	}
 
 	if (f_close(&file) != FR_OK)

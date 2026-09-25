@@ -3,9 +3,9 @@
 #include "../../../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h"
 #include "../../Inc/common/defines.h"
 
-#define DISPLAY_WIDTH   (128U)
-#define DISPLAY_HEIGHT  (64U)
-#define DISPLAY_REFR_DELAY  (800U) //ms
+#define DISPLAY_WIDTH           (128U)
+#define DISPLAY_HEIGHT          (64U)
+#define DISPLAY_REFR_DELAY      (800U) //ms
 
 #define HTILE_BUF_SIZE (((DISPLAY_HEIGHT * DISPLAY_WIDTH)  >> 3) + 8)
 #define VTILE_BUF_SIZE (DISPLAY_WIDTH * (DISPLAY_HEIGHT >> 3))

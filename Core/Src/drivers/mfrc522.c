@@ -375,7 +375,6 @@ uint8_t mfrc_picc_write(uint8_t picc_block_addr, uint8_t *send_data, mfrc_wr_typ
         reader.rel_bus();
     }
     if (status != MFRC_OK || rcv_len_bits != PICC_NUM_ACK_BITS || (buffer[0] & 0x0F) != PICC_ACK) {
-        printf("RCV LEN: %d, RCV DATA: 0x%X\n\r", rcv_len_bits, buffer[0]);
         status = MFRC_ERR;
     }
 
@@ -467,7 +466,7 @@ static uint8_t mfrc_send_to_picc(uint8_t command, uint8_t *send_data, uint8_t se
     mfrc_status_e status = MFRC_ERR;
     uint8_t irq_en = 0x00;
     uint8_t wait_irq = 0x00;
-    uint16_t retries = 2000;
+    uint16_t retries = 0xFF;
     switch (command) {
         case PCD_CMD_MF_AUTH:
             irq_en = 0x12; // enable idle irq and error irq
@@ -537,8 +536,6 @@ static uint8_t mfrc_send_to_picc(uint8_t command, uint8_t *send_data, uint8_t se
                 if (num_bytes > MFRC_MAX_FIFO_LEN)
                     num_bytes = MFRC_MAX_FIFO_LEN;
 
-                printf("NUM BYTES TO READ FROM FIFO: %d\n\r", num_bytes);
-
                 // read data from card to rcv_buf
                 for (uint8_t i = 0; i < num_bytes; ++i)
                     rcv_data[i] = read_mfrc_register(MFRC_FIFO_DR);
@@ -553,7 +550,6 @@ static uint8_t mfrc_send_to_picc(uint8_t command, uint8_t *send_data, uint8_t se
     set_bitmask_on_reg(MFRC_FIFO_LVL, 0x80); // reset FIFO pointers/level
     uint8_t num_bytes = read_mfrc_register(MFRC_FIFO_LVL);
     num_bytes = num_bytes & 0x7F; // only lower 7 bits tell us how many bytes are in DR
-    printf("FIFO SHOULD BE EMPTY: %d\n\r", num_bytes);
 
     return status;
 }

@@ -166,11 +166,10 @@ uint8_t tag_read_product_data(uint8_t *prod_name, uint8_t *prod_cond, uint8_t *d
     if (status) goto cleanup;
 
     memset(active_tag.buf, 0x00, PICC_RX_LEN);
-    uint8_t retry = 30;
+    uint8_t retry = 10;
     HAL_Delay(1);
     status = mfrc_picc_read(IN_OUT_PAGE, active_tag.buf);
     if (status != STATUS_OK) goto cleanup;
-    printf("DIRECTION: 0x%X%X%X%X\n\r", active_tag.buf[0], active_tag.buf[1], active_tag.buf[2], active_tag.buf[3]);
     uint8_t dir = PRODUCT_OUT;
     if (memcmp(active_tag.buf, out_buf, 4) == 0)
         dir = PRODUCT_OUT;
@@ -184,7 +183,7 @@ uint8_t tag_read_product_data(uint8_t *prod_name, uint8_t *prod_cond, uint8_t *d
         do {
             memset(check, 0, PICC_RX_LEN);
             check_stat = mfrc_picc_read(IN_OUT_PAGE, check);
-        } while (check_stat != STATUS_OK && --again);
+        } while ((check_stat != STATUS_OK) && --again);
         if (memcmp(check, out_buf, 4) == 0) status = STATUS_OK;
         if (status != STATUS_OK) goto cleanup;
         HAL_Delay(5);
@@ -198,7 +197,7 @@ uint8_t tag_read_product_data(uint8_t *prod_name, uint8_t *prod_cond, uint8_t *d
         do {
             memset(check, 0, PICC_RX_LEN);
             check_stat = mfrc_picc_read(IN_OUT_PAGE, check);
-        } while (check_stat != STATUS_OK && --again);
+        } while ((check_stat != STATUS_OK) && --again);
         if (memcmp(check, in_buf, 4) == 0) status = STATUS_OK;
         if (status != STATUS_OK) goto cleanup;
         HAL_Delay(5);
