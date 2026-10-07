@@ -67,9 +67,9 @@ uint8_t  WIZCHIP_READ(uint32_t AddrSel) {
     uint8_t ret;
     uint8_t spi_data[3];
 
-    if (spi_lock(DEV_ETH) == 1) {
+    if (WIZCHIP_IF_BUS_ACQUIRE() == 1) {
         WIZCHIP_CRITICAL_ENTER();
-        WIZCHIP.CS._select();
+        WIZCHIP_IF_SELECT();
 
         AddrSel |= (_W5500_SPI_READ_ | _W5500_SPI_VDM_OP_);
 
@@ -85,8 +85,8 @@ uint8_t  WIZCHIP_READ(uint32_t AddrSel) {
         }
         ret = WIZCHIP.IF.SPI._read_byte();
 
-        WIZCHIP.CS._deselect();
-        spi_unlock(DEV_ETH);
+        WIZCHIP_IF_DESELECT();
+        WIZCHIP_IF_BUS_RELEASE();
         WIZCHIP_CRITICAL_EXIT();
         
     }
@@ -96,9 +96,9 @@ uint8_t  WIZCHIP_READ(uint32_t AddrSel) {
 void     WIZCHIP_WRITE(uint32_t AddrSel, uint8_t wb) {
     uint8_t spi_data[4];
 
-    if (spi_lock(DEV_ETH) == 1) {
+    if (WIZCHIP_IF_BUS_ACQUIRE() == 1) {
         WIZCHIP_CRITICAL_ENTER();
-        WIZCHIP.CS._select();
+        WIZCHIP_IF_SELECT();
 
         AddrSel |= (_W5500_SPI_WRITE_ | _W5500_SPI_VDM_OP_);
 
@@ -116,8 +116,8 @@ void     WIZCHIP_WRITE(uint32_t AddrSel, uint8_t wb) {
             WIZCHIP.IF.SPI._write_burst(spi_data, 4);
         }
 
-        WIZCHIP.CS._deselect();
-        spi_unlock(DEV_ETH);
+        WIZCHIP_IF_DESELECT();
+        WIZCHIP_IF_BUS_RELEASE();
         WIZCHIP_CRITICAL_EXIT();
     }
 }
@@ -126,9 +126,9 @@ void     WIZCHIP_READ_BUF(uint32_t AddrSel, uint8_t* pBuf, uint16_t len) {
     uint8_t spi_data[3];
     uint16_t i;
 
-    if (spi_lock(DEV_ETH) == 1) {
+    if (WIZCHIP_IF_BUS_ACQUIRE() == 1) {
         WIZCHIP_CRITICAL_ENTER();
-        WIZCHIP.CS._select();
+        WIZCHIP_IF_SELECT();
 
         AddrSel |= (_W5500_SPI_READ_ | _W5500_SPI_VDM_OP_);
 
@@ -147,8 +147,8 @@ void     WIZCHIP_READ_BUF(uint32_t AddrSel, uint8_t* pBuf, uint16_t len) {
             WIZCHIP.IF.SPI._read_burst(pBuf, len);
         }
 
-        WIZCHIP.CS._deselect();
-        spi_unlock(DEV_ETH);
+        WIZCHIP_IF_DESELECT();
+        WIZCHIP_IF_BUS_RELEASE();
         WIZCHIP_CRITICAL_EXIT();
     }
 }
@@ -157,9 +157,9 @@ void     WIZCHIP_WRITE_BUF(uint32_t AddrSel, uint8_t* pBuf, uint16_t len) {
     uint8_t spi_data[3];
     uint16_t i;
 
-    if (spi_lock(DEV_ETH) == 1) {
+    if (WIZCHIP_IF_BUS_ACQUIRE() == 1) {
         WIZCHIP_CRITICAL_ENTER();
-        WIZCHIP.CS._select();
+        WIZCHIP_IF_SELECT();
 
         AddrSel |= (_W5500_SPI_WRITE_ | _W5500_SPI_VDM_OP_);
 
@@ -178,8 +178,8 @@ void     WIZCHIP_WRITE_BUF(uint32_t AddrSel, uint8_t* pBuf, uint16_t len) {
             WIZCHIP.IF.SPI._write_burst(pBuf, len);
         }
 
-        WIZCHIP.CS._deselect();
-        spi_unlock(DEV_ETH);
+        WIZCHIP_IF_DESELECT();
+        WIZCHIP_IF_BUS_RELEASE();
         WIZCHIP_CRITICAL_EXIT();
     }
 }

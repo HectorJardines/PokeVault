@@ -369,6 +369,12 @@ typedef struct __WIZCHIP {
         void (*_enter)  (void);       ///< crtical section enter
         void (*_exit) (void);         ///< critial section exit
     } CRIS;
+
+    struct _MULTI_THD {
+        int (*_acquire) (void);
+        void (*_release) (void);
+    } MULTI_THD;
+
     /**
         The set of @ref \_WIZCHIP_ select control callback func.
     */
@@ -854,6 +860,13 @@ void reg_wizchip_cris_cbfunc(void(*cris_en)(void), void(*cris_ex)(void));
     @note If you do not describe or register, null function is called.
 */
 void reg_wizchip_cs_cbfunc(void(*cs_sel)(void), void(*cs_desel)(void));
+
+/**
+ * @brief Registers callback function for WIZCHIP interface bus acquire/release
+ * @param if_bus_acquire : callback for WIZCHIP bus acquire
+ * @param if_bus_release : callback for WIZCHIP bus release
+ */
+void reg_wizchip_multi_thd_cbfunc(int(*if_bus_acquire)(void), void(*if_bus_release)(void));
 
 /**
     @brief Registers call back function for bus interface.

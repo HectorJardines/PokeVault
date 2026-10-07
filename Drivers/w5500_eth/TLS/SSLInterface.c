@@ -129,8 +129,7 @@ unsigned int wiz_tls_init(wiz_tls_context* tlsContext, int* socket_fd)
 	*/
 
 	mbedtls_ssl_conf_ca_chain(tlsContext->conf, tlsContext->cacert, NULL);
-	//mbedtls_ssl_conf_authmode(tlsContext->conf, MBEDTLS_SSL_VERIFY_REQUIRED);//This option is for server certificate verification
-	mbedtls_ssl_conf_authmode(tlsContext->conf, MBEDTLS_SSL_VERIFY_NONE);
+	mbedtls_ssl_conf_authmode(tlsContext->conf, MBEDTLS_SSL_VERIFY_REQUIRED);//This option is for server certificate verification
 #if defined (MBEDTLS_DEBUG_C)
 	mbedtls_ssl_conf_dbg(tlsContext->conf, WIZnetDebugCB, NULL);
 #endif

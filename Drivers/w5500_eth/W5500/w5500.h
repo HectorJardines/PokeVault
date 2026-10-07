@@ -1200,6 +1200,28 @@ extern "C" {
 #define WIZCHIP_CRITICAL_EXIT()     WIZCHIP.CRIS._exit()
 
 
+/**
+ * @brief Acquire the underlying interface bus
+ * 
+ * @details This function is provided to protect shared bus access
+ * 
+ * This function will simply return 1 if the system is not multi-
+ * threaded
+ */
+#define WIZCHIP_IF_BUS_ACQUIRE()    WIZCHIP.MULTI_THD._acquire()
+/**
+ * @brief Release the underlying interface bus
+ * 
+ * @details This function is provided to protect shared bus access
+ * 
+ * This function will simply return 1 if the system is not multi-
+ * threaded
+ */
+#define WIZCHIP_IF_BUS_RELEASE()    WIZCHIP.MULTI_THD._release()
+
+#define WIZCHIP_IF_SELECT()         WIZCHIP.CS._select()
+#define WIZCHIP_IF_DESELECT()       WIZCHIP.CS._deselect()
+
 ////////////////////////
 // Basic I/O Function //
 ////////////////////////

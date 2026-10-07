@@ -36,6 +36,8 @@ wiz_NetInfo net_info = {
 /*********************
  * STATIC DECLARATIONS
  **********************/
+static int w5500_spi_bus_acquire(void);
+static void w5500_spi_bus_release(void);
 static void w5500_cs_low(void);
 static void w5500_cs_high(void);
 static uint8_t w5500_spi_read_byte(void);
@@ -67,6 +69,7 @@ uint8_t w5500_init(void) {
     reg_wizchip_spi_cbfunc(w5500_spi_read_byte, w5500_spi_write_byte);
     reg_wizchip_spiburst_cbfunc(w5500_spi_burst_read, w5500_spi_burst_write);
     reg_wizchip_cris_cbfunc(vPortEnterCritical, vPortExitCritical);
+    reg_wizchip_multi_thd_cbfunc(w5500_spi_bus_acquire, w5500_spi_bus_release);
 
     initialized = 1;
 }
@@ -105,6 +108,7 @@ uint8_t w5500_configure(void) {
     reg_dhcp_cbfunc(w5500_dhcp_ip_set, w5500_dhcp_ip_set, w5500_dhcp_ip_not_set);
     // set local mac address
     setSHAR(net_info.mac);
+    // sets buffer for DHCP message processing
     DHCP_init(DHCP_SOCKET, dhcp_buffer);
 
     retries = 20;
@@ -117,10 +121,10 @@ uint8_t w5500_configure(void) {
         ctlnetwork(CN_SET_NETINFO, (void *)&net_info);
     }
     else {
-        getIPfromDHCP(net_info.ip);
-        getDNSfromDHCP(net_info.dns);
-        getGWfromDHCP(net_info.gw);
-        getSNfromDHCP(net_info.sn);
+        getIPfromDHCP(net_info.ip); // ip address
+        getDNSfromDHCP(net_info.dns); // dns server address
+        getGWfromDHCP(net_info.gw); // gateway address (i.e. router IP)
+        getSNfromDHCP(net_info.sn); // IP subnet
 
         // retrieved configuration are not auto applied, apply here
         ctlnetwork(CN_SET_NETINFO, (void *)&net_info);
@@ -186,6 +190,14 @@ static void w5500_spi_burst_read(uint8_t *data, uint16_t len) {
 
 static void w5500_spi_burst_write(uint8_t *data, uint16_t len) {
     spi_transmit(DEV_ETH, data, (uint32_t)len);
+}
+
+static int w5500_spi_bus_acquire(void) {
+    return spi_lock(DEV_ETH);
+}
+
+static void w5500_spi_bus_release(void) {
+    spi_unlock(DEV_ETH);
 }
 
 static void w5500_dhcp_ip_set(void) {

@@ -95,9 +95,9 @@ static const spi_bus_cfg_t spi_bus_cfg[SPI_BUS_COUNT] = {
 static spi_dev_cfg_t spi_dev_cfg[DEV_COUNT] = {
     /* SD starts slow for card init; call spi_set_dev_speed(DEV_SD, ...PRESCALER_2) afterwards */
     [DEV_SD]    = { SPI_BUS_2, SPI_BAUDRATEPRESCALER_256 },
-    [DEV_FLASH] = { SPI_BUS_1, SPI_BAUDRATEPRESCALER_8   },
+    [DEV_FLASH] = { SPI_BUS_1, SPI_BAUDRATEPRESCALER_2   },
     [DEV_ETH]   = { SPI_BUS_4, SPI_BAUDRATEPRESCALER_8   },
-    [DEV_DISP]  = { SPI_BUS_4, SPI_BAUDRATEPRESCALER_8   },
+    [DEV_DISP]  = { SPI_BUS_4, SPI_BAUDRATEPRESCALER_2   },
     [DEV_TOUCH] = { SPI_BUS_4, SPI_BAUDRATEPRESCALER_32  },
     [DEV_MFRC]  = { SPI_BUS_4, SPI_BAUDRATEPRESCALER_16  },
 };

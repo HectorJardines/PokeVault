@@ -91,6 +91,21 @@ void 	wizchip_cs_select(void)            {}
 void 	wizchip_cs_deselect(void)          {}
 
 /**
+ * @brief Default function for W5500 IF bus acquire
+ * @note This function is used in a multi-threaded system where the interface 
+ * bus is shared amongst different subsytems
+ */
+int wizchip_if_bus_acquire(void) { return 1; }
+
+/**
+ * @brief Default function for W5500 IF bus release
+ * 
+ * @note This function is used to release the IF bus in 
+ * a multi-threaded system
+ */
+void wizchip_if_bus_release(void) {}
+
+/**
     @brief Default function to read in direct or indirect interface.
     @note This function help not to access wrong address. If you do not describe this function or register any functions,
     null function is called.
@@ -261,10 +276,14 @@ _WIZCHIP  WIZCHIP = {
         wizchip_cris_exit
     },
     {
+        wizchip_if_bus_acquire,
+        wizchip_if_bus_release
+    },
+    {
         wizchip_cs_select,
         wizchip_cs_deselect
     },
-    {
+    { 
         {
             //M20150601 : Rename the function
             //wizchip_bus_readbyte,
@@ -303,6 +322,17 @@ void reg_wizchip_cs_cbfunc(void(*cs_sel)(void), void(*cs_desel)(void)) {
     } else {
         WIZCHIP.CS._select   = cs_sel;
         WIZCHIP.CS._deselect = cs_desel;
+    }
+}
+
+
+void reg_wizchip_multi_thd_cbfunc(int(*if_bus_acquire)(void), void(*if_bus_release)(void)) {
+    if (!if_bus_acquire || !if_bus_release)  {
+        WIZCHIP.MULTI_THD._acquire = wizchip_if_bus_acquire;
+        WIZCHIP.MULTI_THD._release = wizchip_if_bus_release;
+    } else {
+        WIZCHIP.MULTI_THD._acquire = if_bus_acquire;
+        WIZCHIP.MULTI_THD._release = if_bus_release;
     }
 }
 
