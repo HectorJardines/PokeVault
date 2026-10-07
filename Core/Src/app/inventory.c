@@ -4,7 +4,6 @@
 #include "ring_buffer.h"
 #include "common/defines.h"
 
-
 #define CACHE_SIZE          (5U)
 
 /*************************

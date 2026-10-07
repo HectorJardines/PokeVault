@@ -7,6 +7,7 @@
 #include "../../../Drivers/lvgl-master/include/lvgl/drivers/display/lv_ili9341.h"
 #include "../../../FreeRTOS_WrkSpace/include/FreeRTOS.h"
 #include "../../../FreeRTOS_WrkSpace/include/task.h"
+#include "../../../FreeRTOS_WrkSpace/include/queue.h"
 #include "../ui/actions.h"
 
 
@@ -24,16 +25,20 @@
 #define DISP_TASK_STK_DEPTH (1256U)
 #define DISP_TASK_PRIO      (4U)
 #define INPUT_Q_LEN         (5U)
+#define EVT_Q_LEN           (3U)
 #define MAX_QSTR_LEN        (4U)
 
-#define TOUCH_Msk                   (0x01 << 0)
-#define SCAN_Msk                    (0x01 << 1)
-#define SCAN_CPLT_Msk               (0x01 << 2)
-#define INIT_INVENT_LOAD_Msk        (0x01 << 3)
-#define INVENT_UPDATE_UNIT_Msk      (0x01 << 4)
-#define INVENT_UPDATE_ITEM_Msk      (0x01 << 5)
+#define INIT_INVENT_LOAD_Msk        (1 << 0)
+
+#define EVT_TOUCH                   (0)
+#define EVT_SCAN_START              (1)
+#define EVT_SCAN_CPLT               (2)
+#define EVT_UNIT_UPDATE             (4)
+#define EVT_ITEM_UPDATE             (5)
 #define ALL_Msk                     ( 0xFFFFFFFF )
 
+
+#define TOUCH_DEBOUNCE_MS           (500U)
 
 /******************
  * TYPEDEFS
@@ -51,26 +56,20 @@ typedef struct {
     char ta_cond[MAX_ITEM_CND_LEN];
 } display_t;
 
-typedef struct {
-    uint8_t pg_idx;
-    uint8_t valid_records;
-    CsvRecord records[ITEMS_PER_SCREEN];
-    char qty_strs[ITEMS_PER_SCREEN][4];
-} invent_screen_t;
-
-
-typedef struct {
-    uint8_t pg_idx;
-    uint8_t prev_pg_idx;
-    uint8_t valid_units;
-    unit_record_t units[NODES_PER_SCREEN];
-} units_screen_t;
-
 
 typedef struct {
     int32_t x;
     int32_t y;
 } touch_coord_t;
+
+
+struct display_evt {
+    uint8_t type;
+    union {
+        invent_screen_t updated_invent;
+        units_screen_t update_units;
+    };
+};
 
 /*************
  * STATIC DEC
@@ -94,6 +93,10 @@ static TaskHandle_t disp_tsk;
 static StaticTask_t _disp_tsk;
 static StackType_t disp_stk[DISP_TASK_STK_DEPTH];
 
+// DISP EVT QUEUE
+static QueueHandle_t evt_q;
+static StaticQueue_t _evt_q;
+static uint8_t evt_buf[EVT_Q_LEN * sizeof(struct display_evt)];
 
 // INPUT QUEUE
 static QueueHandle_t input_q;
@@ -111,6 +114,8 @@ static uint8_t input_buf[INPUT_Q_LEN * sizeof(touch_coord_t)];
  * 
  */
 void display_init(void) {
+    sizeof(struct display_evt);
+    sizeof(invent_content.records);
     // INIT SUBMODULES
     spi_init();
     lv_init();
@@ -123,6 +128,7 @@ void display_init(void) {
 
     unit_content.prev_pg_idx = 0xFF;
     input_q = xQueueCreateStatic(INPUT_Q_LEN, sizeof(touch_coord_t), input_buf, &_input_q);
+    evt_q = xQueueCreateStatic(EVT_Q_LEN, sizeof(struct display_evt), evt_buf, &_evt_q);
     disp_tsk = xTaskCreateStatic(task_display, "Display Task", DISP_TASK_STK_DEPTH, 
                                 NULL, DISP_TASK_PRIO, disp_stk, &_disp_tsk);
     if (disp_tsk == NULL || input_q == NULL) {
@@ -153,7 +159,9 @@ void display_first_load_ready(void) {
  * 
  */
 void display_load_scanned_screen(void) {
-    xTaskNotify(disp_tsk, SCAN_CPLT_Msk, eSetBits);
+    struct display_evt evt;
+    evt.type = EVT_SCAN_CPLT;
+    xQueueSendToBack(evt_q, &evt, portMAX_DELAY);
 }
 
 
@@ -167,7 +175,9 @@ void display_load_scanned_screen(void) {
  *
  */
 void display_load_scanning_screen(void) {
-    xTaskNotify(disp_tsk, SCAN_Msk, eSetBits);
+    struct display_evt evt;
+    evt.type = EVT_SCAN_START;
+    xQueueSendToBack(evt_q, &evt, portMAX_DELAY);
 }
 
 /**
@@ -176,11 +186,19 @@ void display_load_scanning_screen(void) {
  * 
  * 
  */
-void display_signal_unit_change(uint8_t type) {
-    if (type == DISP_UNIT_CHANGE && (ili_disp.curr_screen == SCREEN_ID_MAIN))
-        xTaskNotify(disp_tsk, INVENT_UPDATE_UNIT_Msk, eSetBits);
-    else if (type == DISP_INVENT_CHANGE && (ili_disp.curr_screen == SCREEN_ID_INVENTORY))
-        xTaskNotify(disp_tsk, INVENT_UPDATE_ITEM_Msk, eSetBits);
+void display_signal_invent_change(uint8_t type, void *update) {
+    struct display_evt evt;
+
+    if (type == DISP_UNIT_CHANGE && (ili_disp.curr_screen == SCREEN_ID_MAIN)) {
+        evt.type = EVT_UNIT_UPDATE;
+        memcpy((void *)&evt.update_units, (const void *)update, sizeof(evt.update_units));
+    }
+    else if (type == DISP_ITEM_CHANGE && (ili_disp.curr_screen == SCREEN_ID_INVENTORY)) {
+        evt.type = EVT_ITEM_UPDATE;
+        memcpy((void *)&evt.updated_invent, (const void *)update, sizeof(evt.updated_invent));
+    }
+
+    xQueueSendToBack(evt_q, &evt, portMAX_DELAY);
 }
 
 
@@ -193,11 +211,13 @@ void display_signal_unit_change(uint8_t type) {
  * The API retrieves the necessary unit contents and
  * displays them on the screen.
  */
-void display_update_units(void) {
+int32_t display_req_unit_update(uint8_t pg_idx) {
     // if (unit_content.pg_idx != unit_content.prev_pg_idx) // skip update if prev loaded content is same
-    unit_content.valid_units = inventory_get_unit_stats(&unit_content.units, unit_content.pg_idx, NULL);
-    if (unit_content.valid_units > 0)
-            update_units();
+    if (pg_idx == 0xFF) pg_idx = unit_content.pg_idx;
+    msg req_msg = {.command = CMD_GET_NODE_STATS,
+                    .which_payload = pg_idx
+                };
+    inventory_post_event(&req_msg);
     ili_disp.curr_screen = SCREEN_ID_MAIN;
 }
 
@@ -210,8 +230,12 @@ void display_update_units(void) {
  * inventory task and updates them on the display.
  * 
  */
-void display_update_items(void) {
-    update_items();
+int32_t display_req_item_update(uint8_t node_id, uint8_t pg_idx) {
+    msg req_msg = {.command = CMD_GET_INVENT_STATS,
+                    .node_id = node_id,
+                    .which_payload = pg_idx
+                };
+    inventory_post_event(&req_msg);
     ili_disp.curr_screen = SCREEN_ID_INVENTORY;
 }
 
@@ -222,6 +246,7 @@ void display_update_items(void) {
  *******************/
 static void task_display(void *arg) {
     static uint32_t delay = 0, curr_tick = 0, notif = 0;
+    struct display_evt evt;
     
     display_configure();
     do {
@@ -235,24 +260,30 @@ static void task_display(void *arg) {
             delay = LV_DEF_REFR_PERIOD;
 
         static touch_coord_t input;
-        if (xTaskNotifyWait(0x00, ALL_Msk, &notif, pdMS_TO_TICKS(delay)) == pdTRUE) {
-            if (notif & TOUCH_Msk) {
+        if (xQueueReceive(evt_q, &evt, delay)) {
+            switch (evt.type) {
+            case EVT_TOUCH:
                 xpt2046_read_position(&input.x, &input.y);
                 xQueueSendToBack(input_q, &input, 0);
-            }
-            if (notif & SCAN_Msk)
+                break;
+            case EVT_SCAN_START:
                 loadScreen(SCREEN_ID_SCANNING);
-            if (notif & SCAN_CPLT_Msk) {
+                break;
+            case EVT_SCAN_CPLT:
                 ili_disp.scan_state = 3;
                 loadScreen(SCREEN_ID_SCANNED);
                 lv_timer_resume(ili_disp.tran_tim);
-            }
-            if (notif & INVENT_UPDATE_ITEM_Msk && ili_disp.curr_screen == SCREEN_ID_INVENTORY) {
-                invent_content.valid_records = inventory_get_contents(ili_disp.curr_node, invent_content.records, invent_content.pg_idx);
-                display_update_items();
-            }
-            if (notif & INVENT_UPDATE_UNIT_Msk && ili_disp.curr_screen == SCREEN_ID_MAIN) {
-                display_update_units();
+                break;
+            case EVT_ITEM_UPDATE:
+                if (invent_content.pg_idx == evt.updated_invent.pg_idx)
+                    memcpy((void *)&invent_content, (const void *)&evt.updated_invent, sizeof(invent_content));
+                update_items();
+                break;
+            case EVT_UNIT_UPDATE:
+                if (unit_content.pg_idx == evt.update_units.pg_idx)
+                    memcpy((void *)&unit_content, (const void *)&evt.update_units, sizeof(unit_content));
+                update_units();
+                break;
             }
         }
         volatile UBaseType_t high_stk_usage = uxTaskGetStackHighWaterMark(NULL);
@@ -399,13 +430,15 @@ static void update_units(void) {
 static void xpt2046_touch_isr(void) {
     static uint32_t prev_tick = 0;
     uint32_t tick = xTaskGetTickCount();
-    if (tick - prev_tick < 100) {
+    if (tick - prev_tick < TOUCH_DEBOUNCE_MS)
         return;
-    }
     prev_tick = tick;
 
+    struct display_evt evt;
+    evt.type = EVT_TOUCH;
+
     BaseType_t hpt_ready = pdFALSE;
-    xTaskNotifyFromISR(disp_tsk, TOUCH_Msk, eSetBits, &hpt_ready);
+    xQueueSendToBackFromISR(evt_q, &evt, &hpt_ready);
     portYIELD_FROM_ISR(hpt_ready);
 }
 
@@ -449,11 +482,9 @@ void action_next_items(lv_event_t * e) {
     lv_obj_t *obj = lv_event_get_target_obj(e);
     uint8_t node_id = *((uint8_t *)lv_obj_get_user_data(obj)); 
     
-    invent_content.valid_records = inventory_get_contents(node_id, invent_content.records, invent_content.pg_idx + 1);
-    if (invent_content.valid_records > 0) {
-        update_items();
+    int32_t ret = display_req_item_update(node_id, invent_content.pg_idx + 1);
+    if (!ret)
         invent_content.pg_idx++;
-    }
 }
 
 
@@ -472,11 +503,9 @@ void action_previous_items(lv_event_t * e) {
     uint8_t node_id = *((uint8_t *)lv_obj_get_user_data(obj));
 
     if (invent_content.pg_idx > 0) {
-        invent_content.valid_records = inventory_get_contents(node_id, invent_content.records, invent_content.pg_idx - 1);
-        if (invent_content.valid_records > 0) {
-            update_items(); // could optionally display a blank screen
+        int32_t ret = display_req_item_update(node_id, invent_content.pg_idx - 1);
+        if (!ret)
             invent_content.pg_idx--;
-        }
     }
 }
 
@@ -488,12 +517,9 @@ void action_previous_items(lv_event_t * e) {
  * 
  */
 void action_next_units(lv_event_t *e) {
-    uint8_t ret = inventory_get_unit_stats(unit_content.units, unit_content.pg_idx + 1, NULL);
-    if (ret > 0) {
-        update_units();
+    int32_t ret = display_req_unit_update(unit_content.pg_idx + 1);
+    if (!ret)
         unit_content.pg_idx++;
-        unit_content.valid_units = ret;
-    }
 }
 
 
@@ -506,12 +532,9 @@ void action_next_units(lv_event_t *e) {
  */
 void action_prev_units(lv_event_t *e) {
     if (unit_content.pg_idx > 0) {
-        uint8_t ret = inventory_get_unit_stats(unit_content.units, unit_content.pg_idx - 1, NULL);
-        if (ret > 0) {
-            unit_content.valid_units = ret;
-            update_units();
+        int32_t ret = display_req_unit_update(unit_content.pg_idx - 1);
+        if (!ret) 
             unit_content.pg_idx--;
-        }
     }
 }
 
@@ -539,9 +562,11 @@ void action_to_inventory(lv_event_t * e) {
     lv_obj_t *obj = lv_event_get_target_obj(e);
     uint8_t node_id = *((uint8_t *)lv_obj_get_user_data(obj));
 
-    invent_content.valid_records = inventory_get_contents(node_id, invent_content.records, invent_content.pg_idx);
-    loadScreen(SCREEN_ID_INVENTORY); // gonna need to either block here or sleep the thread
-    ili_disp.curr_node = node_id;
+    int32_t ret = display_req_item_update(node_id, invent_content.pg_idx);
+    if (!ret) {
+        loadScreen(SCREEN_ID_INVENTORY); // gonna need to either block here or sleep the thread
+        ili_disp.curr_node = node_id;
+    }
 }
 
 

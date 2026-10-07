@@ -13,25 +13,6 @@ void ili9341_init(void);
 
 
 /**
- * @brief Sends commands to the ILI9341 disp driver
- * 
- * 
- * 
- */
-void ili9341_send_cmd(lv_display_t * disp, const uint8_t * cmd, size_t cmd_size, const uint8_t *param, size_t param_size);
-
-
-/**
- * @brief Flushes a partial display buffer to the display
- * 
- * 
- * 
- */
-void ili9341_send_pixels(lv_display_t * disp, const uint8_t * cmd, size_t cmd_size, uint8_t * param, size_t param_size);
-
-
-
-/**
  * @brief This functions performs the actual SPI transmit of pixels
  * 
  * This function is owned by the SPI task and only accessible

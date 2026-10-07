@@ -146,6 +146,33 @@ int sd_read_file(const char *filename, char *buffer, UINT bufsize, UINT *bytes_r
 	return FR_OK;
 }
 
+int sd_read_csvn(FIL *fp, CsvRecord *records, int records_to_read, int *record_count) {
+	FIL file;
+	FILINFO info;
+	char line[128];
+	char *line_p;
+	*record_count = 0;
+	int32_t res = FR_OK;
+
+	while (*record_count < records_to_read) {
+		res = (f_gets(line, sizeof(line), &file) != NULL ? -1 : FR_OK);
+		line_p = line;
+		char *token = strsep(&line_p, ",");
+		if (!token) continue;
+		strncpy(records[*record_count].name, token, sizeof(records[*record_count].name) - 1);
+		records[*record_count].name[sizeof(records[*record_count].name) - 1] = '\0';
+		token = strsep(&line_p, ",");
+		if (!token) continue;
+		strncpy(records[*record_count].condition, token, sizeof(records[*record_count].condition) - 1);
+		records[*record_count].condition[sizeof(records[*record_count].condition) - 1] = '\0';
+		token = strsep(&line_p, ",");
+		if (!token) continue;
+		records[*record_count].qty = atoi(token);
+		(*record_count)++;
+	}
+
+	return res;
+}
 
 int sd_read_csv(const char *filename, CsvRecord *records, int max_records, int *record_count) {
 	FIL file;
@@ -164,7 +191,6 @@ int sd_read_csv(const char *filename, CsvRecord *records, int max_records, int *
 		return res;
 	}
 
-	printf("📄 Reading CSV: %s\r\n", filename);
 	while (f_gets(line, sizeof(line), &file) && *record_count < max_records) {
 		line_p = line;
 		char *token = strsep(&line_p, ",");

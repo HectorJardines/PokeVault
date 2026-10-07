@@ -9,7 +9,7 @@
  **********************/
 #define ITEMS_PER_SCREEN    (7U)
 #define DISP_UNIT_CHANGE    (0U)
-#define DISP_INVENT_CHANGE  (1U)
+#define DISP_ITEM_CHANGE    (1U)
 
 /***********************
  * PUBLIC APIs
@@ -48,7 +48,7 @@ void display_load_scanned_screen(void);
  * 
  * 
  */
-void display_signal_unit_change(uint8_t type);
+void display_signal_invent_change(uint8_t type, void *update);
 
 
 /**
@@ -66,8 +66,14 @@ void display_first_load_ready(void);
  * 
  * 
  */
-void display_update_units(void);
+int32_t display_req_unit_update(uint8_t pg_idx);
 
-void display_update_items(void);
+/**
+ * @brief 
+ * 
+ * 
+ * 
+ */
+int32_t display_req_item_update(uint8_t node_id, uint8_t pg_idx);
 
 #endif

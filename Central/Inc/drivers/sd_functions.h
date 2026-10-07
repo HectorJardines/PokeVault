@@ -51,6 +51,7 @@ typedef struct CsvRecord {
 } CsvRecord;
 
 // CSV reader (caller defines record array)
+int sd_read_csvn(FIL *fp, CsvRecord *records, int records_to_read, int *record_count);
 int sd_read_csv(const char *filename, CsvRecord *records, int max_records, int *record_count);
 int sd_write_csv(const char *filename, CsvRecord *records, int record_count);
 

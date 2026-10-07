@@ -52,7 +52,7 @@ static void event_handler_cb_inventory_inventory(lv_event_t *e) {
         // group: grp_units
         lv_group_remove_all_objs(groups.grp_units);
 
-        display_update_items();
+        // display_req_item_update(0xFF, 0xFF);
     }
 }
 
@@ -72,7 +72,7 @@ static void event_handler_cb_main_main(lv_event_t *e) {
         lv_group_add_obj(groups.grp_units, objects.node_5);
         lv_group_add_obj(groups.grp_units, objects.node_6);
 
-        display_update_units();
+        display_req_unit_update(0xFF);
     }
 }
 

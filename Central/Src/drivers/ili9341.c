@@ -6,10 +6,10 @@
 /************
  * MACROS
  *************/
-#define DISP_CS_LOW()         (GPIOA->BSRR |= GPIO_BSRR_BR7)
-#define DISP_CS_HIGH()        (GPIOA->BSRR |= GPIO_BSRR_BS7)
-#define DISP_CMD_PIN()        (GPIOB->BSRR |= GPIO_BSRR_BR0)
-#define DISP_DATA_PIN()       (GPIOB->BSRR |= GPIO_BSRR_BS0)
+#define DISP_CS_LOW()         (io_set_out(IO_SPI_CS_DISP, IO_OUT_LOW))
+#define DISP_CS_HIGH()        (io_set_out(IO_SPI_CS_DISP, IO_OUT_HIGH))
+#define DISP_CMD_PIN()        (io_set_out(IO_DISP_CTL, IO_OUT_LOW))
+#define DISP_DATA_PIN()       (io_set_out(IO_DISP_CTL, IO_OUT_HIGH))
 
 /*************
  * STATIC DECS
@@ -28,49 +28,6 @@
 void ili9341_init(void) {
     spi_init();
 }
-
-
-/**
- * @brief Sends commands to the ILI9341 disp driver
- * 
- * 
- * 
- */
-void ili9341_send_cmd(lv_display_t * disp, const uint8_t * cmd, size_t cmd_size, const uint8_t *param, size_t param_size) {
-    uint8_t status = 0;
-    // sleep thread until spi periph is free
-    spi1_req_t ili_cmd_send = {.req_type = ILI9341_SEND_CMD,
-                                .req_task = xTaskGetCurrentTaskHandle(), 
-                                .ili9341_io = {.cmd = cmd, .cmd_size = cmd_size, 
-                                                .param = param, .param_size = param_size}
-                                };
-    status = spi1_post_request(&ili_cmd_send);
-    if (status == HAL_OK)
-        status = spi1_wait_notify(DEV_DISP);
-    (void)status;
-}
-
-
-/**
- * @brief Flushes a partial display buffer to the display
- * 
- * 
- * 
- */
-void ili9341_send_pixels(lv_display_t * disp, const uint8_t * cmd, size_t cmd_size, uint8_t * param, size_t param_size) {
-    uint8_t status = 0;
-    spi1_req_t ili_pixels_send = {.req_type = ILI9341_SEND_PIXELS, 
-                                .req_task = xTaskGetCurrentTaskHandle(),
-                                .ili9341_io = {.cmd = cmd, .cmd_size = cmd_size, 
-                                                .param = param, .param_size = param_size}
-                                };
-    status = spi1_post_request(&ili_pixels_send);
-    if (status == HAL_OK)
-        status = spi1_wait_notify(DEV_DISP);
-    lv_display_flush_ready(disp);
-    (void)status;
-}
-
 
 /**
  * @brief This functions performs the actual SPI transmit of pixels

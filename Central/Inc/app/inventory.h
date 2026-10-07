@@ -19,22 +19,24 @@
 #include "../app/central_message.h"
 #include "../../Inc/drivers/sd_functions.h"
 
-#define SCAN_TAG_CMD        (1U)
-#define SCAN_PRODUCT_CMD    (2U)
-#define CMD_GET_INVENT      (3U)
-#define CMD_GET_NODE_STAT   (4U)
-#define RECORDS_READY_CMD   (5U)
-#define CMD_UNIT_STAT_CH    (6U)
+#define SCAN_TAG_CMD            (1U)
+#define SCAN_PRODUCT_CMD        (2U)
+#define RECORDS_READY_CMD       (5U)
+#define CMD_UNIT_STAT_CH        (6U)
+#define CMD_GET_INVENT_STATS    (7U)
+#define CMD_GET_NODE_STATS      (8U)
 
 #define ITEMS_PER_SCREEN    (7U)
 #define NODES_PER_SCREEN    (6U)
 #define MAX_ITEM_NAME_LEN   (17U) // MAX ITEM NAME LEN
 #define MAX_ITEM_CND_LEN    (4U) // MAX ITEM CONDITION TAG LEN
 
-#define MAX_ITEMS           (50)
-#define MAX_UNIQUE_ITEMS    (20)
-#define NUM_UNITS           (7U)
-#define TRANS_CACHE_LEN     (20)
+#define MAX_UNITS               (100U)
+#define MAX_ITEMS               (100U)
+#define MAX_UNIQUE_ITEM_NAMES   (10000U)
+#define MAX_UNIQUE_ITEMS        (30U)
+#define NUM_UNITS               (7U)
+#define TRANS_CACHE_LEN         (20)
 
 /*********************
  * STRUCTS/ENUMS
@@ -64,6 +66,8 @@ struct unit_data {
 };
 
 
+typedef CsvRecord item_info_t;
+
 typedef struct {
     char id[8];
     char capacity[6];
@@ -71,7 +75,21 @@ typedef struct {
     uint8_t id_val;
 } unit_record_t;
 
-typedef CsvRecord item_info_t;
+
+typedef struct {
+    uint8_t pg_idx;
+    uint8_t valid_records;
+    CsvRecord records[ITEMS_PER_SCREEN];
+    uint8_t qty_strs[ITEMS_PER_SCREEN][4];
+} invent_screen_t;
+
+
+typedef struct {
+    uint8_t pg_idx;
+    uint8_t prev_pg_idx;
+    uint8_t valid_units;
+    unit_record_t units[NODES_PER_SCREEN];
+} units_screen_t;
 
 /******************
  * PUBLIC APIs
@@ -94,25 +112,6 @@ void c_inventory_init(void);
  * 
  */
 uint8_t inventory_post_event(msg *transaction_msg);
-
-
-
-/**
- * @brief Retrieves as many records as are available to fit on current screen
- * 
- * @return number of records read on success; else 0
- */
-uint8_t inventory_get_contents(uint8_t node_id, CsvRecord *records, uint8_t pg_idx);
-
-
-
-/**
- * @brief
- * 
- * 
- */
-uint8_t inventory_get_unit_stats(unit_record_t *records, uint8_t pg_idx, uint8_t *new_values);
-
 
 
 /**

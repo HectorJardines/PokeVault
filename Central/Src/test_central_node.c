@@ -96,32 +96,32 @@ static void test_setup(void) {
 //     }
 // }
 
-static void test_register_tag(void) {
-    tag_init();
-    // display_init();
-    // ui_init();
+// static void test_register_tag(void) {
+//     tag_init();
+//     // display_init();
+//     // ui_init();
 
-    // volatile uint32_t time_till_next = lv_timer_handler();
-    // volatile uint32_t dis_start_tick = HAL_GetTick();
+//     // volatile uint32_t time_till_next = lv_timer_handler();
+//     // volatile uint32_t dis_start_tick = HAL_GetTick();
 
-    while(1) {
-		// if (HAL_GetTick() - dis_start_tick >= time_till_next) {
-		// 	time_till_next = lv_timer_handler();
-        //     if (time_till_next == LV_NO_TIMER_READY)
-        //         time_till_next = LV_DEF_REFR_PERIOD;
-		// 	dis_start_tick = HAL_GetTick();
-		// }
+//     while(1) {
+// 		// if (HAL_GetTick() - dis_start_tick >= time_till_next) {
+// 		// 	time_till_next = lv_timer_handler();
+//         //     if (time_till_next == LV_NO_TIMER_READY)
+//         //         time_till_next = LV_DEF_REFR_PERIOD;
+// 		// 	dis_start_tick = HAL_GetTick();
+// 		// }
 
-        if (tag_register(TAG_AUTH_CARD, NULL, NULL) == STATUS_OK) {
-            io_set_out(IO_TEST_LED, IO_OUT_HIGH);
-            HAL_Delay(1000);
-            io_set_out(IO_TEST_LED, IO_OUT_LOW);
-            HAL_Delay(1000);
-        }
-        else
-            printf("no card\r\n");
-    }
-}
+//         if (tag_register(TAG_AUTH_CARD, NULL, NULL) == STATUS_OK) {
+//             io_set_out(IO_TEST_LED, IO_OUT_HIGH);
+//             HAL_Delay(1000);
+//             io_set_out(IO_TEST_LED, IO_OUT_LOW);
+//             HAL_Delay(1000);
+//         }
+//         else
+//             printf("no card\r\n");
+//     }
+// }
 
 static void test_system_messaging(void) {
     central_node_init();

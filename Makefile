@@ -126,6 +126,7 @@ Central/Src/common/private.c \
 Central/Src/drivers/io.c \
 Central/Src/drivers/rtc.c \
 Central/Src/drivers/xpt2046.c \
+Central/Src/drivers/py25q_flash.c \
 FreeRTOS_WrkSpace/ARM_CM4F/port.c \
 FreeRTOS_WrkSpace/MemMang/heap_4.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_tim.c \
