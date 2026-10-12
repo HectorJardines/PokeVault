@@ -7,7 +7,8 @@
 typedef enum {
     LABEL_HUM,
     LABEL_TEMP,
-    LABEL_STATUS
+    LABEL_STATUS,
+    LABEL_NODE_ID
 } disp_label_e;
 
 /**

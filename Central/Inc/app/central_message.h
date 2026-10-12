@@ -31,7 +31,8 @@ typedef enum {
     MSG_CMD_CTS,
     MSG_CMD_SEND_CPLT,
     MSG_CMD_DISCOVER,
-    MSG_CMD_DISCOVER_RESP
+    MSG_CMD_DISCOVER_OK,
+    MSG_CMD_DISCOVER_ERR
 } message_cmd_e;
 
 /*********************

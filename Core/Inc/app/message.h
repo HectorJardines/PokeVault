@@ -29,7 +29,10 @@ typedef enum {
 typedef enum {
     MSG_CMD_NONE,
     MSG_CMD_CTS,
-    MSG_CMD_SEND_CPLT
+    MSG_CMD_SEND_CPLT,
+    MSG_CMD_DISCOVER,
+    MSG_CMD_DISCOVER_OK,
+    MSG_CMD_DISCOVER_ERR
 } message_cmd_e;
 
 /*********************
@@ -46,13 +49,15 @@ void message_init(void);
 
 
 
+void message_task_process(void);
+
 /**
  * @brief Send message to central MCU
  * 
  * 
  * 
  */
-void message_send(msg *message);
+int32_t message_send(msg *message);
 
 
 

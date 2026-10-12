@@ -17,7 +17,7 @@
 #include "mbedtls/x509_crt.h"
 #include "mbedtls/error.h"
 
-#define CERTIFICATE	self_signed_certificate
+#define CERTIFICATE	self_signed_cert
 #define W5500_TLS_SOCK_NUM	(0U)
 #define W5500_TLS_PORT_NUM	(0U)
 

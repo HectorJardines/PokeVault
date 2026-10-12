@@ -35,6 +35,8 @@ typedef struct _msg {
         transaction type_transaction;
         event type_event;
     } payload;
+    bool has_node_uid;
+    uint32_t node_uid;
 } msg;
 
 typedef struct _msg_array {
@@ -49,12 +51,12 @@ extern "C" {
 
 /* Initializer values for message structs */
 #define msg_array_init_default                   {0, {msg_init_default, msg_init_default, msg_init_default, msg_init_default, msg_init_default}}
-#define msg_init_default                         {0, 0, 0, {alert_init_default}}
+#define msg_init_default                         {0, 0, 0, {alert_init_default}, false, 0}
 #define alert_init_default                       {0, 0}
 #define transaction_init_default                 {"", "", 0}
 #define event_init_default                       {0, 0}
 #define msg_array_init_zero                      {0, {msg_init_zero, msg_init_zero, msg_init_zero, msg_init_zero, msg_init_zero}}
-#define msg_init_zero                            {0, 0, 0, {alert_init_zero}}
+#define msg_init_zero                            {0, 0, 0, {alert_init_zero}, false, 0}
 #define alert_init_zero                          {0, 0}
 #define transaction_init_zero                    {"", "", 0}
 #define event_init_zero                          {0, 0}
@@ -72,6 +74,7 @@ extern "C" {
 #define msg_type_alert_tag                       3
 #define msg_type_transaction_tag                 4
 #define msg_type_event_tag                       5
+#define msg_node_uid_tag                         6
 #define msg_array_msgs_tag                       1
 
 /* Struct field encoding specification for nanopb */
@@ -86,7 +89,8 @@ X(a, STATIC,   REQUIRED, UINT32,   command,           1) \
 X(a, STATIC,   REQUIRED, UINT32,   node_id,           2) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (payload,type_alert,payload.type_alert),   3) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (payload,type_transaction,payload.type_transaction),   4) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (payload,type_event,payload.type_event),   5)
+X(a, STATIC,   ONEOF,    MESSAGE,  (payload,type_event,payload.type_event),   5) \
+X(a, STATIC,   OPTIONAL, UINT32,   node_uid,          6)
 #define msg_CALLBACK NULL
 #define msg_DEFAULT NULL
 #define msg_payload_type_alert_MSGTYPE alert
@@ -129,8 +133,8 @@ extern const pb_msgdesc_t event_msg;
 #define DRIVERS_NANOPB_MESSAGES_PB_H_MAX_SIZE    msg_array_size
 #define alert_size                               9
 #define event_size                               9
-#define msg_array_size                           195
-#define msg_size                                 37
+#define msg_array_size                           225
+#define msg_size                                 43
 #define transaction_size                         26
 
 #ifdef __cplusplus

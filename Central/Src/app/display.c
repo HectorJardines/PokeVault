@@ -189,17 +189,20 @@ void display_load_scanning_screen(void) {
  */
 void display_signal_invent_change(uint8_t type, void *update) {
     struct display_evt evt;
+    uint8_t send = 0;
 
     if (type == DISP_UNIT_CHANGE && (ili_disp.curr_screen == SCREEN_ID_MAIN)) {
         evt.type = EVT_UNIT_UPDATE;
         memcpy((void *)&evt.update_units, (const void *)update, sizeof(evt.update_units));
-    }
-    else if (type == DISP_ITEM_CHANGE && (ili_disp.curr_screen == SCREEN_ID_INVENTORY)) {
+        send = 1;
+    } else if (type == DISP_ITEM_CHANGE && (ili_disp.curr_screen == SCREEN_ID_INVENTORY)) {
         evt.type = EVT_ITEM_UPDATE;
         memcpy((void *)&evt.updated_invent, (const void *)update, sizeof(evt.updated_invent));
+        send = 1;
     }
 
-    xQueueSendToBack(evt_q, &evt, portMAX_DELAY);
+    if(send)
+        xQueueSendToBack(evt_q, &evt, portMAX_DELAY);
 }
 
 
@@ -452,6 +455,7 @@ void action_back_to_main(lv_event_t * e) {
     unit_content.prev_pg_idx = unit_content.pg_idx;
     unit_content.pg_idx = 0;
     loadScreen(SCREEN_ID_MAIN);
+    update_units();
 }
 
 

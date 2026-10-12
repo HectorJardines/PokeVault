@@ -27,9 +27,9 @@ static lv_timer_t *tim = NULL;
 static uint16_t curr_screen_id = SCREEN_ID_MAIN;
 static uint8_t scan_stat = 0;
 static uint8_t flags = 0x00 | (DISP_ON_Msk | DISP_SCAN_CPLT_Msk);
-static char armed_val[9] = {'A', 'r', 'm', 'e', 'd', '\0'};
 static char temp_val[4] = {'6', '7', '\0'};
 static char hum_val[4] = {'6', '7', '\0'};
+static char node_id_val[] = "Node: 0";
 /*****************
  * PUBLIC APIs
  *****************/
@@ -59,7 +59,6 @@ void display_init(void) {
 
     lv_label_set_text_static(objects.label_hum_val, hum_val);
     lv_label_set_text_static(objects.label_temp_val, temp_val);
-    lv_label_set_text_static(objects.label_armed_status_val, armed_val);
 }
 
 
@@ -166,15 +165,12 @@ uint8_t display_refresh_value(disp_label_e label, uint16_t val) {
         lv_label_set_text_static(objects.label_temp_val, NULL);
         break;
     case LABEL_STATUS:
-        lv_memset(armed_val, 0, sizeof(armed_val));
-        if (val == 1)
-            lv_snprintf(armed_val, sizeof(armed_val),  "ARMED");
-        else if (val == 0)
-            lv_snprintf(armed_val, sizeof(armed_val),  "DISARMED");
-        else
-            lv_snprintf(armed_val, sizeof(armed_val),  "BREACHED");
-
-        lv_label_set_text_static(objects.label_armed_status_val, NULL);
+        const char *new_status = val == 1 ? "ARMED" : val == 0 ? "DISARMED" : "BREACHED";
+        lv_label_set_text(objects.label_armed_status_val, new_status);
+        break;
+    case LABEL_NODE_ID:
+        memset(node_id_val, 0, sizeof(node_id_val));
+        lv_snprintf(node_id_val, sizeof(node_id_val), "NODE %d", val);
         break;
     }
     
@@ -185,7 +181,6 @@ uint8_t display_refresh_value(disp_label_e label, uint16_t val) {
 /******************
  * STATIC DEFS
  ******************/
-
 static void change_screen_cb(lv_timer_t *tim) {
     lv_timer_reset(tim);
     lv_timer_pause(tim);

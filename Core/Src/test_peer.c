@@ -204,8 +204,7 @@ static void test_system_messaging(void) {
     uint32_t now = HAL_GetTick();
 
     while (1) {
-        if (message_available())
-            status = message_receive(&rx_msg);
+        message_task_process();
         if ((now - auth_tick >= AUTH_PERIOD) && display_scan_cplt()
             && main_sm.current_state != SECURITY_DISARMED) // NO NEED TO SCAN FOR AUTH WHEN UNIT DISARMED
         {
@@ -223,7 +222,7 @@ static void test_system_messaging(void) {
             invent_tick = now;
         }
         if (now - sensor_tick >= SENS_PERIOD) {
-            system_process_state();
+            system_process_state(); 
             sensor_tick = now;
         }
         if (display_is_on()) {

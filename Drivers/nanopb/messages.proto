@@ -7,6 +7,7 @@ message msg_array {
 message msg {
     required uint32 command = 1;
     required uint32 node_id = 2;
+    optional uint32 node_uid = 6;
 
     oneof payload {
         alert type_alert = 3;

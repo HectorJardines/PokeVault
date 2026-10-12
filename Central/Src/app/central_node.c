@@ -142,8 +142,16 @@ static uint8_t handle_command_msg(msg* cmd_msg) {
     case MSG_CMD_SEND_CPLT:
     case MSG_CMD_NONE:
         break;
+    case MSG_CMD_DISCOVER:
+        if (!cmd_msg->has_node_uid) {
+            status = STATUS_ERR;
+            goto cleanup;
+        }
+        status = inventory_post_event(&cmd_msg);
+        break;
     }
 
+cleanup:
     return status;
 }
 

@@ -183,7 +183,8 @@ static void task_client(void *arg) {
         //         // SEND MESSAGE FOR PROCESSING
         //     }
         //     prev_getreq_tick = curr_tick;
-        // }   
+        // }
+        volatile uint32_t free_heap = xPortGetFreeHeapSize();
     }
 }
 

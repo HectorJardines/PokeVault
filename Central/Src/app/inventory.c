@@ -23,7 +23,6 @@
 #define CONDITION_STR_TO_U8(str)            (!strcmp(str, "NM") ? 0 : !strcmp(str, "LP") ? 1 : !strcmp(str, "MP") ? 2 : !strcmp(str, "HP") ? 3 : 4)
 #define U8_TO_CONDITION_STR(u8)             ((u8) == 0 ? "NM" : (u8) == 1 ? "LP" : (u8) == 2 ? "MP" : (u8) == 3 ? "HP" : "DMG")
 
-#define MURMURHASH_SEED         (0xDEADBEEFU)
 #define PG_SIZE                 (256U)
 #define SECTOR_SIZE             (4096U)
 #define SECTORS_PER_BLOCK       (16U)
@@ -128,6 +127,7 @@ struct node_item {
 
 struct storage_node {
     uint8_t id;            /* OFFSET INTO MAIN SNAPSHOT WILL BE NODE_ID * FIXED SIZE + BASE */
+    uint32_t uid;          /* hashed value of 96-bit STM32 MCU UID */
     unit_info_t data;
 
     struct node_item items[MAX_UNIQUE_ITEMS];
@@ -148,6 +148,7 @@ struct storage_node_cache {
  **********************/
 static void task_inventory(void *arg);
 
+static int32_t invent_register_node(uint32_t node_uid, uint8_t *assigend_id);
 static int32_t inventory_remove_item(uint16_t token, uint32_t item_idx, struct storage_node *node);
 static int32_t inventory_enroll_item(uint16_t token, struct storage_node *node, uint8_t match_idx);
 static uint8_t invent_item_is_dupe(struct storage_node *node, uint16_t item_token);
@@ -168,7 +169,7 @@ static int32_t read_node_entry(struct storage_node *node, uint8_t node_id);
 static int32_t flush_journal_evts(void);
 static uint16_t invent_get_item_token(char *name, char *condition);
 static int32_t invent_get_item_desc(uint16_t token, char *name, uint8_t *condition);
-static uint32_t murmurhash3_32(const void* key, size_t len, uint32_t seed);
+
 // Generates the 256-entry lookup table
 void generate_crc32_table(void);
 // Computes the CRC-32 checksum of a data buffer
@@ -417,9 +418,17 @@ static void task_inventory(void *arg) {
     for (;;) {
         if (xQueueReceive(invent_msgq, (void *)&evt_msg, TRANS_PEND_TIMEOUT) == pdTRUE) {
             switch (evt_msg.command) {
-            case 0:
+            case MSG_CMD_NONE:
                 process_transaction(&evt_msg);
                 break;
+            case MSG_CMD_DISCOVER:
+                if (evt_msg.has_node_uid) {
+                    stat = invent_register_node(evt_msg.node_uid, &evt_msg.node_id);
+                    evt_msg.command = stat == STATUS_OK ? MSG_CMD_DISCOVER_OK : MSG_CMD_DISCOVER_ERR;
+                    c_message_post_out(&evt_msg);
+                }
+                break;
+            /* INVENTORY SPECIFIC CMDS USED FOR INTER-TASK COMMUNICATION */
             case SCAN_PRODUCT_CMD:
                 display_load_scanning_screen();
                 do {
@@ -577,6 +586,26 @@ cleanup:
 }
 
 
+/**
+ * @brief Assigns a new node_id to a storage unit
+ * 
+ * @param node_uid 32-bit hash of 96-bit stm32 mcu associated with the storage unit
+ * @param assigned_id the assigned 8-bit id
+ */
+static int32_t invent_register_node(uint32_t node_uid, uint8_t *assigend_id) {
+    struct storage_node new_node;
+    new_node.id = metadata.num_valid_nodes++;
+    *assigend_id = new_node.id;
+    new_node.uid = node_uid;
+    new_node.data.armed = 1;
+    new_node.data.num_records = 0;
+    new_node.data.state = NODE_CLEAN;
+    memset((void *)new_node.items, 0, sizeof(new_node.items));
+
+    return write_evt_to_journal(&new_node, new_node.id);
+}
+
+
 static uint8_t process_transaction(msg *trans) {
     int32_t status = STATUS_ERR;
     uint8_t item_found = 0;
@@ -592,8 +621,8 @@ static uint8_t process_transaction(msg *trans) {
     else if (trans->payload.type_transaction.direction == PRODUCT_IN)
         status = inventory_enroll_item(token, node, match_idx);
 
-    if (!status && node->data.state == CSV_CLEAN)
-        node->data.state = CSV_DIRTY;
+    if (!status && node->data.state == NODE_CLEAN)
+        node->data.state = NODE_DIRTY;
 
 cleanup:
     return status;
@@ -748,13 +777,6 @@ static int32_t write_evt_to_journal(struct storage_node *node, uint8_t node_id) 
     uint32_t br = (invent_flash.journal_sec.size - invent_flash.journal_sec.offset);
     if (br < sizeof(struct storage_node))
         flush_journal_evts();
-/*
-    struct storage_node *node_to_update;
-    int32_t ret = read_node_entry(node_to_update, e->node_id);
-    if (ret || (node_to_update->node_id != e->node_id)) goto cleanup;
-    node_to_update->capacity++;
-    node_to_update->items[e->item_token].qty++;
-*/
     uint32_t write_addr = invent_flash.journal_sec.base_addr + invent_flash.journal_sec.offset;
     metadata.node_journal_addrs[node_id] = write_addr;
     int32_t ret = SPIFLASH_write(&invent_flash.flash_hspi, write_addr, sizeof(struct storage_node), (const uint8_t *)node);
@@ -857,7 +879,6 @@ cleanup:
 }
 
 
-
 /**
  * @brief
  * 
@@ -873,7 +894,7 @@ static uint16_t invent_get_item_token(char *name, char *condition) {
     uint8_t hash_array[MAX_ITEM_NAME_LEN + MAX_ITEM_CND_LEN - 2];
     memcpy((void *)hash_array, (const void *)name, strlen(name));
     memcpy((void *)(hash_array + strlen(name)), (const void *)condition, strlen(condition));
-    uint32_t hash = murmurhash3_32((const void *)hash_array, key_len, MURMURHASH_SEED);
+    uint32_t hash = HASH_VALUE(hash_array, key_len);
     
     for (uint16_t i = 0; i < metadata.num_valid_items; i += 10) {
         ret = SPIFLASH_read(&invent_flash.flash_hspi, FLASH_ADDR_FROM_ITEM_ID(FLASH_ITEM_ENT_AD_BASE, i), sizeof(item_entries), (uint8_t *)item_entries);
@@ -902,8 +923,6 @@ static uint16_t invent_get_item_token(char *name, char *condition) {
     return match_idx;
 }
 
-
-
 static int32_t invent_get_item_desc(uint16_t token, char *name, uint8_t *condition) {
     uint32_t item_addr = FLASH_ADDR_FROM_ITEM_ID(FLASH_ITEM_ENT_AD_BASE, token);
 
@@ -915,58 +934,6 @@ static int32_t invent_get_item_desc(uint16_t token, char *name, uint8_t *conditi
 cleanup:
     return ret;
 }
-
-
-static uint32_t murmurhash3_32(const void* key, size_t len, uint32_t seed) {
-    const uint8_t* data = (const uint8_t*)key;
-    const int nblocks = len / 4;
-    uint32_t h1 = seed;
-
-    const uint32_t c1 = 0xcc9e2d51;
-    const uint32_t c2 = 0x1b873593;
-
-    // ---------- body ----------
-    const uint32_t* blocks = (const uint32_t*)(data + nblocks * 4);
-
-    for (int i = -nblocks; i; i++) {
-        uint32_t k1 = blocks[i];
-
-        k1 *= c1;
-        k1 = (k1 << 15) | (k1 >> 17); // ROTL32(k1, 15)
-        k1 *= c2;
-
-        h1 ^= k1;
-        h1 = (h1 << 13) | (h1 >> 19); // ROTL32(h1, 13)
-        h1 = h1 * 5 + 0xe6546b64;
-    }
-
-    // ---------- tail ----------
-    const uint8_t* tail = (const uint8_t*)(data + nblocks * 4);
-    uint32_t k1 = 0;
-
-    switch (len & 3) {
-        case 3: k1 ^= tail[2] << 16;
-        case 2: k1 ^= tail[1] << 8;
-        case 1: k1 ^= tail[0];
-                k1 *= c1; 
-                k1 = (k1 << 15) | (k1 >> 17); 
-                k1 *= c2; 
-                h1 ^= k1;
-    };
-
-    // ---------- finalization ----------
-    h1 ^= len;
-
-    // fmix32 avalanche step
-    h1 ^= h1 >> 16;
-    h1 *= 0x85ebca6b;
-    h1 ^= h1 >> 13;
-    h1 *= 0xc2b2ae35;
-    h1 ^= h1 >> 16;
-
-    return h1;
-}
-
 
 static uint32_t crc32_table[256];
 static int table_computed = 0;

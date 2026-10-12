@@ -19,12 +19,13 @@
 #include "../app/central_message.h"
 #include "../../Inc/drivers/sd_functions.h"
 
-#define SCAN_TAG_CMD            (1U)
-#define SCAN_PRODUCT_CMD        (2U)
-#define RECORDS_READY_CMD       (5U)
-#define CMD_UNIT_STAT_CH        (6U)
-#define CMD_GET_INVENT_STATS    (7U)
-#define CMD_GET_NODE_STATS      (8U)
+// START FROM 5 BC WE USE THE MSG STRUCT WHICH HAS 4 "BUILT-IN" COMMANDS
+#define SCAN_TAG_CMD            (5U)
+#define SCAN_PRODUCT_CMD        (6U)
+#define RECORDS_READY_CMD       (7U)
+#define CMD_UNIT_STAT_CH        (8U)
+#define CMD_GET_INVENT_STATS    (9U)
+#define CMD_GET_NODE_STATS      (10U)
 
 #define ITEMS_PER_SCREEN    (7U)
 #define NODES_PER_SCREEN    (6U)
@@ -43,8 +44,8 @@
  ********************/
 
 typedef enum {
-    CSV_CLEAN,      // NO CHNAGES HAVE BEEN MADE TO UNIT INVENT SINCE LAST LOAD/WRITE
-    CSV_DIRTY       // CHANGES HAVE BEEN MADE TO UNIT INVENTORY SINCE IT WAS LAST LOADED/WRITTEN
+    NODE_CLEAN,      // NO CHNAGES HAVE BEEN MADE TO UNIT INVENT SINCE LAST LOAD/WRITE
+    NODE_DIRTY       // CHANGES HAVE BEEN MADE TO UNIT INVENTORY SINCE IT WAS LAST LOADED/WRITTEN
 } csv_state_e;
 
 
